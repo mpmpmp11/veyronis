@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pydantic
+groq
+tavily-python
+python-dotenv
+google-genai
+PyPDF2
+python-docx
+openpyxl

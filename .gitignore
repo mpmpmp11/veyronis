@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+daily_limits.json
+veyronis_memory.db
+veyronis.db

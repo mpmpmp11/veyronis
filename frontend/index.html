@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#8b5cf6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>VEYRONIS</title>
+    <!-- FAVICON: Inline SVG, no file needed -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b5cf6'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white' font-weight='bold'%3EV%3C/text%3E%3C/svg%3E">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
+</head>
+<body>
+
+    <!-- SETUP SCREEN -->
+    <div id="setup-screen" class="setup-screen">
+        <div class="ambient-bg">
+            <div class="ambient-orb orb-1"></div>
+            <div class="ambient-orb orb-2"></div>
+            <div class="ambient-orb orb-3"></div>
+        </div>
+        <div class="setup-card glass">
+            <div class="setup-brand">VEYRONIS</div>
+            <div class="setup-tag">Multi-AI Student Assistant</div>
+            <div class="setup-field">
+                <label>Server Address</label>
+                <input type="text" id="api-url" placeholder="http://localhost:8000" value="http://localhost:8000">
+            </div>
+            <div class="setup-field">
+                <label>Pro Code <span class="opt">(optional)</span></label>
+                <input type="text" id="pro-code" placeholder="Enter Pro code">
+            </div>
+            <button class="setup-action" onclick="connect()">Connect</button>
+            <div class="setup-hint">
+                New here? Run <code>python api.py</code> in your project folder.<br>
+                Pro code: <code>DEV-MODE-2026</code>
+            </div>
+        </div>
+    </div>
+
+    <!-- OFFLINE BANNER -->
+    <div id="offline-banner" class="offline-banner hidden">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="1" y1="1" x2="23" y2="23"/>
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+            <path d="M10.71 5.05A16 16 0 0 1 22.58 9"/>
+            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+            <line x1="12" y1="20" x2="12.01" y2="20"/>
+        </svg>
+        <span>You are offline. Messages will queue and send when connection returns.</span>
+        <button onclick="retryConnection()" class="retry-btn">Retry</button>
+    </div>
+
+    <!-- INSTALL PROMPT -->
+    <div id="install-prompt" class="install-prompt hidden">
+        <div class="install-text">Install VEYRONIS for offline access</div>
+        <button class="install-btn" onclick="installPwa()">Install</button>
+        <button class="install-dismiss" onclick="dismissInstall()">×</button>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="app" class="hidden">
+        <div id="sidebar-backdrop" onclick="toggleSidebar()"></div>
+
+        <!-- SIDEBAR -->
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-brand">VEYRONIS</div>
+                <button class="sidebar-close" onclick="toggleSidebar()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="sidebar-profile" onclick="openSettingsPanel()">
+                <div class="sidebar-avatar">V</div>
+                <div class="sidebar-user">
+                    <div class="sidebar-name">You</div>
+                    <div class="sidebar-email" id="sidebar-email">user@veyronis.ai</div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                </svg>
+            </div>
+            <div class="sidebar-scroll">
+                <div class="sidebar-section">Today</div>
+                <div id="conv-list-today" class="conv-list"></div>
+                <div class="sidebar-section">Yesterday</div>
+                <div id="conv-list-yesterday" class="conv-list"></div>
+                <div class="sidebar-section">Previous 7 Days</div>
+                <div id="conv-list-week" class="conv-list"></div>
+            </div>
+            <div class="sidebar-footer">
+                <button class="sidebar-new-chat" onclick="newChat()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    New Chat
+                </button>
+                <div class="sidebar-tier" id="sidebar-tier">Free</div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main id="main">
+            <header class="top-bar" id="top-bar">
+                <div class="top-left">
+                    <button class="top-icon hamburger" onclick="toggleSidebar()" title="Open sidebar">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <line x1="3" y1="6" x2="21" y2="6"/>
+                            <line x1="3" y1="12" x2="21" y2="12"/>
+                            <line x1="3" y1="18" x2="21" y2="18"/>
+                        </svg>
+                    </button>
+                    <div class="top-brand" onclick="newChat()" title="New chat">
+                        <span class="brand-text">VEYRONIS</span>
+                        <span class="brand-badge">v1.2</span>
+                    </div>
+                    <div class="conn-status-wrap checking" id="conn-status-wrap" title="Connection status">
+                        <div class="conn-dot checking" id="conn-dot"></div>
+                        <span class="conn-label" id="conn-label">Connecting...</span>
+                    </div>
+                </div>
+                <div class="top-right">
+                    <button class="top-icon" onclick="toggleSearch()" title="Search">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                    </button>
+                    <button class="top-icon new-chat-btn" onclick="newChat()" title="New chat">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                    </button>
+                    <div class="more-wrap">
+                        <button class="top-icon more-btn" onclick="toggleMoreMenu()" title="More">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <circle cx="12" cy="5" r="1.5"/>
+                                <circle cx="12" cy="12" r="1.5"/>
+                                <circle cx="12" cy="19" r="1.5"/>
+                            </svg>
+                        </button>
+                        <div class="more-menu" id="more-menu">
+                            <div class="more-item" onclick="renameCurrentConv()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                                Rename
+                            </div>
+                            <div class="more-item" onclick="archiveCurrentConv()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="21 8 21 21 3 21 3 8"/>
+                                    <rect x="1" y="3" width="22" height="5"/>
+                                    <line x1="10" y1="12" x2="14" y2="12"/>
+                                </svg>
+                                Archive
+                            </div>
+                            <div class="more-item" onclick="exportChat('json')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                Export
+                            </div>
+                            <div class="more-item" onclick="toast('Files coming soon!', 'info')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                                    <polyline points="13 2 13 9 20 9"/>
+                                </svg>
+                                View Files
+                            </div>
+                            <div class="more-divider"></div>
+                            <div class="more-item danger" onclick="deleteCurrentConv()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                                Delete Chat
+                            </div>
+                        </div>
+                    </div>
+                    <button class="top-icon" onclick="cycleTheme()" title="Theme">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5"/>
+                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                        </svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- CHAT AREA -->
+            <div id="chat-scroll">
+                <div id="messages"></div>
+                <div id="empty-state" class="empty-state">
+                    <div class="empty-brand">VEYRONIS</div>
+                    <div class="empty-hint">How can I help you today?</div>
+                    <div class="chips">
+                        <button class="chip" onclick="quickSend('Explain quantum physics like I am 15')">🔬 Quantum Physics</button>
+                        <button class="chip" onclick="quickSend('Help me outline an essay about climate change')">📝 Essay Outline</button>
+                        <button class="chip" onclick="quickSend('Solve step by step: 2x² + 5x - 3 = 0')">🧮 Math Solver</button>
+                        <button class="chip" onclick="quickSend('Write a Python script that fetches weather data')">💻 Python Code</button>
+                        <button class="chip" onclick="quickSend('Create flashcards about the French Revolution')">📇 Flashcards</button>
+                        <button class="chip" onclick="quickSend('Draw me a majestic dragon')">🎨 Image Gen</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- INPUT AREA -->
+            <div class="input-shell">
+                <div class="input-glass" id="input-glass">
+                    <div class="model-bar">
+                        <button class="model-toggle" id="ai-model-toggle" onclick="toggleAiModelMenu()">
+                            <span id="ai-model-label">Groq</span>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div class="model-menu" id="ai-model-menu">
+                            <button class="model-row ai-model-row active" onclick="pickAiModel('groq','Groq')">
+                                <div class="model-row-name">Groq</div>
+                                <div class="model-row-desc">Llama 3.3 70B — Fast & capable</div>
+                            </button>
+                            <button class="model-row ai-model-row" onclick="pickAiModel('gemini','Gemini')">
+                                <div class="model-row-name">Gemini</div>
+                                <div class="model-row-desc">Google AI — Creative & vision</div>
+                            </button>
+                        </div>
+                        <button class="model-toggle" id="model-toggle" onclick="toggleModelMenu()">
+                            <span id="model-label">Instant</span>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div class="model-menu" id="model-menu">
+                            <button class="model-row active" onclick="pickModel('instant','Instant')">
+                                <div class="model-row-name">Instant</div>
+                                <div class="model-row-desc">Fast responses</div>
+                            </button>
+                            <button class="model-row" onclick="pickModel('smart','Smart')">
+                                <div class="model-row-name">Smart</div>
+                                <div class="model-row-desc">Deeper reasoning</div>
+                            </button>
+                            <button class="model-row" onclick="pickModel('genius','Genius')">
+                                <div class="model-row-name">Genius</div>
+                                <div class="model-row-desc">Maximum capability</div>
+                            </button>
+                            <button class="model-row research-row" onclick="pickModel('research','Research')">
+                                <div class="model-row-name">🔬 Research</div>
+                                <div class="model-row-desc">Deep research report</div>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="composer">
+                        <button class="composer-btn attach" onclick="toggleAttach()" title="Attach">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                            </svg>
+                        </button>
+                        <div class="attach-pop" id="attach-pop">
+                            <div class="attach-item" onclick="triggerDocumentUpload()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                                    <polyline points="13 2 13 9 20 9"/>
+                                </svg>
+                                Upload document
+                            </div>
+                            <div class="attach-item" onclick="triggerImageUpload()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                                    <polyline points="21 15 16 10 5 21"/>
+                                </svg>
+                                Upload image
+                            </div>
+                        </div>
+                        <textarea id="msg-input" placeholder="Message VEYRONIS..." rows="1"></textarea>
+                        <button class="composer-btn mic" id="mic-btn" onclick="toggleMic()" title="Voice">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                <line x1="12" y1="19" x2="12" y2="23"/>
+                                <line x1="8" y1="23" x2="16" y2="23"/>
+                            </svg>
+                        </button>
+                        <button class="composer-btn send" id="send-btn" onclick="sendMessage()" title="Send">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="input-disclaimer">Free: 0/20 today · VEYRONIS can make mistakes</div>
+            </div>
+        </main>
+    </div>
+
+    <div id="toast-box"></div>
+    <div id="drag-overlay" class="drag-overlay">Drop file to upload</div>
+
+    <div id="settings-panel" class="settings-panel hidden">
+        <!-- Settings content here (keep your existing version) -->
+    </div>
+
+    <div id="img-lightbox" class="img-lightbox hidden" onclick="closeLightbox()">
+        <img id="lightbox-img" src="" alt="Full size">
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then(reg => console.log('[VEYRONIS] SW registered'))
+                .catch(err => console.log('[VEYRONIS] SW failed', err));
+        }
+    </script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
