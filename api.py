@@ -1,5 +1,4 @@
 """VEYRONIS API Server + Frontend + JWT Auth (self-contained)."""
-# FORCE_DEPLOY_2026
 import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends
@@ -184,27 +183,49 @@ class TokenResponse(BaseModel):
 # ─── AUTH ENDPOINTS ───
 @app.post("/register")
 async def register(req: RegisterRequest):
-    if "@" not in req.email or "." not in req.email:
-        raise HTTPException(400, detail="Invalid email")
-    if len(req.password) < 6:
-        raise HTTPException(400, detail="Password too short")
-    existing = get_user_by_email(req.email)
-    if existing:
-        raise HTTPException(400, detail="Email already registered")
-    hashed = get_password_hash(req.password)
-    user_id = create_user(req.email, hashed)
-    token = create_access_token({"sub": str(user_id)})
-    return TokenResponse(access_token=token, token_type="bearer", user={"id": user_id, "email": req.email, "is_pro": False})
+    try:
+        if "@" not in req.email or "." not in req.email:
+            raise HTTPException(400, detail="Invalid email")
+        if len(req.password) < 6:
+            raise HTTPException(400, detail="Password too short")
+        existing = get_user_by_email(req.email)
+        if existing:
+            raise HTTPException(400, detail="Email already registered")
+        hashed = get_password_hash(req.password)
+        user_id = create_user(req.email, hashed)
+        token = create_access_token({"sub": str(user_id)})
+        return TokenResponse(
+            access_token=token,
+            token_type="bearer",
+            user={"id": user_id, "email": req.email, "is_pro": False}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[REGISTER ERROR] {e}")
+        traceback.print_exc()
+        raise HTTPException(500, detail=f"Internal error: {str(e)}")
 
 @app.post("/login")
 async def login(req: LoginRequest):
-    user = get_user_by_email(req.email)
-    if not user:
-        raise HTTPException(400, detail="Invalid credentials")
-    if not verify_password(req.password, user["hashed_password"]):
-        raise HTTPException(400, detail="Invalid credentials")
-    token = create_access_token({"sub": str(user["id"])})
-    return TokenResponse(access_token=token, token_type="bearer", user={"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])})
+    try:
+        user = get_user_by_email(req.email)
+        if not user:
+            raise HTTPException(400, detail="Invalid credentials")
+        if not verify_password(req.password, user["hashed_password"]):
+            raise HTTPException(400, detail="Invalid credentials")
+        token = create_access_token({"sub": str(user["id"])})
+        return TokenResponse(
+            access_token=token,
+            token_type="bearer",
+            user={"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[LOGIN ERROR] {e}")
+        traceback.print_exc()
+        raise HTTPException(500, detail=f"Internal error: {str(e)}")
 
 @app.get("/me")
 async def get_me(current_user: dict = Depends(get_current_user_optional)):
@@ -244,7 +265,12 @@ async def export_conversation(conversation_id: int, format: str = "json", user_i
     if format == "json":
         return {"conversation_id": conversation_id, "exported_at": datetime.now().isoformat(), "messages": msgs}
     else:
-        lines = [f"VEYRONIS Chat Export\n{'='*50}\n", f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n", f"Conversation ID: {conversation_id}\n", f"{'='*50}\n\n"]
+        lines = [
+            f"VEYRONIS Chat Export\n{'='*50}\n",
+            f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n",
+            f"Conversation ID: {conversation_id}\n",
+            f"{'='*50}\n\n"
+        ]
         for m in msgs:
             lines.append(f"[{'You' if m['role'] == 'user' else 'VEYRONIS'}] {m.get('time', '')}\n{m['content']}\n\n")
         return {"content": "".join(lines), "filename": f"veyronis_chat_{conversation_id}.txt"}
@@ -267,7 +293,7 @@ async def chat(request: ChatRequest, req: Request, current_user: Optional[dict] 
         raise HTTPException(400, detail="Empty message")
     client_ip = req.client.host
     if request.mode == "canvas" and not is_pro:
-        raise HTTPException(403, detail="Canvas is Pro feature")
+        raise HTTPException(403, detail="Canvas is a Pro feature")
     if not is_pro and not check_free_limit(client_ip):
         raise HTTPException(429, detail="FREE LIMIT reached")
     if not _check_rate_limit(client_ip):
@@ -276,23 +302,29 @@ async def chat(request: ChatRequest, req: Request, current_user: Optional[dict] 
         title = msg[:40] + ("..." if len(msg) > 40 else "") if msg else "Image upload"
         conversation_id = create_conversation(user_id, title=title)
     image_data_url = _b64_to_data_url(request.image) if request.image else None
-    save_message(user_id, "user", msg or "[Image uploaded for analysis]", conversation_id=conversation_id, image_data=image_data_url)
+    user_content = msg or "[Image uploaded for analysis]"
+    save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
     try:
-        result = orchestrator.process_pipeline(msg, mode=request.mode, user_id=user_id, conversation_id=conversation_id,
+        result = orchestrator.process_pipeline(
+            msg, mode=request.mode, user_id=user_id, conversation_id=conversation_id,
             image_b64=request.image, model_mode=request.model_mode, ai_model=request.ai_model,
-            custom_instructions=request.custom_instructions, response_style=request.response_style)
+            custom_instructions=request.custom_instructions, response_style=request.response_style
+        )
         save_message(user_id, "assistant", result["response"], conversation_id=conversation_id)
         if not is_pro:
             add_free_request(client_ip)
-        return ChatResponse(response=result["response"], tier="pro" if is_pro else "free",
-                            conversation_id=conversation_id, reasoning=result.get("reasoning"),
-                            citations=result.get("citations"))
+        return ChatResponse(
+            response=result["response"],
+            tier="pro" if is_pro else "free",
+            conversation_id=conversation_id,
+            reasoning=result.get("reasoning"),
+            citations=result.get("citations")
+        )
     except Exception as e:
         raise HTTPException(500, detail=str(e))
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest, req: Request, current_user: Optional[dict] = Depends(get_current_user_optional)):
-    # Simplified — full version
     msg = request.message.strip()
     user_id = request.user_id.strip()
     conversation_id = request.conversation_id
@@ -303,10 +335,69 @@ async def chat_stream(request: ChatRequest, req: Request, current_user: Optional
         is_pro = request.pro_code in PRO_CODES
         if not user_id:
             user_id = "u_" + str(int(time.time()))
-    # ... (rest of streaming logic)
+    if request.mode == "canvas" and not is_pro:
+        async def err_gen():
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Canvas is Pro feature'})}\n\n"
+        return StreamingResponse(err_gen(), media_type="text/event-stream")
+    client_ip = req.client.host
+    has_image = request.image is not None and len(request.image) > 0
+    has_text = len(msg) > 0
+    if has_text and not check_input(msg)[0]:
+        async def err_gen():
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Blocked'})}\n\n"
+        return StreamingResponse(err_gen(), media_type="text/event-stream")
+    if not has_text and not has_image:
+        async def err_gen():
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Empty'})}\n\n"
+        return StreamingResponse(err_gen(), media_type="text/event-stream")
+    if not is_pro and not check_free_limit(client_ip):
+        async def err_gen():
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Free limit reached'})}\n\n"
+        return StreamingResponse(err_gen(), media_type="text/event-stream")
+    if not _check_rate_limit(client_ip):
+        async def err_gen():
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Rate limit'})}\n\n"
+        return StreamingResponse(err_gen(), media_type="text/event-stream")
+    if not conversation_id:
+        title = msg[:40] + ("..." if len(msg) > 40 else "") if has_text else "Image upload"
+        conversation_id = create_conversation(user_id, title=title)
+    image_data_url = _b64_to_data_url(request.image) if has_image else None
+    user_content = msg if has_text else "[Image uploaded for analysis]"
+    save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
     async def event_generator():
-        yield f"data: {json.dumps({'type': 'token', 'content': 'Streaming working'})}\n\n"
-        yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free'})}\n\n"
+        full_response = ""
+        effective_query = msg if has_text else ""
+        try:
+            for event_type, content in orchestrator.process_pipeline_stream(
+                effective_query, mode=request.mode, user_id=user_id, conversation_id=conversation_id,
+                image_b64=request.image if has_image else None, model_mode=request.model_mode,
+                ai_model=request.ai_model, custom_instructions=request.custom_instructions,
+                response_style=request.response_style
+            ):
+                if event_type == "token":
+                    full_response += content
+                    yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+                elif event_type == "reasoning" and content:
+                    yield f"data: {json.dumps({'type': 'reasoning', 'content': content})}\n\n"
+                elif event_type == "citations":
+                    yield f"data: {json.dumps({'type': 'citations', 'content': content})}\n\n"
+                elif event_type == "research_step":
+                    yield f"data: {json.dumps({'type': 'research_step', 'content': content})}\n\n"
+                elif event_type == "error":
+                    yield f"data: {json.dumps({'type': 'error', 'content': content})}\n\n"
+                    return
+            yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free'})}\n\n"
+            save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
+            if not is_pro:
+                add_free_request(client_ip)
+        except GeneratorExit:
+            if full_response:
+                save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
+            raise
+        except Exception as e:
+            print(f"[STREAM ERROR] {e}")
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.post("/upload")
@@ -315,9 +406,27 @@ async def upload_document(file: UploadFile = File(...), user_id: str = "", conve
         user_id = "u_auto_" + str(int(time.time()))
     content = await file.read()
     text = DocumentParser.extract_text(content, file.filename)
+    gemini_analysis = None
+    try:
+        if Config.gemini_ready() and orchestrator.gemini_agent:
+            gemini_analysis = orchestrator.gemini_agent.generate_document_response(
+                content, file.filename,
+                prompt="Analyze this document thoroughly. Provide a concise summary, key points, main arguments, important data, and notable sections."
+            )
+    except Exception as e:
+        print(f"[VEYRONIS] Gemini doc analysis failed: {e}")
     if not conversation_id:
         conversation_id = create_conversation(user_id, title=file.filename)
-    return {"filename": file.filename, "extracted_length": len(text), "preview": text[:500], "content": text[:3000], "conversation_id": conversation_id}
+    response = {
+        "filename": file.filename,
+        "extracted_length": len(text),
+        "preview": text[:500],
+        "content": text[:3000],
+        "conversation_id": conversation_id
+    }
+    if gemini_analysis:
+        response["gemini_analysis"] = gemini_analysis
+    return response
 
 @app.post("/clear")
 async def clear_chat(request: Request):
@@ -339,13 +448,15 @@ async def list_conversations(user_id: str):
 async def new_conversation(req: NewConversationRequest):
     if not req.user_id:
         raise HTTPException(400, detail="Missing user_id")
-    return {"id": create_conversation(req.user_id, req.title), "title": req.title}
+    cid = create_conversation(req.user_id, req.title)
+    return {"id": cid, "title": req.title}
 
 @app.patch("/conversations/{conversation_id}")
 async def patch_conversation(conversation_id: int, req: RenameRequest):
     if not req.title.strip():
         raise HTTPException(400, detail="Empty title")
-    if not rename_conversation(conversation_id, req.title.strip()):
+    ok = rename_conversation(conversation_id, req.title.strip())
+    if not ok:
         raise HTTPException(404, detail="Conversation not found")
     return {"status": "renamed"}
 
@@ -364,7 +475,15 @@ async def execute_code(request: Request):
 
 @app.get("/health")
 async def health():
-    return {"status": "VEYRONIS is online", "version": "1.2-alpha", "models": {"groq": bool(Config.GROQ_API_KEY), "tavily": bool(Config.TAVILY_API_KEY), "gemini": Config.gemini_ready()}, "timestamp": datetime.now().isoformat()}
+    groq_ok = bool(Config.GROQ_API_KEY)
+    tavily_ok = bool(Config.TAVILY_API_KEY)
+    gemini_ok = Config.gemini_ready()
+    return {
+        "status": "VEYRONIS is online",
+        "version": "1.2-alpha",
+        "models": {"groq": groq_ok, "tavily": tavily_ok, "gemini": gemini_ok},
+        "timestamp": datetime.now().isoformat()
+    }
 
 @app.get("/ping")
 async def ping():
@@ -372,13 +491,9 @@ async def ping():
 
 @app.get("/routes")
 async def routes():
-    """List all registered routes for debugging."""
     route_list = []
     for route in app.routes:
-        route_list.append({
-            "path": route.path,
-            "methods": list(route.methods) if hasattr(route, "methods") else []
-        })
+        route_list.append({"path": route.path, "methods": list(route.methods) if hasattr(route, "methods") else []})
     return {"routes": route_list}
 
 if __name__ == "__main__":
