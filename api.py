@@ -165,14 +165,12 @@ class TokenResponse(BaseModel):
 @app.post("/register")
 async def register(req: RegisterRequest):
     """Register a new user."""
-    # Validate email format (basic)
     if "@" not in req.email or "." not in req.email:
         raise HTTPException(status_code=400, detail="Invalid email format")
     
     if len(req.password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     
-    # Check if user exists
     existing = get_user_by_email(req.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -180,7 +178,6 @@ async def register(req: RegisterRequest):
     hashed = get_password_hash(req.password)
     user_id = create_user(req.email, hashed)
     
-    # Create access token
     token = create_access_token(data={"sub": str(user_id)})
     return TokenResponse(
         access_token=token,
@@ -215,8 +212,7 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 @app.post("/upgrade")
 async def upgrade_to_pro(current_user: dict = Depends(get_current_user)):
-    """Upgrade current user to PRO (will be replaced with Google Play Billing later)."""
-    # For now, this is a placeholder. In production, this will be called after purchase verification.
+    """Upgrade current user to PRO."""
     set_user_pro(current_user["id"], True)
     return {"message": "Upgraded to PRO", "is_pro": True}
 
@@ -287,7 +283,6 @@ async def chat(
     user_id = request.user_id.strip()
     conversation_id = request.conversation_id
 
-    # If user is authenticated, use their email as user_id
     if current_user:
         user_id = current_user["email"]
         is_pro = current_user["is_pro"]
@@ -353,7 +348,6 @@ async def chat_stream(
     user_id = request.user_id.strip()
     conversation_id = request.conversation_id
 
-    # If user is authenticated, use their email as user_id
     if current_user:
         user_id = current_user["email"]
         is_pro = current_user["is_pro"]
