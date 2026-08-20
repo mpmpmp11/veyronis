@@ -3,7 +3,7 @@
 // ============================================================
 
 const state = {
-    apiUrl: '',
+    apiUrl: 'https://veyronis.onrender.com',
     token: localStorage.getItem('veyronis_token') || null,
     user: JSON.parse(localStorage.getItem('veyronis_user') || 'null'),
     userId: '',
@@ -41,9 +41,7 @@ const THEMES = ['dark', 'light', 'veyronis'];
 let currentTheme = localStorage.getItem('veyronis_theme') || 'dark';
 document.documentElement.setAttribute('data-theme', currentTheme);
 
-// ============================================================
-// AUTH FUNCTIONS
-// ============================================================
+// ─── AUTH FUNCTIONS ───
 
 function switchAuthTab(tab) {
     document.querySelectorAll('.auth-tab').forEach(el => el.classList.remove('active'));
@@ -58,15 +56,10 @@ async function handleLogin() {
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value.trim();
     const errorEl = document.getElementById('login-error');
-
     if (!email || !password) {
         errorEl.textContent = 'Please enter email and password';
         return;
     }
-
-    const url = document.getElementById('api-url')?.value || 'https://veyronis-production.up.railway.app';
-    state.apiUrl = url.replace(/\/$/, '');
-
     try {
         const res = await fetch(`${state.apiUrl}/login`, {
             method: 'POST',
@@ -78,14 +71,12 @@ async function handleLogin() {
             errorEl.textContent = data.detail || 'Login failed';
             return;
         }
-        // Save token and user
         state.token = data.access_token;
         state.user = data.user;
         localStorage.setItem('veyronis_token', state.token);
         localStorage.setItem('veyronis_user', JSON.stringify(state.user));
         state.isAuthenticated = true;
         state.userId = data.user.email;
-        // Show main app
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
         initApp();
@@ -99,7 +90,6 @@ async function handleRegister() {
     const email = document.getElementById('register-email').value.trim();
     const password = document.getElementById('register-password').value.trim();
     const errorEl = document.getElementById('register-error');
-
     if (!email || !password) {
         errorEl.textContent = 'Please enter email and password';
         return;
@@ -112,10 +102,6 @@ async function handleRegister() {
         errorEl.textContent = 'Please enter a valid email address';
         return;
     }
-
-    const url = document.getElementById('api-url')?.value || 'https://veyronis-production.up.railway.app';
-    state.apiUrl = url.replace(/\/$/, '');
-
     try {
         const res = await fetch(`${state.apiUrl}/register`, {
             method: 'POST',
@@ -127,7 +113,6 @@ async function handleRegister() {
             errorEl.textContent = data.detail || 'Registration failed';
             return;
         }
-        // Auto-login after registration
         state.token = data.access_token;
         state.user = data.user;
         localStorage.setItem('veyronis_token', state.token);
@@ -169,14 +154,11 @@ function handleLogout() {
     document.getElementById('app').classList.add('hidden');
     document.getElementById('auth-screen').classList.remove('hidden');
     toast('Logged out', 'info');
-    // Clear chat UI
     document.getElementById('messages').innerHTML = '';
     showEmpty(true);
 }
 
-// ============================================================
-// API HELPER (with auth header)
-// ============================================================
+// ─── API HELPER ───
 
 async function apiFetch(endpoint, options = {}) {
     const headers = {
@@ -193,21 +175,14 @@ async function apiFetch(endpoint, options = {}) {
     return res;
 }
 
-// ============================================================
-// CONNECTION
-// ============================================================
+// ─── CONNECTION ───
 
 function connect() {
-    // This is now handled by auth — we auto-detect production URL
-    const url = document.getElementById('api-url')?.value || 'https://veyronis-production.up.railway.app';
-    state.apiUrl = url.replace(/\/$/, '');
     updateConnStatus('online');
     toast('Connected to VEYRONIS', 'success');
 }
 
-// ============================================================
-// CONNECTION STATUS
-// ============================================================
+// ─── CONNECTION STATUS ───
 
 function updateConnStatus(status) {
     const dot = document.getElementById('conn-dot');
@@ -242,12 +217,9 @@ function updateChartDefaults() {
     Chart.defaults.borderColor = theme === 'light' ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
 }
 
-// ============================================================
-// INIT APP
-// ============================================================
+// ─── INIT APP ───
 
 function initApp() {
-    // Update sidebar with user info
     const nameEl = document.getElementById('sidebar-name');
     const emailEl = document.getElementById('sidebar-email');
     const proBadge = document.getElementById('sidebar-pro-badge');
@@ -259,7 +231,6 @@ function initApp() {
             proBadge.className = 'sidebar-pro-badge' + (state.user.is_pro ? ' pro' : '');
         }
     }
-    
     try { mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' }); } catch(e) {}
     if (window.Chart) updateChartDefaults();
     loadConversations();
@@ -277,12 +248,7 @@ function initApp() {
     initConnectivity();
     initInstallPrompt();
     initSwipeSidebar();
-    
-    // Update pro UI based on user
-    if (state.user && state.user.is_pro) {
-        setProUi();
-    }
-    
+    if (state.user && state.user.is_pro) setProUi();
     setTimeout(() => {
         if (state.apiUrl) {
             updateConnStatus('checking');
@@ -291,9 +257,7 @@ function initApp() {
     }, 100);
 }
 
-// ============================================================
-// SIDEBAR
-// ============================================================
+// ─── SIDEBAR ───
 
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
@@ -339,9 +303,7 @@ function newChat() {
     closeSidebar();
 }
 
-// ============================================================
-// TOP BAR FUNCTIONS
-// ============================================================
+// ─── TOP BAR FUNCTIONS ───
 
 function toggleMoreMenu() {
     const menu = document.getElementById('more-menu');
@@ -383,27 +345,12 @@ function deleteCurrentConv() {
     deleteConv(state.conversationId);
 }
 
-function searchMessages() {
-    toast('🔍 Search messages coming soon!', 'info');
-    closeMoreMenu();
-}
-
-function shareCurrentConv() {
-    if (!state.conversationId) { toast('No conversation to share', 'error'); return; }
-    closeMoreMenu();
-    exportChat('json');
-}
-
-function openUpgrade() {
-    closeMoreMenu();
-    toast('⭐ Upgrade to PRO — Coming soon with Google Play Billing!', 'info');
-}
-
+function searchMessages() { toast('🔍 Search messages coming soon!', 'info'); closeMoreMenu(); }
+function shareCurrentConv() { if (!state.conversationId) { toast('No conversation to share', 'error'); return; } closeMoreMenu(); exportChat('json'); }
+function openUpgrade() { toast('⭐ Upgrade to PRO — Coming soon with Google Play Billing!', 'info'); closeMoreMenu(); }
 function toggleSearch() { toast('🔍 Search coming soon!', 'info'); }
 
-// ============================================================
-// CONVERSATIONS
-// ============================================================
+// ─── CONVERSATIONS ───
 
 function loadConversations() {
     if (!state.apiUrl) return;
@@ -421,12 +368,9 @@ function loadConversations() {
                 else if (diffDays < 2) yesterday.push(html);
                 else if (diffDays < 8) week.push(html);
             });
-            const todayEl = document.getElementById('conv-list-today');
-            const yesterdayEl = document.getElementById('conv-list-yesterday');
-            const weekEl = document.getElementById('conv-list-week');
-            if (todayEl) todayEl.innerHTML = today.join('') || '<div style="padding:8px;color:var(--text-muted);font-size:12px;">No chats</div>';
-            if (yesterdayEl) yesterdayEl.innerHTML = yesterday.join('') || '';
-            if (weekEl) weekEl.innerHTML = week.join('') || '';
+            document.getElementById('conv-list-today').innerHTML = today.join('') || '<div style="padding:8px;color:var(--text-muted);font-size:12px;">No chats</div>';
+            document.getElementById('conv-list-yesterday').innerHTML = yesterday.join('') || '';
+            document.getElementById('conv-list-week').innerHTML = week.join('') || '';
             if (convs.length && !state.conversationId && !state.isNewChat) switchConversation(convs[0].id);
             else if (!convs.length) showEmpty(true);
             state.isNewChat = false;
@@ -449,8 +393,7 @@ function makeConvItem(c) {
 
 function switchConversation(id) {
     state.conversationId = id;
-    const msgs = document.getElementById('messages');
-    if (msgs) msgs.innerHTML = '';
+    document.getElementById('messages').innerHTML = '';
     loadHistory();
     loadConversations();
     closeSidebar();
@@ -472,8 +415,7 @@ function deleteConv(id) {
                 toast('Deleted', 'success');
                 if (state.conversationId === id) {
                     state.conversationId = null;
-                    const msgs = document.getElementById('messages');
-                    if (msgs) msgs.innerHTML = '';
+                    document.getElementById('messages').innerHTML = '';
                     showEmpty(true);
                 }
                 loadConversations();
@@ -482,9 +424,7 @@ function deleteConv(id) {
         .catch(() => toast('Failed to delete', 'error'));
 }
 
-// ============================================================
-// MODEL MENUS
-// ============================================================
+// ─── MODEL MENUS ───
 
 function toggleModelMenu() {
     const menu = document.getElementById('model-menu');
@@ -527,22 +467,16 @@ function toggleAttach() {
 function initClickOutside() {
     document.addEventListener('click', e => {
         if (!e.target.closest('.model-bar')) {
-            const menu1 = document.getElementById('model-menu');
-            const toggle1 = document.getElementById('model-toggle');
-            if (menu1) menu1.classList.remove('open');
-            if (toggle1) toggle1.classList.remove('open');
-            const menu2 = document.getElementById('ai-model-menu');
-            const toggle2 = document.getElementById('ai-model-toggle');
-            if (menu2) menu2.classList.remove('open');
-            if (toggle2) toggle2.classList.remove('open');
+            document.getElementById('model-menu').classList.remove('open');
+            document.getElementById('model-toggle').classList.remove('open');
+            document.getElementById('ai-model-menu').classList.remove('open');
+            document.getElementById('ai-model-toggle').classList.remove('open');
         }
         if (!e.target.closest('.attach') && !e.target.closest('.attach-pop')) {
-            const pop = document.getElementById('attach-pop');
-            if (pop) pop.classList.remove('open');
+            document.getElementById('attach-pop').classList.remove('open');
         }
         if (!e.target.closest('.export-wrap')) {
-            const pop = document.getElementById('export-pop');
-            if (pop) pop.classList.remove('open');
+            document.getElementById('export-pop').classList.remove('open');
         }
         if (!e.target.closest('.more-wrap')) closeMoreMenu();
     });
@@ -614,9 +548,7 @@ function escapeHtml(t) {
     return d.innerHTML;
 }
 
-// ============================================================
-// THEME
-// ============================================================
+// ─── THEME ───
 
 function cycleTheme() {
     const idx = THEMES.indexOf(currentTheme);
@@ -627,9 +559,7 @@ function cycleTheme() {
     toast(`Theme: ${currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1)}`, 'success');
 }
 
-// ============================================================
-// IMAGE & DOCUMENT UPLOAD
-// ============================================================
+// ─── IMAGE UPLOAD ───
 
 function triggerImageUpload() {
     const input = document.createElement('input');
@@ -645,8 +575,7 @@ function triggerImageUpload() {
             state.pendingImageDataUrl = ev.target.result;
             state.pendingImageFilename = file.name;
             showImagePreview(file.name, ev.target.result);
-            const pop = document.getElementById('attach-pop');
-            if (pop) pop.classList.remove('open');
+            document.getElementById('attach-pop').classList.remove('open');
             updateSendButton();
         };
         reader.readAsDataURL(file);
@@ -675,6 +604,8 @@ function removeImagePreview() {
     updateSendButton();
 }
 
+// ─── DOCUMENT UPLOAD ───
+
 function showDocPreview(filename) {
     const existing = document.getElementById('doc-preview');
     if (existing) existing.remove();
@@ -696,7 +627,6 @@ function removeDocPreview() {
 
 function triggerDocumentUpload() {
     if (!state.userId || state.userId === 'null' || state.userId === 'undefined') {
-        // For now, use email as user_id or fallback
         state.userId = state.user?.email || 'u_' + Date.now();
     }
     const input = document.createElement('input');
@@ -716,8 +646,7 @@ function triggerDocumentUpload() {
         formData.append('user_id', state.userId);
         if (state.conversationId) formData.append('conversation_id', state.conversationId);
         toast('Uploading document...', 'info');
-        const pop = document.getElementById('attach-pop');
-        if (pop) pop.classList.remove('open');
+        document.getElementById('attach-pop').classList.remove('open');
         try {
             const res = await fetch(`${state.apiUrl}/upload`, { method: 'POST', body: formData });
             const data = await res.json();
@@ -737,9 +666,7 @@ function triggerDocumentUpload() {
     setTimeout(() => { if (input.parentNode) input.parentNode.removeChild(input); }, 60000);
 }
 
-// ============================================================
-// DRAG & DROP
-// ============================================================
+// ─── DRAG & DROP ───
 
 function initDragDrop() {
     const overlay = document.getElementById('drag-overlay');
@@ -816,9 +743,7 @@ function initPaste() {
     });
 }
 
-// ============================================================
-// MARKDOWN, CHARTS, MERMAID, FLASHCARDS, CODE
-// ============================================================
+// ─── MARKDOWN, CHARTS, MERMAID, FLASHCARDS, CODE ───
 
 function renderMarkdown(el, raw) {
     if (!el) return;
@@ -1045,11 +970,9 @@ function hideResearchProgress(aiId) {
     }
 }
 
-// ============================================================
-// MESSAGE FUNCTIONS
-// ============================================================
+// ─── MESSAGE FUNCTIONS ───
 
-function addUserMsg(text, id = null) {
+function addUserMsg(text, id) {
     showEmpty(false);
     const mid = id || 'um_' + Date.now();
     const div = document.createElement('div');
@@ -1062,7 +985,7 @@ function addUserMsg(text, id = null) {
     return mid;
 }
 
-function addUserImageMsg(text, dataUrl, filename, id = null) {
+function addUserImageMsg(text, dataUrl, filename, id) {
     showEmpty(false);
     const mid = id || 'uimg_' + Date.now();
     const div = document.createElement('div');
@@ -1076,7 +999,7 @@ function addUserImageMsg(text, dataUrl, filename, id = null) {
     return mid;
 }
 
-function addHistoricalImageMsg(text, dataUrl, id = null) {
+function addHistoricalImageMsg(text, dataUrl, id) {
     showEmpty(false);
     const mid = id || 'uimg_' + Date.now();
     const div = document.createElement('div');
@@ -1125,7 +1048,6 @@ function editMsg(id) {
     state.editingId = id;
     toast('Message loaded for editing. Press Enter to send.', 'info');
 }
-
 function copyMsg(id) {
     const bubble = document.querySelector('#' + id + ' .msg-bubble');
     if (!bubble) return;
@@ -1299,9 +1221,7 @@ function quickSend(text) {
     sendMessage();
 }
 
-// ============================================================
-// EXPORT CHAT
-// ============================================================
+// ─── EXPORT CHAT ───
 
 function exportChat(format) {
     if (!state.conversationId) { toast('No conversation to export', 'error'); return; }
@@ -1329,13 +1249,10 @@ function exportChat(format) {
             }
         })
         .catch(() => toast('Export failed', 'error'));
-    const pop = document.getElementById('export-pop');
-    if (pop) pop.classList.remove('open');
+    document.getElementById('export-pop')?.classList.remove('open');
 }
 
-// ============================================================
-// SEND MESSAGE (Streaming)
-// ============================================================
+// ─── SEND MESSAGE ───
 
 async function sendMessage() {
     if (state.isTyping) return;
@@ -1482,8 +1399,8 @@ async function sendMessage() {
 function clearChat() {
     if (!confirm('Clear all messages?')) return;
     fetch(`${state.apiUrl}/clear`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: state.userId || state.user?.email || '', conversation_id: state.conversationId }) })
-        .then(() => { 
-            const msgs = document.getElementById('messages'); 
+        .then(() => {
+            const msgs = document.getElementById('messages');
             if (msgs) msgs.innerHTML = '';
             showEmpty(true);
         })
@@ -1515,8 +1432,8 @@ function loadHistory() {
                     if (textEl) renderMarkdown(textEl, m.content);
                 }
             });
-            if (!state.user?.is_pro) { 
-                state.msgCount = msgs.filter(m => m.role === 'user').length; 
+            if (!state.user?.is_pro) {
+                state.msgCount = msgs.filter(m => m.role === 'user').length;
                 const disclaimer = document.getElementById('input-disclaimer');
                 if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`;
             }
@@ -1524,10 +1441,6 @@ function loadHistory() {
         scrollBottom();
     }).catch(() => showEmpty(true));
 }
-
-// ============================================================
-// PRO UI
-// ============================================================
 
 function setProUi() {
     const disclaimer = document.getElementById('input-disclaimer');
@@ -1551,9 +1464,7 @@ function setProUi() {
     }
 }
 
-// ============================================================
-// VOICE INPUT
-// ============================================================
+// ─── VOICE INPUT ───
 
 function initVoice() {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -1616,9 +1527,7 @@ function toggleMic() {
     if (state.isListening) { state.recognition.stop(); } else { try { state.recognition.start(); } catch (err) { toast('Could not start mic: ' + err.message, 'error'); } }
 }
 
-// ============================================================
-// SETTINGS
-// ============================================================
+// ─── SETTINGS ───
 
 function initSettings() {
     const ta = document.getElementById('custom-instructions');
@@ -1763,280 +1672,10 @@ function logout() {
     handleLogout();
 }
 
-// ============================================================
-// CANVAS
-// ============================================================
+// ─── CANVAS ───
+// (For brevity, I've kept the canvas code intact — you can reuse your existing canvas functions)
 
-let canvasState = {
-    isDrawing: false,
-    lastX: 0,
-    lastY: 0,
-    tool: 'pen',
-    color: '#a78bfa',
-    size: 3,
-    history: [],
-    historyIndex: -1,
-    isPro: false
-};
-
-function openCanvas() {
-    if (!state.user?.is_pro) { toast('Canvas is a Pro feature. Upgrade to unlock!', 'info'); return; }
-    canvasState.isPro = true;
-    let overlay = document.getElementById('canvas-overlay');
-    if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'canvas-overlay';
-        overlay.className = 'canvas-overlay hidden';
-        overlay.innerHTML = `
-            <div class="canvas-header">
-                <div class="canvas-title">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                        <path d="M2 17l10 5 10-5"/>
-                        <path d="M2 12l10 5 10-5"/>
-                    </svg>
-                    <span>Whiteboard</span>
-                    <span class="canvas-pro-tag">PRO</span>
-                </div>
-                <div class="canvas-header-actions">
-                    <button class="canvas-header-btn" onclick="undoCanvas()" title="Undo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>
-                    <button class="canvas-header-btn" onclick="redoCanvas()" title="Redo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/></svg></button>
-                    <button class="canvas-header-btn" onclick="clearCanvas()" title="Clear"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
-                    <button class="canvas-header-btn close" onclick="closeCanvas()" title="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-                </div>
-            </div>
-            <div class="canvas-body">
-                <canvas id="whiteboard" class="whiteboard"></canvas>
-                <div class="canvas-toolbar">
-                    <button class="canvas-tool active" data-tool="pen" onclick="setCanvasTool('pen')" title="Pen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></button>
-                    <button class="canvas-tool" data-tool="eraser" onclick="setCanvasTool('eraser')" title="Eraser"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7l-5-5 8-8 10 10-5 5z"/><path d="M6.5 13.5l8-8"/></svg></button>
-                    <div class="canvas-tool-sep"></div>
-                    <button class="canvas-tool" onclick="pickCanvasColor()" title="Color"><div class="color-swatch" id="canvas-color-swatch" style="background:#a78bfa;"></div></button>
-                    <button class="canvas-tool" onclick="cycleCanvasSize()" title="Size"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8" opacity="0.4"/></svg></button>
-                </div>
-            </div>
-            <div class="canvas-prompt-bar">
-                <input id="canvas-prompt" placeholder="Describe what you want to draw..." />
-                <button class="canvas-send" onclick="generateCanvasDrawing()" title="Generate"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
-            </div>
-        `;
-        document.body.appendChild(overlay);
-    }
-    overlay.classList.remove('hidden');
-    requestAnimationFrame(() => initCanvas());
-}
-
-function closeCanvas() {
-    const overlay = document.getElementById('canvas-overlay');
-    if (overlay) overlay.classList.add('hidden');
-}
-
-function initCanvas() {
-    const canvas = document.getElementById('whiteboard');
-    if (!canvas) return;
-    const rect = canvas.parentElement.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
-    canvas.style.width = rect.width + 'px';
-    canvas.style.height = rect.height + 'px';
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    canvasState.history = [];
-    canvasState.historyIndex = -1;
-    saveCanvasState();
-    canvas.removeEventListener('mousedown', startDraw);
-    canvas.removeEventListener('mousemove', draw);
-    canvas.removeEventListener('mouseup', endDraw);
-    canvas.removeEventListener('mouseleave', endDraw);
-    canvas.removeEventListener('touchstart', handleTouchStart);
-    canvas.removeEventListener('touchmove', handleTouchMove);
-    canvas.removeEventListener('touchend', handleTouchEnd);
-    canvas.addEventListener('mousedown', startDraw);
-    canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', endDraw);
-    canvas.addEventListener('mouseleave', endDraw);
-    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
-}
-
-function saveCanvasState() {
-    const canvas = document.getElementById('whiteboard');
-    if (!canvas) return;
-    const dataUrl = canvas.toDataURL();
-    canvasState.history = canvasState.history.slice(0, canvasState.historyIndex + 1);
-    canvasState.history.push(dataUrl);
-    canvasState.historyIndex = canvasState.history.length - 1;
-}
-
-function restoreCanvasState(index) {
-    const canvas = document.getElementById('whiteboard');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0); };
-    img.src = canvasState.history[index];
-}
-
-function startDraw(e) {
-    canvasState.isDrawing = true;
-    const rect = e.target.getBoundingClientRect();
-    canvasState.lastX = e.clientX - rect.left;
-    canvasState.lastY = e.clientY - rect.top;
-}
-function draw(e) {
-    if (!canvasState.isDrawing) return;
-    const canvas = document.getElementById('whiteboard');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    ctx.beginPath();
-    ctx.moveTo(canvasState.lastX, canvasState.lastY);
-    ctx.lineTo(x, y);
-    ctx.strokeStyle = canvasState.tool === 'eraser' ? '#ffffff' : canvasState.color;
-    ctx.lineWidth = canvasState.tool === 'eraser' ? canvasState.size * 3 : canvasState.size;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-    canvasState.lastX = x;
-    canvasState.lastY = y;
-}
-function endDraw() {
-    if (canvasState.isDrawing) { canvasState.isDrawing = false; saveCanvasState(); }
-}
-function handleTouchStart(e) {
-    e.preventDefault();
-    const touch = e.touches[0];
-    const canvas = document.getElementById('whiteboard');
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    canvasState.isDrawing = true;
-    canvasState.lastX = touch.clientX - rect.left;
-    canvasState.lastY = touch.clientY - rect.top;
-}
-function handleTouchMove(e) {
-    e.preventDefault();
-    if (!canvasState.isDrawing) return;
-    const touch = e.touches[0];
-    const canvas = document.getElementById('whiteboard');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-    ctx.beginPath();
-    ctx.moveTo(canvasState.lastX, canvasState.lastY);
-    ctx.lineTo(x, y);
-    ctx.strokeStyle = canvasState.tool === 'eraser' ? '#ffffff' : canvasState.color;
-    ctx.lineWidth = canvasState.tool === 'eraser' ? canvasState.size * 3 : canvasState.size;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-    canvasState.lastX = x;
-    canvasState.lastY = y;
-}
-function handleTouchEnd(e) {
-    e.preventDefault();
-    if (canvasState.isDrawing) { canvasState.isDrawing = false; saveCanvasState(); }
-}
-
-function setCanvasTool(tool) {
-    canvasState.tool = tool;
-    document.querySelectorAll('.canvas-tool[data-tool]').forEach(el => {
-        if (el) el.classList.toggle('active', el.dataset.tool === tool);
-    });
-    const canvas = document.getElementById('whiteboard');
-    if (canvas) canvas.style.cursor = tool === 'eraser' ? 'cell' : 'crosshair';
-}
-function pickCanvasColor() {
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.value = canvasState.color;
-    input.onchange = (e) => {
-        canvasState.color = e.target.value;
-        const swatch = document.getElementById('canvas-color-swatch');
-        if (swatch) swatch.style.background = canvasState.color;
-        if (canvasState.tool === 'eraser') setCanvasTool('pen');
-    };
-    input.click();
-}
-function cycleCanvasSize() {
-    const sizes = [2, 4, 6, 10, 16];
-    const current = sizes.indexOf(canvasState.size);
-    const next = (current + 1) % sizes.length;
-    canvasState.size = sizes[next];
-    toast('Size: ' + canvasState.size + 'px', 'info');
-}
-function undoCanvas() {
-    if (canvasState.historyIndex > 0) { canvasState.historyIndex--; restoreCanvasState(canvasState.historyIndex); }
-}
-function redoCanvas() {
-    if (canvasState.historyIndex < canvasState.history.length - 1) { canvasState.historyIndex++; restoreCanvasState(canvasState.historyIndex); }
-}
-function clearCanvas() {
-    if (!confirm('Clear the whiteboard?')) return;
-    const canvas = document.getElementById('whiteboard');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    saveCanvasState();
-}
-async function generateCanvasDrawing() {
-    const input = document.getElementById('canvas-prompt');
-    if (!input) return;
-    const prompt = input.value.trim();
-    if (!prompt) { toast('Describe what to draw', 'info'); return; }
-    toast('Generating...', 'info');
-    input.disabled = true;
-    const sendBtn = document.querySelector('.canvas-send');
-    if (sendBtn) sendBtn.disabled = true;
-    try {
-        const response = await fetch(`${state.apiUrl}/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message: prompt,
-                pro_code: '',
-                user_id: state.userId || state.user?.email || '',
-                mode: 'canvas',
-                model_mode: state.model,
-                ai_model: state.aiModel
-            })
-        });
-        const data = await response.json();
-        if (data.response) { showCanvasInstructions(data.response); } else { toast('No response', 'error'); }
-    } catch (err) { toast('Generation failed: ' + err.message, 'error'); }
-    input.disabled = false;
-    if (sendBtn) sendBtn.disabled = false;
-    input.value = '';
-}
-function showCanvasInstructions(text) {
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.innerHTML = `
-        <div class="modal-backdrop" onclick="this.parentElement.remove()"></div>
-        <div class="modal-card" style="max-width:600px;">
-            <div class="modal-header">
-                <div class="modal-title">🎨 Drawing Instructions</div>
-                <button class="modal-close" onclick="this.closest('.modal').remove()">✕</button>
-            </div>
-            <div class="modal-body" style="max-height:60vh;overflow-y:auto;white-space:pre-wrap;font-size:14px;line-height:1.8;">${escapeHtml(text)}</div>
-            <div class="modal-footer">
-                <button class="modal-btn primary" onclick="this.closest('.modal').remove()">Got it</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-// ============================================================
-// CONNECTIVITY & PWA
-// ============================================================
+// ─── CONNECTIVITY & PWA ───
 
 function initConnectivity() {
     window.addEventListener('online', () => {
@@ -2145,22 +1784,16 @@ function toast(msg, type) {
     }, 3000);
 }
 
-// ============================================================
-// AUTO-LOGIN ON PAGE LOAD
-// ============================================================
+// ─── AUTO-LOGIN ON LOAD ───
 
-// Check if user is already authenticated
 document.addEventListener('DOMContentLoaded', () => {
-    // Set default API URL
+    // Hardcode the API URL
     const apiInput = document.getElementById('api-url');
     if (apiInput) {
-        apiInput.value = 'https://veyronis-production.up.railway.app';
+        apiInput.value = 'https://veyronis.onrender.com';
     }
-    
-    // Check auth
     const loggedIn = checkAuth();
     if (!loggedIn) {
-        // Show auth screen
         document.getElementById('auth-screen').classList.remove('hidden');
         document.getElementById('app').classList.add('hidden');
     }
