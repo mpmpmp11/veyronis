@@ -9,3 +9,6 @@ PyPDF2
 python-docx
 openpyxl
 python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
