@@ -1,4 +1,5 @@
 """VEYRONIS API Server + Frontend + JWT Auth."""
+# FORCE_DEPLOY_AUTH_2026  <-- This line ensures Render picks up the new commit
 import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends, status
@@ -538,6 +539,12 @@ async def health():
         },
         "timestamp": datetime.now().isoformat()
     }
+
+
+# ─── TEST ENDPOINT ───
+@app.get("/ping")
+async def ping():
+    return {"message": "pong"}
 
 
 if __name__ == "__main__":
