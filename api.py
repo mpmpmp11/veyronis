@@ -40,7 +40,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 def get_password_hash(password: str) -> str:
-    # bcrypt has a 72-byte limit, truncate if needed
+    # bcrypt has a 72-byte limit
     if len(password) > 72:
         password = password[:72]
     return pwd_context.hash(password)
@@ -191,7 +191,9 @@ async def register(req: RegisterRequest):
             raise HTTPException(400, detail="Invalid email address")
         if len(req.password) < 6:
             raise HTTPException(400, detail="Password must be at least 6 characters")
-        # We don't need to check max length here because get_password_hash will truncate
+        # if password is too long, we truncate, but we'll still warn the user
+        if len(req.password) > 72:
+            raise HTTPException(400, detail="Password is too long (max 72 characters). Please shorten it.")
         existing = get_user_by_email(req.email)
         if existing:
             raise HTTPException(400, detail="Email already registered")
@@ -208,6 +210,9 @@ async def register(req: RegisterRequest):
     except Exception as e:
         print(f"[REGISTER ERROR] {e}")
         traceback.print_exc()
+        # Catch any bcrypt-related error (just in case)
+        if "72 bytes" in str(e):
+            raise HTTPException(400, detail="Password too long (max 72 characters). Please shorten it.")
         raise HTTPException(500, detail=f"Internal error: {str(e)}")
 
 @app.post("/login")
@@ -244,7 +249,7 @@ async def upgrade_to_pro(current_user: dict = Depends(get_current_user_optional)
     set_user_pro(current_user["id"], True)
     return {"message": "Upgraded to PRO", "is_pro": True}
 
-# ─── MAIN ENDPOINTS ───
+# ─── MAIN ENDPOINTS ─── (rest unchanged)
 @app.get("/")
 async def root():
     return FileResponse(str(FRONTEND_DIR / "index.html"))
