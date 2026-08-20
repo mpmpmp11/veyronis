@@ -88,8 +88,9 @@ async function handleLogin() {
 
 async function handleRegister() {
     const email = document.getElementById('register-email').value.trim();
-    const password = document.getElementById('register-password').value.trim();
+    let password = document.getElementById('register-password').value.trim(); // Trim whitespace
     const errorEl = document.getElementById('register-error');
+
     if (!email || !password) {
         errorEl.textContent = 'Please enter email and password';
         return;
@@ -102,6 +103,7 @@ async function handleRegister() {
         errorEl.textContent = 'Please enter a valid email address';
         return;
     }
+
     try {
         const res = await fetch(`${state.apiUrl}/register`, {
             method: 'POST',
@@ -109,10 +111,13 @@ async function handleRegister() {
             body: JSON.stringify({ email, password })
         });
         const data = await res.json();
+
         if (!res.ok) {
             errorEl.textContent = data.detail || 'Registration failed';
+            console.error('Register error:', data);
             return;
         }
+
         state.token = data.access_token;
         state.user = data.user;
         localStorage.setItem('veyronis_token', state.token);
@@ -125,6 +130,7 @@ async function handleRegister() {
         toast('Account created! Welcome to VEYRONIS 🎉', 'success');
     } catch (err) {
         errorEl.textContent = 'Network error. Is the server running?';
+        console.error('Network error:', err);
     }
 }
 

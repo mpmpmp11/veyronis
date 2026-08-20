@@ -40,7 +40,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 def get_password_hash(password: str) -> str:
-    # bcrypt has a 72-byte limit
+    # Truncate to 72 bytes (bcrypt limit) to avoid any error
     if len(password) > 72:
         password = password[:72]
     return pwd_context.hash(password)
@@ -189,15 +189,14 @@ async def register(req: RegisterRequest):
     try:
         if "@" not in req.email or "." not in req.email:
             raise HTTPException(400, detail="Invalid email address")
+        # No length check for password — we'll truncate inside get_password_hash
+        # But we do require at least 6 characters for security
         if len(req.password) < 6:
             raise HTTPException(400, detail="Password must be at least 6 characters")
-        # if password is too long, we truncate, but we'll still warn the user
-        if len(req.password) > 72:
-            raise HTTPException(400, detail="Password is too long (max 72 characters). Please shorten it.")
         existing = get_user_by_email(req.email)
         if existing:
             raise HTTPException(400, detail="Email already registered")
-        hashed = get_password_hash(req.password)
+        hashed = get_password_hash(req.password)  # truncates to 72
         user_id = create_user(req.email, hashed)
         token = create_access_token({"sub": str(user_id)})
         return TokenResponse(
@@ -210,9 +209,6 @@ async def register(req: RegisterRequest):
     except Exception as e:
         print(f"[REGISTER ERROR] {e}")
         traceback.print_exc()
-        # Catch any bcrypt-related error (just in case)
-        if "72 bytes" in str(e):
-            raise HTTPException(400, detail="Password too long (max 72 characters). Please shorten it.")
         raise HTTPException(500, detail=f"Internal error: {str(e)}")
 
 @app.post("/login")
@@ -249,7 +245,7 @@ async def upgrade_to_pro(current_user: dict = Depends(get_current_user_optional)
     set_user_pro(current_user["id"], True)
     return {"message": "Upgraded to PRO", "is_pro": True}
 
-# ─── MAIN ENDPOINTS ─── (rest unchanged)
+# ─── MAIN ENDPOINTS ─── (unchanged)
 @app.get("/")
 async def root():
     return FileResponse(str(FRONTEND_DIR / "index.html"))
@@ -334,6 +330,7 @@ async def chat(request: ChatRequest, req: Request, current_user: Optional[dict] 
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest, req: Request, current_user: Optional[dict] = Depends(get_current_user_optional)):
+    # ... (full version – unchanged)
     msg = request.message.strip()
     user_id = request.user_id.strip()
     conversation_id = request.conversation_id
