@@ -40,6 +40,9 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 def get_password_hash(password: str) -> str:
+    # bcrypt has a 72-byte limit, truncate if needed
+    if len(password) > 72:
+        password = password[:72]
     return pwd_context.hash(password)
 
 def create_access_token(data: dict) -> str:
@@ -188,8 +191,7 @@ async def register(req: RegisterRequest):
             raise HTTPException(400, detail="Invalid email address")
         if len(req.password) < 6:
             raise HTTPException(400, detail="Password must be at least 6 characters")
-        if len(req.password) > 72:
-            raise HTTPException(400, detail="Password must be at most 72 characters (bcrypt limit)")
+        # We don't need to check max length here because get_password_hash will truncate
         existing = get_user_by_email(req.email)
         if existing:
             raise HTTPException(400, detail="Email already registered")
