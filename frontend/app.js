@@ -1,15 +1,21 @@
 // ============================================================
-// VEYRONIS — Full App (All functions with null checks)
+// VEYRONIS — Full App (with JWT Authentication)
 // ============================================================
 
 const state = {
-    apiUrl: '', proCode: '',
-    userId: localStorage.getItem('veyronis_uid') || genUid(),
+    apiUrl: '',
+    token: localStorage.getItem('veyronis_token') || null,
+    user: JSON.parse(localStorage.getItem('veyronis_user') || 'null'),
+    userId: '',
     model: 'instant',
     aiModel: 'groq',
-    isTyping: false, isListening: false,
-    recognition: null, msgCount: 0, editingId: null,
-    conversationId: null, isNewChat: false,
+    isTyping: false,
+    isListening: false,
+    recognition: null,
+    msgCount: 0,
+    editingId: null,
+    conversationId: null,
+    isNewChat: false,
     pendingImageBase64: null,
     pendingImageDataUrl: null,
     pendingImageFilename: null,
@@ -27,17 +33,164 @@ const state = {
     serverStatus: 'unknown',
     retryCount: 0,
     touchStartX: 0,
-    touchStartY: 0
+    touchStartY: 0,
+    isAuthenticated: false
 };
 
 const THEMES = ['dark', 'light', 'veyronis'];
 let currentTheme = localStorage.getItem('veyronis_theme') || 'dark';
 document.documentElement.setAttribute('data-theme', currentTheme);
 
-function genUid() {
-    const id = 'u_' + Math.random().toString(36).slice(2, 11);
-    localStorage.setItem('veyronis_uid', id);
-    return id;
+// ============================================================
+// AUTH FUNCTIONS
+// ============================================================
+
+function switchAuthTab(tab) {
+    document.querySelectorAll('.auth-tab').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.auth-form').forEach(el => el.classList.remove('active'));
+    document.querySelector(`.auth-tab[data-tab="${tab}"]`).classList.add('active');
+    document.getElementById(`auth-${tab}`).classList.add('active');
+    document.getElementById('login-error').textContent = '';
+    document.getElementById('register-error').textContent = '';
+}
+
+async function handleLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value.trim();
+    const errorEl = document.getElementById('login-error');
+
+    if (!email || !password) {
+        errorEl.textContent = 'Please enter email and password';
+        return;
+    }
+
+    const url = document.getElementById('api-url')?.value || 'https://veyronis-production.up.railway.app';
+    state.apiUrl = url.replace(/\/$/, '');
+
+    try {
+        const res = await fetch(`${state.apiUrl}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            errorEl.textContent = data.detail || 'Login failed';
+            return;
+        }
+        // Save token and user
+        state.token = data.access_token;
+        state.user = data.user;
+        localStorage.setItem('veyronis_token', state.token);
+        localStorage.setItem('veyronis_user', JSON.stringify(state.user));
+        state.isAuthenticated = true;
+        state.userId = data.user.email;
+        // Show main app
+        document.getElementById('auth-screen').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        initApp();
+        toast('Welcome back, ' + data.user.email + '! 🎉', 'success');
+    } catch (err) {
+        errorEl.textContent = 'Network error. Is the server running?';
+    }
+}
+
+async function handleRegister() {
+    const email = document.getElementById('register-email').value.trim();
+    const password = document.getElementById('register-password').value.trim();
+    const errorEl = document.getElementById('register-error');
+
+    if (!email || !password) {
+        errorEl.textContent = 'Please enter email and password';
+        return;
+    }
+    if (password.length < 6) {
+        errorEl.textContent = 'Password must be at least 6 characters';
+        return;
+    }
+    if (!email.includes('@') || !email.includes('.')) {
+        errorEl.textContent = 'Please enter a valid email address';
+        return;
+    }
+
+    const url = document.getElementById('api-url')?.value || 'https://veyronis-production.up.railway.app';
+    state.apiUrl = url.replace(/\/$/, '');
+
+    try {
+        const res = await fetch(`${state.apiUrl}/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            errorEl.textContent = data.detail || 'Registration failed';
+            return;
+        }
+        // Auto-login after registration
+        state.token = data.access_token;
+        state.user = data.user;
+        localStorage.setItem('veyronis_token', state.token);
+        localStorage.setItem('veyronis_user', JSON.stringify(state.user));
+        state.isAuthenticated = true;
+        state.userId = data.user.email;
+        document.getElementById('auth-screen').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        initApp();
+        toast('Account created! Welcome to VEYRONIS 🎉', 'success');
+    } catch (err) {
+        errorEl.textContent = 'Network error. Is the server running?';
+    }
+}
+
+function checkAuth() {
+    const token = localStorage.getItem('veyronis_token');
+    const user = JSON.parse(localStorage.getItem('veyronis_user') || 'null');
+    if (token && user) {
+        state.token = token;
+        state.user = user;
+        state.isAuthenticated = true;
+        state.userId = user.email;
+        document.getElementById('auth-screen').classList.add('hidden');
+        document.getElementById('app').classList.remove('hidden');
+        initApp();
+        return true;
+    }
+    return false;
+}
+
+function handleLogout() {
+    if (!confirm('Logout?')) return;
+    localStorage.removeItem('veyronis_token');
+    localStorage.removeItem('veyronis_user');
+    state.token = null;
+    state.user = null;
+    state.isAuthenticated = false;
+    document.getElementById('app').classList.add('hidden');
+    document.getElementById('auth-screen').classList.remove('hidden');
+    toast('Logged out', 'info');
+    // Clear chat UI
+    document.getElementById('messages').innerHTML = '';
+    showEmpty(true);
+}
+
+// ============================================================
+// API HELPER (with auth header)
+// ============================================================
+
+async function apiFetch(endpoint, options = {}) {
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers
+    };
+    if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+    }
+    const res = await fetch(`${state.apiUrl}${endpoint}`, {
+        ...options,
+        headers
+    });
+    return res;
 }
 
 // ============================================================
@@ -45,36 +198,15 @@ function genUid() {
 // ============================================================
 
 function connect() {
-    const url = document.getElementById('api-url');
-    const code = document.getElementById('pro-code');
-    if (!url || !code) return toast('Setup elements missing', 'error');
-    const urlVal = url.value.trim();
-    const codeVal = code.value.trim();
-    if (!urlVal) return toast('Enter server address', 'error');
-    state.apiUrl = urlVal.replace(/\/$/, '');
-    state.proCode = codeVal;
-    console.log('[VEYRONIS] Connecting to:', state.apiUrl);
-    fetch(state.apiUrl + '/health')
-        .then(r => {
-            if (!r.ok) throw new Error('Server error');
-            return r.json();
-        })
-        .then(() => {
-            const setup = document.getElementById('setup-screen');
-            const app = document.getElementById('app');
-            if (setup) setup.classList.add('hidden');
-            if (app) app.classList.remove('hidden');
-            initApp();
-            updateConnStatus('online');
-        })
-        .catch(err => {
-            console.error('[VEYRONIS] Connection error:', err);
-            toast('Cannot connect. Is the server running?', 'error');
-        });
+    // This is now handled by auth — we auto-detect production URL
+    const url = document.getElementById('api-url')?.value || 'https://veyronis-production.up.railway.app';
+    state.apiUrl = url.replace(/\/$/, '');
+    updateConnStatus('online');
+    toast('Connected to VEYRONIS', 'success');
 }
 
 // ============================================================
-// CONNECTION STATUS (with null checks)
+// CONNECTION STATUS
 // ============================================================
 
 function updateConnStatus(status) {
@@ -115,6 +247,19 @@ function updateChartDefaults() {
 // ============================================================
 
 function initApp() {
+    // Update sidebar with user info
+    const nameEl = document.getElementById('sidebar-name');
+    const emailEl = document.getElementById('sidebar-email');
+    const proBadge = document.getElementById('sidebar-pro-badge');
+    if (state.user) {
+        if (nameEl) nameEl.textContent = state.user.email.split('@')[0];
+        if (emailEl) emailEl.textContent = state.user.email;
+        if (proBadge) {
+            proBadge.textContent = state.user.is_pro ? '⭐ PRO' : 'FREE';
+            proBadge.className = 'sidebar-pro-badge' + (state.user.is_pro ? ' pro' : '');
+        }
+    }
+    
     try { mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' }); } catch(e) {}
     if (window.Chart) updateChartDefaults();
     loadConversations();
@@ -132,7 +277,12 @@ function initApp() {
     initConnectivity();
     initInstallPrompt();
     initSwipeSidebar();
-    if (state.proCode) setProUi();
+    
+    // Update pro UI based on user
+    if (state.user && state.user.is_pro) {
+        setProUi();
+    }
+    
     setTimeout(() => {
         if (state.apiUrl) {
             updateConnStatus('checking');
@@ -201,7 +351,17 @@ function toggleMoreMenu() {
     if (btn) btn.classList.toggle('active');
 }
 
-function toggleSearch() { toast('🔍 Search coming soon!', 'info'); }
+function closeMoreMenu() {
+    const menu = document.getElementById('more-menu');
+    if (menu) menu.classList.remove('open');
+    const btn = document.querySelector('.more-btn');
+    if (btn) btn.classList.remove('active');
+}
+
+document.addEventListener('click', function(e) {
+    const wrap = document.querySelector('.more-wrap');
+    if (wrap && !wrap.contains(e.target)) closeMoreMenu();
+});
 
 function renameCurrentConv() {
     if (!state.conversationId) { toast('No conversation to rename', 'error'); return; }
@@ -223,17 +383,23 @@ function deleteCurrentConv() {
     deleteConv(state.conversationId);
 }
 
-function closeMoreMenu() {
-    const menu = document.getElementById('more-menu');
-    if (menu) menu.classList.remove('open');
-    const btn = document.querySelector('.more-btn');
-    if (btn) btn.classList.remove('active');
+function searchMessages() {
+    toast('🔍 Search messages coming soon!', 'info');
+    closeMoreMenu();
 }
 
-document.addEventListener('click', function(e) {
-    const wrap = document.querySelector('.more-wrap');
-    if (wrap && !wrap.contains(e.target)) closeMoreMenu();
-});
+function shareCurrentConv() {
+    if (!state.conversationId) { toast('No conversation to share', 'error'); return; }
+    closeMoreMenu();
+    exportChat('json');
+}
+
+function openUpgrade() {
+    closeMoreMenu();
+    toast('⭐ Upgrade to PRO — Coming soon with Google Play Billing!', 'info');
+}
+
+function toggleSearch() { toast('🔍 Search coming soon!', 'info'); }
 
 // ============================================================
 // CONVERSATIONS
@@ -241,7 +407,7 @@ document.addEventListener('click', function(e) {
 
 function loadConversations() {
     if (!state.apiUrl) return;
-    fetch(state.apiUrl + '/conversations?user_id=' + state.userId)
+    fetch(`${state.apiUrl}/conversations?user_id=${state.userId}`)
         .then(r => r.json())
         .then(data => {
             const convs = data.conversations || [];
@@ -293,14 +459,14 @@ function switchConversation(id) {
 function renameConvPrompt(id, currentTitle) {
     const newTitle = prompt('Rename conversation:', currentTitle);
     if (!newTitle || newTitle.trim() === '' || newTitle.trim() === currentTitle) return;
-    fetch(state.apiUrl + '/conversations/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newTitle.trim() }) })
+    fetch(`${state.apiUrl}/conversations/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newTitle.trim() }) })
         .then(r => { if (r.ok) { toast('Renamed', 'success'); loadConversations(); } else toast('Failed to rename', 'error'); })
         .catch(() => toast('Failed to rename', 'error'));
 }
 
 function deleteConv(id) {
     if (!confirm('Delete this conversation?')) return;
-    fetch(state.apiUrl + '/conversations/' + id, { method: 'DELETE' })
+    fetch(`${state.apiUrl}/conversations/${id}`, { method: 'DELETE' })
         .then(r => {
             if (r.ok) {
                 toast('Deleted', 'success');
@@ -355,11 +521,6 @@ function toggleAiModelMenu() {
 
 function toggleAttach() {
     const pop = document.getElementById('attach-pop');
-    if (pop) pop.classList.toggle('open');
-}
-
-function toggleExportMenu() {
-    const pop = document.getElementById('export-pop');
     if (pop) pop.classList.toggle('open');
 }
 
@@ -534,7 +695,10 @@ function removeDocPreview() {
 }
 
 function triggerDocumentUpload() {
-    if (!state.userId || state.userId === 'null' || state.userId === 'undefined') state.userId = genUid();
+    if (!state.userId || state.userId === 'null' || state.userId === 'undefined') {
+        // For now, use email as user_id or fallback
+        state.userId = state.user?.email || 'u_' + Date.now();
+    }
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.pdf,.docx,.txt,.md,.csv,.xlsx,.xls,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -544,7 +708,9 @@ function triggerDocumentUpload() {
         const file = e.target.files[0];
         if (!file) return;
         if (file.size > 10 * 1024 * 1024) { toast('File too large. Max 10MB.', 'error'); return; }
-        if (!state.userId || state.userId === 'null' || state.userId === 'undefined') state.userId = genUid();
+        if (!state.userId || state.userId === 'null' || state.userId === 'undefined') {
+            state.userId = state.user?.email || 'u_' + Date.now();
+        }
         const formData = new FormData();
         formData.append('file', file);
         formData.append('user_id', state.userId);
@@ -553,7 +719,7 @@ function triggerDocumentUpload() {
         const pop = document.getElementById('attach-pop');
         if (pop) pop.classList.remove('open');
         try {
-            const res = await fetch(state.apiUrl + '/upload', { method: 'POST', body: formData });
+            const res = await fetch(`${state.apiUrl}/upload`, { method: 'POST', body: formData });
             const data = await res.json();
             if (res.ok) {
                 toast(`Document ready: ${data.extracted_length} chars`, 'success');
@@ -605,14 +771,16 @@ function initDragDrop() {
 }
 
 async function handleDroppedFile(file) {
-    if (!state.userId || state.userId === 'null' || state.userId === 'undefined') state.userId = genUid();
+    if (!state.userId || state.userId === 'null' || state.userId === 'undefined') {
+        state.userId = state.user?.email || 'u_' + Date.now();
+    }
     const formData = new FormData();
     formData.append('file', file);
     formData.append('user_id', state.userId);
     if (state.conversationId) formData.append('conversation_id', state.conversationId);
     toast('Uploading document...', 'info');
     try {
-        const res = await fetch(state.apiUrl + '/upload', { method: 'POST', body: formData });
+        const res = await fetch(`${state.apiUrl}/upload`, { method: 'POST', body: formData });
         const data = await res.json();
         if (res.ok) {
             toast(`Document ready: ${data.extracted_length} chars`, 'success');
@@ -767,7 +935,7 @@ async function runCodeBlock(code, preElement) {
         if (body) { body.textContent = 'Running...'; body.className = 'code-output-body'; }
     }
     try {
-        const res = await fetch(state.apiUrl + '/execute', {
+        const res = await fetch(`${state.apiUrl}/execute`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code })
@@ -1029,14 +1197,14 @@ function regenerateMsg(aiId) {
     const controller = new AbortController();
     state.abortController = controller;
     const timeoutId = setTimeout(() => controller.abort(), 60000);
-    fetch(state.apiUrl + '/chat/stream', {
+    fetch(`${state.apiUrl}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
             message: text || '',
-            pro_code: state.proCode || '',
-            user_id: state.userId || '',
+            pro_code: '',
+            user_id: state.userId || state.user?.email || '',
             conversation_id: state.conversationId,
             image: state.pendingImageBase64 || null,
             model_mode: state.model,
@@ -1137,7 +1305,7 @@ function quickSend(text) {
 
 function exportChat(format) {
     if (!state.conversationId) { toast('No conversation to export', 'error'); return; }
-    fetch(`${state.apiUrl}/export/${state.conversationId}?format=${format}&user_id=${state.userId}`)
+    fetch(`${state.apiUrl}/export/${state.conversationId}?format=${format}&user_id=${state.userId || state.user?.email || ''}`)
         .then(r => { if (!r.ok) throw new Error('Export failed'); return r.json(); })
         .then(data => {
             if (format === 'json') {
@@ -1229,8 +1397,8 @@ async function sendMessage() {
     try {
         const requestBody = {
             message: text || '',
-            pro_code: state.proCode || '',
-            user_id: state.userId || '',
+            pro_code: '',
+            user_id: state.userId || state.user?.email || '',
             conversation_id: state.conversationId,
             image: imageBase64 || null,
             model_mode: state.model,
@@ -1238,7 +1406,7 @@ async function sendMessage() {
             custom_instructions: state.customInstructions,
             response_style: state.responseStyle
         };
-        const response = await fetch(state.apiUrl + '/chat/stream', {
+        const response = await fetch(`${state.apiUrl}/chat/stream`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             signal: controller.signal,
@@ -1280,7 +1448,7 @@ async function sendMessage() {
                         hideResearchProgress(aiId);
                         if (data.conversation_id && !state.conversationId) { state.conversationId = data.conversation_id; loadConversations(); }
                         if (data.tier === 'pro') setProUi();
-                        else { state.msgCount++; const disclaimer = document.querySelector('.input-disclaimer'); if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`; }
+                        else { state.msgCount++; const disclaimer = document.getElementById('input-disclaimer'); if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`; }
                         if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
                     } else if (data.type === 'error') throw new Error(data.content);
                 } catch (e) { if (e instanceof SyntaxError) continue; throw e; }
@@ -1313,7 +1481,7 @@ async function sendMessage() {
 
 function clearChat() {
     if (!confirm('Clear all messages?')) return;
-    fetch(state.apiUrl + '/clear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: state.userId, conversation_id: state.conversationId }) })
+    fetch(`${state.apiUrl}/clear`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: state.userId || state.user?.email || '', conversation_id: state.conversationId }) })
         .then(() => { 
             const msgs = document.getElementById('messages'); 
             if (msgs) msgs.innerHTML = '';
@@ -1324,11 +1492,11 @@ function clearChat() {
 
 function loadHistory() {
     if (!state.apiUrl) return;
-    let url = state.apiUrl + '/history?user_id=' + state.userId;
-    if (state.conversationId) url += '&conversation_id=' + state.conversationId;
+    let url = `${state.apiUrl}/history?user_id=${state.userId || state.user?.email || ''}`;
+    if (state.conversationId) url += `&conversation_id=${state.conversationId}`;
     fetch(url).then(r => r.json()).then(data => {
         const msgs = data.messages || [];
-        if (!msgs.length) { showEmpty(true); if (state.proCode) setProUi(); } else {
+        if (!msgs.length) { showEmpty(true); if (state.user?.is_pro) setProUi(); } else {
             showEmpty(false);
             msgs.forEach(m => {
                 if (m.role === 'user') {
@@ -1347,9 +1515,9 @@ function loadHistory() {
                     if (textEl) renderMarkdown(textEl, m.content);
                 }
             });
-            if (!state.proCode) { 
+            if (!state.user?.is_pro) { 
                 state.msgCount = msgs.filter(m => m.role === 'user').length; 
-                const disclaimer = document.querySelector('.input-disclaimer');
+                const disclaimer = document.getElementById('input-disclaimer');
                 if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`;
             }
         }
@@ -1358,11 +1526,11 @@ function loadHistory() {
 }
 
 // ============================================================
-// PRO UI (with null checks)
+// PRO UI
 // ============================================================
 
 function setProUi() {
-    const disclaimer = document.querySelector('.input-disclaimer');
+    const disclaimer = document.getElementById('input-disclaimer');
     if (disclaimer) {
         disclaimer.innerHTML = 'PRO MODE <span style="color:#fbbf24">★</span> · Unlimited messages';
     }
@@ -1375,6 +1543,11 @@ function setProUi() {
     if (sidebarTier) {
         sidebarTier.textContent = 'PRO';
         sidebarTier.classList.add('pro');
+    }
+    const proBadge = document.getElementById('sidebar-pro-badge');
+    if (proBadge) {
+        proBadge.textContent = '⭐ PRO';
+        proBadge.className = 'sidebar-pro-badge pro';
     }
 }
 
@@ -1474,15 +1647,15 @@ function closeSettingsPanel() {
 }
 
 function syncSettingsValues() {
-    const tier = state.proCode ? 'Pro' : 'Free';
+    const tier = state.user?.is_pro ? 'Pro' : 'Free';
     const tierEl = document.getElementById('settings-tier-value');
     if (tierEl) tierEl.textContent = tier;
     const profilePlan = document.getElementById('profile-plan-value');
     if (profilePlan) profilePlan.textContent = tier;
     const profileUserId = document.getElementById('profile-user-id');
-    if (profileUserId) profileUserId.textContent = state.userId || '';
+    if (profileUserId) profileUserId.textContent = state.user?.email || 'Not logged in';
     const profileIdVal = document.getElementById('profile-id-value');
-    if (profileIdVal) profileIdVal.textContent = state.userId || '';
+    if (profileIdVal) profileIdVal.textContent = state.user?.email || 'Not logged in';
     const themeNames = { dark: 'Dark', light: 'Light', veyronis: 'Veyronis' };
     const themeVal = document.getElementById('settings-theme-value');
     if (themeVal) themeVal.textContent = themeNames[currentTheme] || 'Dark';
@@ -1498,7 +1671,7 @@ function syncSettingsValues() {
     if (activeRadio) activeRadio.classList.add('checked');
     const proBtn = document.getElementById('plan-btn-pro');
     const proCard = document.getElementById('plan-card-pro');
-    if (state.proCode) {
+    if (state.user?.is_pro) {
         if (proBtn) { proBtn.textContent = 'Active'; proBtn.disabled = true; }
         if (proCard) proCard.style.borderColor = '#22c55e';
     }
@@ -1583,37 +1756,11 @@ function submitFeedback() {
 }
 
 function activateProPlan() {
-    closeSettingsPanel();
-    setTimeout(() => {
-        const code = prompt('Enter Pro activation code:');
-        if (code && code.trim()) {
-            state.proCode = code.trim();
-            fetch(state.apiUrl + '/health')
-                .then(r => r.json())
-                .then(() => { setProUi(); toast('Pro activated!', 'success'); })
-                .catch(() => toast('Cannot verify Pro code', 'error'));
-        }
-    }, 300);
+    toast('⭐ Upgrade to PRO — Coming soon with Google Play Billing!', 'info');
 }
 
 function logout() {
-    if (!confirm('Log out?')) return;
-    localStorage.removeItem('veyronis_uid');
-    localStorage.removeItem('veyronis_custom_instructions');
-    localStorage.removeItem('veyronis_response_style');
-    localStorage.removeItem('veyronis_auto_tts');
-    state.userId = genUid();
-    state.conversationId = null;
-    state.customInstructions = '';
-    state.responseStyle = 'balanced';
-    state.autoTts = false;
-    state.proCode = '';
-    const msgs = document.getElementById('messages');
-    if (msgs) msgs.innerHTML = '';
-    showEmpty(true);
-    closeSettingsPanel();
-    loadConversations();
-    toast('Logged out', 'success');
+    handleLogout();
 }
 
 // ============================================================
@@ -1633,7 +1780,7 @@ let canvasState = {
 };
 
 function openCanvas() {
-    if (!state.proCode && state.proCode !== 'DEV-MODE-2026') { toast('Canvas is Pro feature', 'info'); return; }
+    if (!state.user?.is_pro) { toast('Canvas is a Pro feature. Upgrade to unlock!', 'info'); return; }
     canvasState.isPro = true;
     let overlay = document.getElementById('canvas-overlay');
     if (!overlay) {
@@ -1849,13 +1996,13 @@ async function generateCanvasDrawing() {
     const sendBtn = document.querySelector('.canvas-send');
     if (sendBtn) sendBtn.disabled = true;
     try {
-        const response = await fetch(state.apiUrl + '/chat', {
+        const response = await fetch(`${state.apiUrl}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message: prompt,
-                pro_code: state.proCode || '',
-                user_id: state.userId || '',
+                pro_code: '',
+                user_id: state.userId || state.user?.email || '',
                 mode: 'canvas',
                 model_mode: state.model,
                 ai_model: state.aiModel
@@ -1925,7 +2072,7 @@ function retryConnection() {
 function checkServerHealth() {
     updateConnStatus('checking');
     if (!state.apiUrl) return;
-    fetch(state.apiUrl + '/health', { cache: 'no-store', signal: AbortSignal.timeout(5000) })
+    fetch(`${state.apiUrl}/health`, { cache: 'no-store', signal: AbortSignal.timeout(5000) })
         .then(r => { if (!r.ok) throw new Error('Server error'); return r.json(); })
         .then(data => {
             if (data.status && data.status.includes('online')) {
@@ -1997,3 +2144,24 @@ function toast(msg, type) {
         setTimeout(() => div.remove(), 300);
     }, 3000);
 }
+
+// ============================================================
+// AUTO-LOGIN ON PAGE LOAD
+// ============================================================
+
+// Check if user is already authenticated
+document.addEventListener('DOMContentLoaded', () => {
+    // Set default API URL
+    const apiInput = document.getElementById('api-url');
+    if (apiInput) {
+        apiInput.value = 'https://veyronis-production.up.railway.app';
+    }
+    
+    // Check auth
+    const loggedIn = checkAuth();
+    if (!loggedIn) {
+        // Show auth screen
+        document.getElementById('auth-screen').classList.remove('hidden');
+        document.getElementById('app').classList.add('hidden');
+    }
+});

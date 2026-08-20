@@ -7,7 +7,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <title>VEYRONIS</title>
-    <!-- FAVICON: Inline SVG, no file needed -->
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b5cf6'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white' font-weight='bold'%3EV%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="/static/manifest.json">
     <link rel="stylesheet" href="/static/style.css">
@@ -16,33 +15,62 @@
 </head>
 <body>
 
-    <!-- SETUP SCREEN -->
-    <div id="setup-screen" class="setup-screen">
+    <!-- ============================================ -->
+    <!-- AUTH SCREEN (Login / Register) -->
+    <!-- ============================================ -->
+    <div id="auth-screen" class="auth-screen">
         <div class="ambient-bg">
             <div class="ambient-orb orb-1"></div>
             <div class="ambient-orb orb-2"></div>
             <div class="ambient-orb orb-3"></div>
         </div>
-        <div class="setup-card glass">
-            <div class="setup-brand">VEYRONIS</div>
-            <div class="setup-tag">Multi-AI Student Assistant</div>
-            <div class="setup-field">
-                <label>Server Address</label>
-                <input type="text" id="api-url" placeholder="http://localhost:8000" value="http://localhost:8000">
+        <div class="auth-card glass">
+            <div class="auth-brand">VEYRONIS</div>
+            <div class="auth-tag">Multi-AI Student Assistant</div>
+
+            <!-- Tabs -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login" onclick="switchAuthTab('login')">Login</button>
+                <button class="auth-tab" data-tab="register" onclick="switchAuthTab('register')">Register</button>
             </div>
-            <div class="setup-field">
-                <label>Pro Code <span class="opt">(optional)</span></label>
-                <input type="text" id="pro-code" placeholder="Enter Pro code">
+
+            <!-- Login Form -->
+            <div id="auth-login" class="auth-form active">
+                <div class="auth-field">
+                    <label>Email</label>
+                    <input type="email" id="login-email" placeholder="you@example.com">
+                </div>
+                <div class="auth-field">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="Enter your password">
+                </div>
+                <button class="auth-action" onclick="handleLogin()">Login</button>
+                <div class="auth-error" id="login-error"></div>
             </div>
-            <button class="setup-action" onclick="connect()">Connect</button>
-            <div class="setup-hint">
-                New here? Run <code>python api.py</code> in your project folder.<br>
-                Pro code: <code>DEV-MODE-2026</code>
+
+            <!-- Register Form -->
+            <div id="auth-register" class="auth-form">
+                <div class="auth-field">
+                    <label>Email</label>
+                    <input type="email" id="register-email" placeholder="you@example.com">
+                </div>
+                <div class="auth-field">
+                    <label>Password</label>
+                    <input type="password" id="register-password" placeholder="Min 6 characters">
+                </div>
+                <button class="auth-action" onclick="handleRegister()">Create Account</button>
+                <div class="auth-error" id="register-error"></div>
+            </div>
+
+            <div class="auth-hint">
+                ⚡ Free: 20 messages/day · Upgrade to PRO for unlimited
             </div>
         </div>
     </div>
 
+    <!-- ============================================ -->
     <!-- OFFLINE BANNER -->
+    <!-- ============================================ -->
     <div id="offline-banner" class="offline-banner hidden">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="1" y1="1" x2="23" y2="23"/>
@@ -57,14 +85,18 @@
         <button onclick="retryConnection()" class="retry-btn">Retry</button>
     </div>
 
+    <!-- ============================================ -->
     <!-- INSTALL PROMPT -->
+    <!-- ============================================ -->
     <div id="install-prompt" class="install-prompt hidden">
         <div class="install-text">Install VEYRONIS for offline access</div>
         <button class="install-btn" onclick="installPwa()">Install</button>
         <button class="install-dismiss" onclick="dismissInstall()">×</button>
     </div>
 
+    <!-- ============================================ -->
     <!-- MAIN APP -->
+    <!-- ============================================ -->
     <div id="app" class="hidden">
         <div id="sidebar-backdrop" onclick="toggleSidebar()"></div>
 
@@ -82,12 +114,10 @@
             <div class="sidebar-profile" onclick="openSettingsPanel()">
                 <div class="sidebar-avatar">V</div>
                 <div class="sidebar-user">
-                    <div class="sidebar-name">You</div>
+                    <div class="sidebar-name" id="sidebar-name">You</div>
                     <div class="sidebar-email" id="sidebar-email">user@veyronis.ai</div>
                 </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="9 18 15 12 9 6"/>
-                </svg>
+                <div class="sidebar-pro-badge" id="sidebar-pro-badge">FREE</div>
             </div>
             <div class="sidebar-scroll">
                 <div class="sidebar-section">Today</div>
@@ -105,11 +135,12 @@
                     </svg>
                     New Chat
                 </button>
+                <button class="sidebar-logout" onclick="handleLogout()">Logout</button>
                 <div class="sidebar-tier" id="sidebar-tier">Free</div>
             </div>
         </aside>
 
-        <!-- MAIN CONTENT -->
+        <!-- MAIN -->
         <main id="main">
             <header class="top-bar" id="top-bar">
                 <div class="top-left">
@@ -151,6 +182,13 @@
                             </svg>
                         </button>
                         <div class="more-menu" id="more-menu">
+                            <div class="more-item" onclick="newChat()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                                New Chat
+                            </div>
                             <div class="more-item" onclick="renameCurrentConv()">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -166,13 +204,19 @@
                                 </svg>
                                 Archive
                             </div>
-                            <div class="more-item" onclick="exportChat('json')">
+                            <div class="more-item" onclick="searchMessages()">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="7 10 12 15 17 10"/>
-                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                    <circle cx="11" cy="11" r="8"/>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
                                 </svg>
-                                Export
+                                Search Messages
+                            </div>
+                            <div class="more-item" onclick="deleteCurrentConv()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                                Delete Chat
                             </div>
                             <div class="more-item" onclick="toast('Files coming soon!', 'info')">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -181,13 +225,31 @@
                                 </svg>
                                 View Files
                             </div>
-                            <div class="more-divider"></div>
-                            <div class="more-item danger" onclick="deleteCurrentConv()">
+                            <div class="more-item" onclick="shareCurrentConv()">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="3 6 5 6 21 6"/>
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                    <circle cx="18" cy="5" r="3"/>
+                                    <circle cx="6" cy="12" r="3"/>
+                                    <circle cx="18" cy="19" r="3"/>
+                                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
                                 </svg>
-                                Delete Chat
+                                Share Chat
+                            </div>
+                            <div class="more-divider"></div>
+                            <div class="more-item" onclick="openUpgrade()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                </svg>
+                                Upgrade to PRO ⭐
+                            </div>
+                            <div class="more-divider"></div>
+                            <div class="more-item" onclick="handleLogout()" style="color:#ef4444;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                    <polyline points="16 17 21 12 16 7"/>
+                                    <line x1="21" y1="12" x2="9" y2="12"/>
+                                </svg>
+                                Logout
                             </div>
                         </div>
                     </div>
@@ -298,22 +360,28 @@
                         </button>
                     </div>
                 </div>
-                <div class="input-disclaimer">Free: 0/20 today · VEYRONIS can make mistakes</div>
+                <div class="input-disclaimer" id="input-disclaimer">Free: 0/20 today · VEYRONIS can make mistakes</div>
             </div>
         </main>
     </div>
 
+    <!-- TOASTS -->
     <div id="toast-box"></div>
+
+    <!-- DRAG OVERLAY -->
     <div id="drag-overlay" class="drag-overlay">Drop file to upload</div>
 
+    <!-- SETTINGS PANEL (placeholder) -->
     <div id="settings-panel" class="settings-panel hidden">
         <!-- Settings content here (keep your existing version) -->
     </div>
 
+    <!-- LIGHTBOX -->
     <div id="img-lightbox" class="img-lightbox hidden" onclick="closeLightbox()">
         <img id="lightbox-img" src="" alt="Full size">
     </div>
 
+    <!-- SCRIPTS -->
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
