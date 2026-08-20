@@ -185,9 +185,11 @@ class TokenResponse(BaseModel):
 async def register(req: RegisterRequest):
     try:
         if "@" not in req.email or "." not in req.email:
-            raise HTTPException(400, detail="Invalid email")
+            raise HTTPException(400, detail="Invalid email address")
         if len(req.password) < 6:
-            raise HTTPException(400, detail="Password too short")
+            raise HTTPException(400, detail="Password must be at least 6 characters")
+        if len(req.password) > 72:
+            raise HTTPException(400, detail="Password must be at most 72 characters (bcrypt limit)")
         existing = get_user_by_email(req.email)
         if existing:
             raise HTTPException(400, detail="Email already registered")
