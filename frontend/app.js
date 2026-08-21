@@ -1804,3 +1804,317 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('app').classList.add('hidden');
     }
 });
+
+// ═══════════════════════════════════════════════════════════
+// VEYRONIS HINDSIGHT — Frontend JavaScript Additions
+// Append this to the END of your existing app.js
+// ═══════════════════════════════════════════════════════════
+
+// ─── SIMULATION STATE ───
+state.simulationMode = false;
+state.simulationCount = parseInt(localStorage.getItem('veyronis_sim_count') || '0');
+state.simulationDate = localStorage.getItem('veyronis_sim_date') || '';
+
+function initSimulationToggle() {
+    const modelBar = document.querySelector('.model-bar');
+    if (!modelBar) return;
+
+    // Check if already added
+    if (document.getElementById('sim-toggle')) return;
+
+    const toggle = document.createElement('button');
+    toggle.className = 'simulation-toggle' + (state.simulationMode ? ' active' : '');
+    toggle.id = 'sim-toggle';
+    toggle.innerHTML = '<span class="sim-icon">🔮</span><span>Hindsight</span>';
+    toggle.onclick = toggleSimulationMode;
+    toggle.title = 'Toggle VEYRONIS HINDSIGHT simulation mode';
+
+    // Insert after model toggles
+    modelBar.appendChild(toggle);
+    updateSimBadge();
+}
+
+function toggleSimulationMode() {
+    state.simulationMode = !state.simulationMode;
+    const toggle = document.getElementById('sim-toggle');
+    if (toggle) toggle.classList.toggle('active', state.simulationMode);
+
+    if (state.simulationMode) {
+        toast('🔮 Hindsight mode ON — Simulate consequences before you commit', 'success');
+    } else {
+        toast('Hindsight mode OFF', 'info');
+    }
+    updateSimBadge();
+}
+
+function updateSimBadge() {
+    const toggle = document.getElementById('sim-toggle');
+    if (!toggle) return;
+
+    // Remove old badge if exists
+    const oldBadge = toggle.querySelector('.sim-limit-badge');
+    if (oldBadge) oldBadge.remove();
+
+    const isPro = state.user?.is_pro || false;
+    const today = new Date().toDateString();
+
+    if (state.simulationDate !== today) {
+        state.simulationCount = 0;
+        state.simulationDate = today;
+        localStorage.setItem('veyronis_sim_date', today);
+        localStorage.setItem('veyronis_sim_count', '0');
+    }
+
+    const limit = isPro ? 20 : 1;
+    const remaining = Math.max(0, limit - state.simulationCount);
+
+    const badge = document.createElement('span');
+    badge.className = 'sim-limit-badge' + (isPro ? ' pro' : '');
+    badge.textContent = isPro ? `${remaining}/20` : `${remaining}/1`;
+    toggle.appendChild(badge);
+}
+
+function incrementSimCount() {
+    state.simulationCount++;
+    localStorage.setItem('veyronis_sim_count', String(state.simulationCount));
+    updateSimBadge();
+}
+
+// ─── SEND MESSAGE OVERRIDE (Hindsight Integration) ───
+const _originalSendMessage = sendMessage;
+
+async function sendMessage() {
+    if (state.isTyping) return;
+    const input = document.getElementById('msg-input');
+    if (!input) return;
+    let text = input.value.trim();
+    const hasImage = !!state.pendingImageBase64;
+    const hasDoc = !!state.pendingDocContent;
+
+    if (!state.editingId && !text && !hasImage && !hasDoc) return;
+
+    // ─── HINDSIGHT MODE BRANCH ───
+    if (state.simulationMode && text && !hasImage && !hasDoc) {
+        await runHindsightSimulation(text);
+        input.value = '';
+        input.style.height = 'auto';
+        return;
+    }
+
+    // ─── FALLBACK TO ORIGINAL CHAT ───
+    return _originalSendMessage();
+}
+
+async function runHindsightSimulation(scenario) {
+    const isPro = state.user?.is_pro || false;
+    const today = new Date().toDateString();
+
+    if (state.simulationDate !== today) {
+        state.simulationCount = 0;
+        state.simulationDate = today;
+    }
+
+    const limit = isPro ? 20 : 1;
+    if (state.simulationCount >= limit) {
+        toast(isPro ? '⏳ PRO daily simulation limit reached (20/day)' : '⏳ Free tier: 1 simulation/day. Upgrade to PRO!', 'error');
+        return;
+    }
+
+    // Add user message
+    addUserMsg('🔮 ' + scenario);
+
+    // Add AI shell for simulation
+    const aiId = addAiShell();
+    const textEl = document.getElementById('text-' + aiId);
+    const thinkEl = document.getElementById('think-text-' + aiId);
+    const thinkBlock = document.getElementById('think-' + aiId);
+
+    if (thinkEl) thinkEl.textContent = 'Simulating timeline...';
+    if (thinkBlock) thinkBlock.classList.add('expanded');
+
+    state.isTyping = true;
+    updateSendButton();
+
+    try {
+        const res = await fetch(`${state.apiUrl}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: scenario,
+                pro_code: '',
+                user_id: state.userId || state.user?.email || '',
+                conversation_id: state.conversationId,
+                mode: 'simulation',
+                model_mode: state.model,
+                ai_model: state.aiModel,
+                custom_instructions: state.customInstructions,
+                response_style: state.responseStyle
+            })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.detail || 'Simulation failed');
+        }
+
+        if (textEl) {
+            renderHindsightTimeline(textEl, data.response);
+        }
+
+        incrementSimCount();
+
+        if (data.conversation_id && !state.conversationId) {
+            state.conversationId = data.conversation_id;
+            loadConversations();
+        }
+
+        if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
+
+    } catch (err) {
+        if (textEl) {
+            textEl.innerHTML = `<div class="sim-rate-limit"><span class="sim-rate-icon">⚠️</span>${escapeHtml(err.message)}</div>`;
+        }
+        if (thinkBlock) thinkBlock.classList.remove('expanded');
+    }
+
+    state.isTyping = false;
+    updateSendButton();
+}
+
+// ─── RENDER HINDSIGHT TIMELINE ───
+function renderHindsightTimeline(container, jsonString) {
+    let data;
+    try {
+        data = JSON.parse(jsonString);
+    } catch (e) {
+        container.innerHTML = '<div style="color:#ef4444;font-size:13px;">⚠️ Failed to parse simulation result</div>';
+        return;
+    }
+
+    const timeline = data.timeline || [];
+    const butterfly = data.butterfly_effect || '';
+    const advice = data.hindsight_advice || '';
+    const scenario = data.initial_scenario || '';
+
+    let html = '<div class="hindsight-container">';
+
+    // Header
+    html += `
+        <div class="hindsight-header">
+            <div class="hindsight-icon">🔮</div>
+            <div>
+                <div class="hindsight-title">VEYRONIS HINDSIGHT</div>
+                <div class="hindsight-subtitle">Simulate the consequences before you commit</div>
+            </div>
+        </div>
+    `;
+
+    // Scenario
+    if (scenario) {
+        html += `<div class="hindsight-scenario"><strong>Scenario:</strong> ${escapeHtml(scenario)}</div>`;
+    }
+
+    // Timeline
+    if (timeline.length > 0) {
+        html += '<div class="hindsight-timeline">';
+        timeline.forEach((step, idx) => {
+            const conf = step.confidence || 0.5;
+            const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
+            const confPct = Math.round(conf * 100);
+
+            html += `<div class="timeline-step">`;
+            html += `<div class="timeline-step-header">`;
+            html += `<span class="timeline-step-num">STEP ${step.step_number || idx + 1}</span>`;
+            html += `<span class="timeline-step-title">${escapeHtml(step.title || `Phase ${idx + 1}`)}</span>`;
+            html += `<div class="timeline-confidence">`;
+            html += `<div class="timeline-confidence-bar"><div class="timeline-confidence-fill ${confClass}" style="width:${confPct}%"></div></div>`;
+            html += `<span>${confPct}%</span>`;
+            html += `</div></div>`;
+
+            html += `<div class="timeline-state">${escapeHtml(step.state || '')}</div>`;
+
+            if (step.consequences && step.consequences.length > 0) {
+                html += `<div class="timeline-consequences">`;
+                html += `<div class="timeline-consequences-label">Consequences</div>`;
+                step.consequences.forEach(c => {
+                    html += `<div class="timeline-consequence-item">${escapeHtml(c)}</div>`;
+                });
+                html += `</div>`;
+            }
+
+            if (step.assumptions && step.assumptions.length > 0) {
+                html += `<div class="timeline-assumptions">`;
+                html += `<div class="timeline-assumptions-label">Assumptions</div>`;
+                step.assumptions.forEach(a => {
+                    html += `<div class="timeline-assumption-item">${escapeHtml(a)}</div>`;
+                });
+                html += `</div>`;
+            }
+
+            html += `</div>`;
+        });
+        html += '</div>';
+    }
+
+    // Butterfly Effect
+    if (butterfly) {
+        html += `
+            <div class="hindsight-butterfly">
+                <div class="hindsight-butterfly-label">Butterfly Effect</div>
+                <div class="hindsight-butterfly-text">${escapeHtml(butterfly)}</div>
+            </div>
+        `;
+    }
+
+    // Hindsight Advice
+    if (advice) {
+        html += `
+            <div class="hindsight-advice">
+                <div class="hindsight-advice-label">Hindsight Advice</div>
+                <div class="hindsight-advice-text">${escapeHtml(advice)}</div>
+            </div>
+        `;
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+    scrollBottom();
+}
+
+// ─── INIT SIMULATION TOGGLE ON APP LOAD ───
+const _originalInitApp = initApp;
+initApp = function() {
+    _originalInitApp();
+    initSimulationToggle();
+};
+
+// ─── ADD HINDSIGHT CHIP TO EMPTY STATE ───
+const _originalShowEmpty = showEmpty;
+showEmpty = function(show) {
+    _originalShowEmpty(show);
+    if (show) {
+        const chips = document.querySelector('.chips');
+        if (chips && !document.getElementById('hindsight-chip')) {
+            const chip = document.createElement('button');
+            chip.className = 'chip';
+            chip.id = 'hindsight-chip';
+            chip.textContent = '🔮 Hindsight Simulation';
+            chip.onclick = () => {
+                state.simulationMode = true;
+                const toggle = document.getElementById('sim-toggle');
+                if (toggle) toggle.classList.add('active');
+                updateSimBadge();
+                const input = document.getElementById('msg-input');
+                if (input) {
+                    input.value = 'What happens if I procrastinate on my final project until the last week?';
+                    input.style.height = 'auto';
+                    input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+                    input.focus();
+                }
+                toast('🔮 Hindsight mode ON — Type your scenario and press Enter', 'success');
+            };
+            chips.appendChild(chip);
+        }
+    }
+};

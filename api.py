@@ -1,4 +1,4 @@
-"""VEYRONIS API Server + Frontend + JWT Auth (self-contained)."""
+"""VEYRONIS API Server + Frontend + JWT Auth + HINDSIGHT (self-contained)."""
 import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends
@@ -28,6 +28,11 @@ import json
 import time
 import traceback
 
+# =============================================================================
+# HINDSIGHT IMPORTS
+# =============================================================================
+from hindsight_engine import HindsightEngine, SimulationStep, HindsightResponse
+
 # ─── JWT SETUP ───
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "veyronis-super-secret-key-change-me")
 ALGORITHM = "HS256"
@@ -40,7 +45,6 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 def get_password_hash(password: str) -> str:
-    # Truncate to 72 bytes (bcrypt limit) to avoid any error
     if len(password) > 72:
         password = password[:72]
     return pwd_context.hash(password)
@@ -88,6 +92,12 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
 orchestrator = CentralOrchestrator()
+
+# =============================================================================
+# HINDSIGHT ENGINE INIT
+# =============================================================================
+hindsight_engine = HindsightEngine()
+
 limits_file = BASE_DIR / "daily_limits.json"
 PRO_CODES = {"VEYRONIS-PRO-2026", "MATRIX-TEAM-VIP", "DEV-MODE-2026"}
 
@@ -189,14 +199,12 @@ async def register(req: RegisterRequest):
     try:
         if "@" not in req.email or "." not in req.email:
             raise HTTPException(400, detail="Invalid email address")
-        # No length check for password — we'll truncate inside get_password_hash
-        # But we do require at least 6 characters for security
         if len(req.password) < 6:
             raise HTTPException(400, detail="Password must be at least 6 characters")
         existing = get_user_by_email(req.email)
         if existing:
             raise HTTPException(400, detail="Email already registered")
-        hashed = get_password_hash(req.password)  # truncates to 72
+        hashed = get_password_hash(req.password)
         user_id = create_user(req.email, hashed)
         token = create_access_token({"sub": str(user_id)})
         return TokenResponse(
@@ -245,7 +253,7 @@ async def upgrade_to_pro(current_user: dict = Depends(get_current_user_optional)
     set_user_pro(current_user["id"], True)
     return {"message": "Upgraded to PRO", "is_pro": True}
 
-# ─── MAIN ENDPOINTS ─── (unchanged)
+# ─── MAIN ENDPOINTS ───
 @app.get("/")
 async def root():
     return FileResponse(str(FRONTEND_DIR / "index.html"))
@@ -280,6 +288,9 @@ async def export_conversation(conversation_id: int, format: str = "json", user_i
             lines.append(f"[{'You' if m['role'] == 'user' else 'VEYRONIS'}] {m.get('time', '')}\n{m['content']}\n\n")
         return {"content": "".join(lines), "filename": f"veyronis_chat_{conversation_id}.txt"}
 
+# =============================================================================
+# CHAT ENDPOINT WITH HINDSIGHT INTEGRATION
+# =============================================================================
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, req: Request, current_user: Optional[dict] = Depends(get_current_user_optional)):
     msg = request.message.strip()
@@ -292,11 +303,40 @@ async def chat(request: ChatRequest, req: Request, current_user: Optional[dict] 
         is_pro = request.pro_code in PRO_CODES
         if not user_id:
             user_id = "u_" + str(int(time.time()))
+
+    client_ip = req.client.host
+
+    # ─── HINDSIGHT SIMULATION MODE ───
+    if request.mode == "simulation":
+        if not msg:
+            raise HTTPException(400, detail="Empty scenario")
+        can_run, limit_msg = hindsight_engine.check_simulation_limit(user_id, is_pro)
+        if not can_run:
+            raise HTTPException(429, detail=limit_msg)
+        max_steps = 5 if is_pro else 3
+        try:
+            result = hindsight_engine.simulate(msg, max_steps=max_steps)
+            if not conversation_id:
+                title = msg[:40] + ("..." if len(msg) > 40 else "")
+                conversation_id = create_conversation(user_id, title=title)
+            save_message(user_id, "user", f"🔮 {msg}", conversation_id=conversation_id)
+            save_message(user_id, "assistant", result.model_dump_json(), conversation_id=conversation_id)
+            return ChatResponse(
+                response=result.model_dump_json(),
+                tier="pro" if is_pro else "free",
+                conversation_id=conversation_id,
+                reasoning=f"Simulated {len(result.timeline)} steps with confidence analysis"
+            )
+        except Exception as e:
+            print(f"[HINDSIGHT ERROR] {e}")
+            traceback.print_exc()
+            raise HTTPException(500, detail=f"Simulation failed: {str(e)}")
+
+    # ─── STANDARD CHAT MODE ───
     if msg and not check_input(msg)[0]:
         raise HTTPException(400, detail="Blocked")
     if not msg and not request.image:
         raise HTTPException(400, detail="Empty message")
-    client_ip = req.client.host
     if request.mode == "canvas" and not is_pro:
         raise HTTPException(403, detail="Canvas is a Pro feature")
     if not is_pro and not check_free_limit(client_ip):
@@ -328,9 +368,11 @@ async def chat(request: ChatRequest, req: Request, current_user: Optional[dict] 
     except Exception as e:
         raise HTTPException(500, detail=str(e))
 
+# =============================================================================
+# STREAMING CHAT ENDPOINT WITH HINDSIGHT
+# =============================================================================
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest, req: Request, current_user: Optional[dict] = Depends(get_current_user_optional)):
-    # ... (full version – unchanged)
     msg = request.message.strip()
     user_id = request.user_id.strip()
     conversation_id = request.conversation_id
@@ -370,9 +412,33 @@ async def chat_stream(request: ChatRequest, req: Request, current_user: Optional
     image_data_url = _b64_to_data_url(request.image) if has_image else None
     user_content = msg if has_text else "[Image uploaded for analysis]"
     save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
+
     async def event_generator():
         full_response = ""
         effective_query = msg if has_text else ""
+
+        # ─── HINDSIGHT SIMULATION STREAMING ───
+        if request.mode == "simulation":
+            can_run, limit_msg = hindsight_engine.check_simulation_limit(user_id, is_pro)
+            if not can_run:
+                yield f"data: {json.dumps({'type': 'error', 'content': limit_msg})}\n\n"
+                return
+            max_steps = 5 if is_pro else 3
+            try:
+                yield f"data: {json.dumps({'type': 'reasoning', 'content': '🔮 Running Hindsight simulation...'})}\n\n"
+                result = hindsight_engine.simulate(effective_query, max_steps=max_steps)
+                json_output = result.model_dump_json()
+                yield f"data: {json.dumps({'type': 'token', 'content': json_output})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free'})}\n\n"
+                save_message(user_id, "assistant", json_output, conversation_id=conversation_id)
+                hindsight_engine.check_simulation_limit(user_id, is_pro)  # trigger increment via run
+                SimulationLimiter = hindsight_engine.__class__.__import__('hindsight_engine').SimulationLimiter
+                SimulationLimiter.increment(user_id, str(date.today()))
+                return
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'content': f'Simulation failed: {str(e)}'})}\n\n"
+                return
+
         try:
             for event_type, content in orchestrator.process_pipeline_stream(
                 effective_query, mode=request.mode, user_id=user_id, conversation_id=conversation_id,
@@ -404,6 +470,7 @@ async def chat_stream(request: ChatRequest, req: Request, current_user: Optional
             print(f"[STREAM ERROR] {e}")
             traceback.print_exc()
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.post("/upload")
@@ -486,7 +553,7 @@ async def health():
     gemini_ok = Config.gemini_ready()
     return {
         "status": "VEYRONIS is online",
-        "version": "1.2-alpha",
+        "version": "1.3-hindsight",
         "models": {"groq": groq_ok, "tavily": tavily_ok, "gemini": gemini_ok},
         "timestamp": datetime.now().isoformat()
     }
