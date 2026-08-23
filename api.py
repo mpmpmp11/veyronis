@@ -1,16 +1,17 @@
-"""VEYRONIS API Server + Frontend + JWT Auth + HINDSIGHT (self-contained)."""
+"""VEYRONIS API Server + Frontend + JWT Auth + HINDSIGHT + PRO + Security."""
 import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import hashlib
+import bcrypt
 from orchestrator import CentralOrchestrator
 from guardrails import check_input
 from tools.document_parser import DocumentParser
@@ -19,7 +20,8 @@ from database import (
     save_message, get_history, clear_history,
     create_conversation, get_conversations, rename_conversation,
     delete_conversation,
-    create_user, get_user_by_email, get_user_by_id, set_user_pro
+    create_user, get_user_by_email, get_user_by_id, set_user_pro,
+    get_usage_count, increment_usage
 )
 from settings import Config
 import base64
@@ -28,26 +30,29 @@ import json
 import time
 import traceback
 
-# =============================================================================
-# HINDSIGHT IMPORTS
-# =============================================================================
+# Hindsight imports
 from hindsight_engine import HindsightEngine, SimulationStep, HindsightResponse
 
-# ─── JWT SETUP ───
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "veyronis-super-secret-key-change-me")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
+# Google OAuth imports
+from auth import get_google_auth_url, handle_google_callback
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# ─── JWT SETUP ───
+# Validate JWT secret is set before anything else
+Config.validate_jwt()
+
+SECRET_KEY = Config.JWT_SECRET_KEY
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    pwd_hash = hashlib.sha256(plain.encode()).hexdigest()
+    return bcrypt.checkpw(pwd_hash.encode("utf-8"), hashed.encode("utf-8"))
 
 def get_password_hash(password: str) -> str:
-    if len(password) > 72:
-        password = password[:72]
-    return pwd_context.hash(password)
+    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+    return bcrypt.hashpw(pwd_hash.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
@@ -75,15 +80,39 @@ def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme)):
         return None
     return {"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])}
 
+def get_current_user_required(token: str = Depends(oauth2_scheme)):
+    """Require authentication for protected endpoints."""
+    if token is None:
+        raise HTTPException(401, detail="Not authenticated")
+    payload = decode_token(token)
+    if payload is None:
+        raise HTTPException(401, detail="Invalid token")
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(401, detail="Invalid token")
+    user = get_user_by_id(int(user_id))
+    if user is None:
+        raise HTTPException(401, detail="User not found")
+    return {"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])}
+
 # ─── PATH SETUP ───
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 app = FastAPI(title="VEYRONIS API")
 
+# ─── CORS — Restricted to allowed origins ───
+ALLOWED_ORIGINS = [
+    "http://localhost:8000",
+    "http://localhost:3000",
+    "http://127.0.0.1:8000",
+    "https://veyronis-production.up.railway.app",
+    "https://veyronis.onrender.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -92,10 +121,6 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
 orchestrator = CentralOrchestrator()
-
-# =============================================================================
-# HINDSIGHT ENGINE INIT
-# =============================================================================
 hindsight_engine = HindsightEngine()
 
 limits_file = BASE_DIR / "daily_limits.json"
@@ -194,8 +219,13 @@ class TokenResponse(BaseModel):
     user: dict
 
 # ─── AUTH ENDPOINTS ───
+
 @app.post("/register")
-async def register(req: RegisterRequest):
+async def register(req: RegisterRequest, request: Request):
+    client_ip = request.client.host
+    if not _check_rate_limit(client_ip, max_requests=3, window_seconds=300):
+        raise HTTPException(429, detail="Too many registration attempts. Try again later.")
+    
     try:
         if "@" not in req.email or "." not in req.email:
             raise HTTPException(400, detail="Invalid email address")
@@ -220,7 +250,11 @@ async def register(req: RegisterRequest):
         raise HTTPException(500, detail=f"Internal error: {str(e)}")
 
 @app.post("/login")
-async def login(req: LoginRequest):
+async def login(req: LoginRequest, request: Request):
+    client_ip = request.client.host
+    if not _check_rate_limit(client_ip, max_requests=5, window_seconds=60):
+        raise HTTPException(429, detail="Too many login attempts. Try again later.")
+    
     try:
         user = get_user_by_email(req.email)
         if not user:
@@ -241,19 +275,82 @@ async def login(req: LoginRequest):
         raise HTTPException(500, detail=f"Internal error: {str(e)}")
 
 @app.get("/me")
-async def get_me(current_user: dict = Depends(get_current_user_optional)):
+async def get_me(current_user: dict = Depends(get_current_user_required)):
     if current_user is None:
         raise HTTPException(401, detail="Not authenticated")
-    return {"user": current_user}
+    user = get_user_by_id(current_user["id"])
+    today = str(date.today())
+    usage = get_usage_count(current_user["email"], today) if not user["is_pro"] else None
+    remaining = max(0, 20 - usage) if usage is not None else None
+    return {
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "is_pro": bool(user["is_pro"]),
+            "avatar_url": user.get("avatar_url"),
+            "usage": usage,
+            "remaining": remaining
+        }
+    }
 
 @app.post("/upgrade")
-async def upgrade_to_pro(current_user: dict = Depends(get_current_user_optional)):
+async def upgrade_to_pro(current_user: dict = Depends(get_current_user_required)):
     if current_user is None:
         raise HTTPException(401, detail="Not authenticated")
     set_user_pro(current_user["id"], True)
     return {"message": "Upgraded to PRO", "is_pro": True}
 
-# ─── MAIN ENDPOINTS ───
+# ─── GOOGLE OAUTH ENDPOINTS ───
+
+@app.get("/auth/google")
+async def google_login(request: Request):
+    if not Config.google_oauth_ready():
+        raise HTTPException(503, detail="Google OAuth not configured")
+    
+    forwarded_host = request.headers.get("x-forwarded-host")
+    forwarded_proto = request.headers.get("x-forwarded-proto", "http")
+    
+    if forwarded_host:
+        base_url = f"{forwarded_proto}://{forwarded_host}"
+    else:
+        base_url = str(request.base_url).rstrip("/")
+    
+    redirect_uri = f"{base_url}/auth/google/callback"
+    auth_url = get_google_auth_url(redirect_uri)
+    return RedirectResponse(auth_url)
+
+@app.get("/auth/google/callback")
+async def google_callback(code: str, request: Request):
+    if not Config.google_oauth_ready():
+        raise HTTPException(503, detail="Google OAuth not configured")
+    
+    forwarded_host = request.headers.get("x-forwarded-host")
+    forwarded_proto = request.headers.get("x-forwarded-proto", "http")
+    
+    if forwarded_host:
+        base_url = f"{forwarded_proto}://{forwarded_host}"
+    else:
+        base_url = str(request.base_url).rstrip("/")
+    
+    redirect_uri = f"{base_url}/auth/google/callback"
+    
+    try:
+        result = await handle_google_callback(code, redirect_uri)
+        frontend_url = (
+            f"{base_url}/#auth=success"
+            f"&token={result['access_token']}"
+            f"&user={result['user']['email']}"
+            f"&is_pro={result['user']['is_pro']}"
+            f"&name={result['user']['name']}"
+            f"&avatar={result['user']['avatar_url']}"
+        )
+        return RedirectResponse(frontend_url)
+    except Exception as e:
+        frontend_url = f"{base_url}/#auth=error&message={str(e)}"
+        return RedirectResponse(frontend_url)
+
+# ─── PROTECTED ENDPOINTS ───
+
 @app.get("/")
 async def root():
     return FileResponse(str(FRONTEND_DIR / "index.html"))
@@ -263,15 +360,28 @@ async def service_worker():
     return FileResponse(str(FRONTEND_DIR / "service-worker.js"), media_type="application/javascript")
 
 @app.get("/history")
-async def history(user_id: str, conversation_id: Optional[int] = None):
-    if not user_id:
-        raise HTTPException(400, detail="Missing user_id")
+async def history(
+    user_id: str, 
+    conversation_id: Optional[int] = None,
+    current_user: dict = Depends(get_current_user_required)
+):
+    if current_user is None:
+        raise HTTPException(401, detail="Not authenticated")
+    if user_id != current_user["email"]:
+        raise HTTPException(403, detail="Access denied")
     return {"messages": get_history(user_id, conversation_id=conversation_id)}
 
 @app.get("/export/{conversation_id}")
-async def export_conversation(conversation_id: int, format: str = "json", user_id: str = ""):
-    if not user_id:
-        raise HTTPException(400, detail="Missing user_id")
+async def export_conversation(
+    conversation_id: int, 
+    format: str = "json", 
+    user_id: str = "",
+    current_user: dict = Depends(get_current_user_required)
+):
+    if current_user is None:
+        raise HTTPException(401, detail="Not authenticated")
+    if user_id != current_user["email"]:
+        raise HTTPException(403, detail="Access denied")
     if format not in ("json", "txt"):
         raise HTTPException(400, detail="Format must be json or txt")
     msgs = get_history(user_id, conversation_id=conversation_id, limit=1000)
@@ -288,14 +398,132 @@ async def export_conversation(conversation_id: int, format: str = "json", user_i
             lines.append(f"[{'You' if m['role'] == 'user' else 'VEYRONIS'}] {m.get('time', '')}\n{m['content']}\n\n")
         return {"content": "".join(lines), "filename": f"veyronis_chat_{conversation_id}.txt"}
 
-# =============================================================================
-# CHAT ENDPOINT WITH HINDSIGHT INTEGRATION
-# =============================================================================
+@app.get("/conversations")
+async def list_conversations(
+    user_id: str,
+    current_user: dict = Depends(get_current_user_required)
+):
+    if current_user is None:
+        raise HTTPException(401, detail="Not authenticated")
+    if user_id != current_user["email"]:
+        raise HTTPException(403, detail="Access denied")
+    return {"conversations": get_conversations(user_id)}
+
+@app.post("/conversations")
+async def new_conversation(
+    req: NewConversationRequest,
+    current_user: dict = Depends(get_current_user_required)
+):
+    if current_user is None:
+        raise HTTPException(401, detail="Not authenticated")
+    if req.user_id != current_user["email"]:
+        raise HTTPException(403, detail="Access denied")
+    cid = create_conversation(req.user_id, req.title)
+    return {"id": cid, "title": req.title}
+
+@app.patch("/conversations/{conversation_id}")
+async def patch_conversation(
+    conversation_id: int, 
+    req: RenameRequest,
+    current_user: dict = Depends(get_current_user_required)
+):
+    if current_user is None:
+        raise HTTPException(401, detail="Not authenticated")
+    # Verify user owns this conversation
+    convs = get_conversations(current_user["email"])
+    if not any(c["id"] == conversation_id for c in convs):
+        raise HTTPException(403, detail="Access denied")
+    if not req.title.strip():
+        raise HTTPException(400, detail="Empty title")
+    ok = rename_conversation(conversation_id, req.title.strip())
+    if not ok:
+        raise HTTPException(404, detail="Conversation not found")
+    return {"status": "renamed"}
+
+@app.delete("/conversations/{conversation_id}")
+async def remove_conversation(
+    conversation_id: int,
+    current_user: dict = Depends(get_current_user_required)
+):
+    if current_user is None:
+        raise HTTPException(401, detail="Not authenticated")
+    # Verify user owns this conversation
+    convs = get_conversations(current_user["email"])
+    if not any(c["id"] == conversation_id for c in convs):
+        raise HTTPException(403, detail="Access denied")
+    delete_conversation(conversation_id)
+    return {"status": "deleted"}
+
+@app.post("/clear")
+async def clear_chat(
+    request: Request,
+    current_user: dict = Depends(get_current_user_required)
+):
+    if current_user is None:
+        raise HTTPException(401, detail="Not authenticated")
+    data = await request.json()
+    user_id = data.get("user_id", "")
+    conversation_id = data.get("conversation_id")
+    if user_id != current_user["email"]:
+        raise HTTPException(403, detail="Access denied")
+    clear_history(user_id, conversation_id=conversation_id)
+    return {"status": "Chat cleared"}
+
+# ─── UNPROTECTED ENDPOINTS (with rate limiting) ───
+
+@app.post("/upload")
+async def upload_document(
+    file: UploadFile = File(...), 
+    user_id: str = "", 
+    conversation_id: Optional[int] = None,
+    request: Request = None
+):
+    # Rate limit uploads
+    client_ip = request.client.host if request else "unknown"
+    if not _check_rate_limit(client_ip, max_requests=10, window_seconds=60):
+        raise HTTPException(429, detail="Too many uploads. Slow down.")
+    
+    if not user_id:
+        user_id = "u_auto_" + str(int(time.time()))
+    content = await file.read()
+    text = DocumentParser.extract_text(content, file.filename)
+    gemini_analysis = None
+    try:
+        if Config.gemini_ready() and orchestrator.gemini_agent:
+            gemini_analysis = orchestrator.gemini_agent.generate_document_response(
+                content, file.filename,
+                prompt="Analyze this document thoroughly. Provide a concise summary, key points, main arguments, important data, and notable sections."
+            )
+    except Exception as e:
+        print(f"[VEYRONIS] Gemini doc analysis failed: {e}")
+    if not conversation_id:
+        conversation_id = create_conversation(user_id, title=file.filename)
+    response = {
+        "filename": file.filename,
+        "extracted_length": len(text),
+        "preview": text[:500],
+        "content": text[:3000],
+        "conversation_id": conversation_id
+    }
+    if gemini_analysis:
+        response["gemini_analysis"] = gemini_analysis
+    return response
+
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, req: Request, current_user: Optional[dict] = Depends(get_current_user_optional)):
+async def chat(
+    request: ChatRequest, 
+    req: Request, 
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
     msg = request.message.strip()
     user_id = request.user_id.strip()
     conversation_id = request.conversation_id
+    
+    # Rate limit ALL chat requests
+    client_ip = req.client.host
+    if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
+        raise HTTPException(429, detail="Rate limit exceeded. Please slow down.")
+    
     if current_user:
         user_id = current_user["email"]
         is_pro = current_user["is_pro"]
@@ -304,35 +532,37 @@ async def chat(request: ChatRequest, req: Request, current_user: Optional[dict] 
         if not user_id:
             user_id = "u_" + str(int(time.time()))
 
-    client_ip = req.client.host
+    today = str(date.today())
+    if not is_pro:
+        usage = get_usage_count(user_id, today)
+        if usage >= 20:
+            raise HTTPException(429, detail="FREE limit reached (20 messages/day). Upgrade to PRO for unlimited.")
 
-    # ─── HINDSIGHT SIMULATION MODE ───
     if request.mode == "simulation":
         if not msg:
             raise HTTPException(400, detail="Empty scenario")
-        can_run, limit_msg = hindsight_engine.check_simulation_limit(user_id, is_pro)
-        if not can_run:
-            raise HTTPException(429, detail=limit_msg)
-        max_steps = 5 if is_pro else 3
         try:
-            result = hindsight_engine.simulate(msg, max_steps=max_steps)
+            result, status = hindsight_engine.run(user_id, msg, is_pro=is_pro)
             if not conversation_id:
                 title = msg[:40] + ("..." if len(msg) > 40 else "")
                 conversation_id = create_conversation(user_id, title=title)
             save_message(user_id, "user", f"🔮 {msg}", conversation_id=conversation_id)
             save_message(user_id, "assistant", result.model_dump_json(), conversation_id=conversation_id)
+            if not is_pro:
+                increment_usage(user_id, today)
             return ChatResponse(
                 response=result.model_dump_json(),
                 tier="pro" if is_pro else "free",
                 conversation_id=conversation_id,
-                reasoning=f"Simulated {len(result.timeline)} steps with confidence analysis"
+                reasoning=f"Simulated {len(result.timeline)} steps"
             )
+        except RuntimeError as e:
+            raise HTTPException(429, detail=str(e))
         except Exception as e:
             print(f"[HINDSIGHT ERROR] {e}")
             traceback.print_exc()
             raise HTTPException(500, detail=f"Simulation failed: {str(e)}")
 
-    # ─── STANDARD CHAT MODE ───
     if msg and not check_input(msg)[0]:
         raise HTTPException(400, detail="Blocked")
     if not msg and not request.image:
@@ -340,9 +570,8 @@ async def chat(request: ChatRequest, req: Request, current_user: Optional[dict] 
     if request.mode == "canvas" and not is_pro:
         raise HTTPException(403, detail="Canvas is a Pro feature")
     if not is_pro and not check_free_limit(client_ip):
-        raise HTTPException(429, detail="FREE LIMIT reached")
-    if not _check_rate_limit(client_ip):
-        raise HTTPException(429, detail="Rate limit exceeded")
+        raise HTTPException(429, detail="FREE LIMIT reached (IP-based)")
+    
     if not conversation_id:
         title = msg[:40] + ("..." if len(msg) > 40 else "") if msg else "Image upload"
         conversation_id = create_conversation(user_id, title=title)
@@ -358,6 +587,7 @@ async def chat(request: ChatRequest, req: Request, current_user: Optional[dict] 
         save_message(user_id, "assistant", result["response"], conversation_id=conversation_id)
         if not is_pro:
             add_free_request(client_ip)
+            increment_usage(user_id, today)
         return ChatResponse(
             response=result["response"],
             tier="pro" if is_pro else "free",
@@ -368,14 +598,23 @@ async def chat(request: ChatRequest, req: Request, current_user: Optional[dict] 
     except Exception as e:
         raise HTTPException(500, detail=str(e))
 
-# =============================================================================
-# STREAMING CHAT ENDPOINT WITH HINDSIGHT
-# =============================================================================
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequest, req: Request, current_user: Optional[dict] = Depends(get_current_user_optional)):
+async def chat_stream(
+    request: ChatRequest, 
+    req: Request, 
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
     msg = request.message.strip()
     user_id = request.user_id.strip()
     conversation_id = request.conversation_id
+    
+    # Rate limit ALL streaming requests
+    client_ip = req.client.host
+    if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
+        async def rate_limit_error():
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Rate limit exceeded. Please slow down.'})}\n\n"
+        return StreamingResponse(rate_limit_error(), media_type="text/event-stream")
+    
     if current_user:
         user_id = current_user["email"]
         is_pro = current_user["is_pro"]
@@ -383,11 +622,20 @@ async def chat_stream(request: ChatRequest, req: Request, current_user: Optional
         is_pro = request.pro_code in PRO_CODES
         if not user_id:
             user_id = "u_" + str(int(time.time()))
+    
+    today = str(date.today())
+    if not is_pro:
+        usage = get_usage_count(user_id, today)
+        if usage >= 20:
+            async def limit_error():
+                yield f"data: {json.dumps({'type': 'error', 'content': 'FREE limit reached (20/day). Upgrade to PRO for unlimited.'})}\n\n"
+            return StreamingResponse(limit_error(), media_type="text/event-stream")
+
     if request.mode == "canvas" and not is_pro:
         async def err_gen():
             yield f"data: {json.dumps({'type': 'error', 'content': 'Canvas is Pro feature'})}\n\n"
         return StreamingResponse(err_gen(), media_type="text/event-stream")
-    client_ip = req.client.host
+    
     has_image = request.image is not None and len(request.image) > 0
     has_text = len(msg) > 0
     if has_text and not check_input(msg)[0]:
@@ -402,10 +650,7 @@ async def chat_stream(request: ChatRequest, req: Request, current_user: Optional
         async def err_gen():
             yield f"data: {json.dumps({'type': 'error', 'content': 'Free limit reached'})}\n\n"
         return StreamingResponse(err_gen(), media_type="text/event-stream")
-    if not _check_rate_limit(client_ip):
-        async def err_gen():
-            yield f"data: {json.dumps({'type': 'error', 'content': 'Rate limit'})}\n\n"
-        return StreamingResponse(err_gen(), media_type="text/event-stream")
+    
     if not conversation_id:
         title = msg[:40] + ("..." if len(msg) > 40 else "") if has_text else "Image upload"
         conversation_id = create_conversation(user_id, title=title)
@@ -417,23 +662,19 @@ async def chat_stream(request: ChatRequest, req: Request, current_user: Optional
         full_response = ""
         effective_query = msg if has_text else ""
 
-        # ─── HINDSIGHT SIMULATION STREAMING ───
         if request.mode == "simulation":
-            can_run, limit_msg = hindsight_engine.check_simulation_limit(user_id, is_pro)
-            if not can_run:
-                yield f"data: {json.dumps({'type': 'error', 'content': limit_msg})}\n\n"
-                return
-            max_steps = 5 if is_pro else 3
             try:
                 yield f"data: {json.dumps({'type': 'reasoning', 'content': '🔮 Running Hindsight simulation...'})}\n\n"
-                result = hindsight_engine.simulate(effective_query, max_steps=max_steps)
+                result, status = hindsight_engine.run(user_id, effective_query, is_pro=is_pro)
                 json_output = result.model_dump_json()
                 yield f"data: {json.dumps({'type': 'token', 'content': json_output})}\n\n"
                 yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free'})}\n\n"
                 save_message(user_id, "assistant", json_output, conversation_id=conversation_id)
-                hindsight_engine.check_simulation_limit(user_id, is_pro)  # trigger increment via run
-                SimulationLimiter = hindsight_engine.__class__.__import__('hindsight_engine').SimulationLimiter
-                SimulationLimiter.increment(user_id, str(date.today()))
+                if not is_pro:
+                    increment_usage(user_id, today)
+                return
+            except RuntimeError as e:
+                yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
                 return
             except Exception as e:
                 yield f"data: {json.dumps({'type': 'error', 'content': f'Simulation failed: {str(e)}'})}\n\n"
@@ -462,6 +703,7 @@ async def chat_stream(request: ChatRequest, req: Request, current_user: Optional
             save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
             if not is_pro:
                 add_free_request(client_ip)
+                increment_usage(user_id, today)
         except GeneratorExit:
             if full_response:
                 save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
@@ -473,73 +715,13 @@ async def chat_stream(request: ChatRequest, req: Request, current_user: Optional
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-@app.post("/upload")
-async def upload_document(file: UploadFile = File(...), user_id: str = "", conversation_id: Optional[int] = None):
-    if not user_id:
-        user_id = "u_auto_" + str(int(time.time()))
-    content = await file.read()
-    text = DocumentParser.extract_text(content, file.filename)
-    gemini_analysis = None
-    try:
-        if Config.gemini_ready() and orchestrator.gemini_agent:
-            gemini_analysis = orchestrator.gemini_agent.generate_document_response(
-                content, file.filename,
-                prompt="Analyze this document thoroughly. Provide a concise summary, key points, main arguments, important data, and notable sections."
-            )
-    except Exception as e:
-        print(f"[VEYRONIS] Gemini doc analysis failed: {e}")
-    if not conversation_id:
-        conversation_id = create_conversation(user_id, title=file.filename)
-    response = {
-        "filename": file.filename,
-        "extracted_length": len(text),
-        "preview": text[:500],
-        "content": text[:3000],
-        "conversation_id": conversation_id
-    }
-    if gemini_analysis:
-        response["gemini_analysis"] = gemini_analysis
-    return response
-
-@app.post("/clear")
-async def clear_chat(request: Request):
-    data = await request.json()
-    user_id = data.get("user_id", "")
-    conversation_id = data.get("conversation_id")
-    if not user_id:
-        raise HTTPException(400, detail="Missing user_id")
-    clear_history(user_id, conversation_id=conversation_id)
-    return {"status": "Chat cleared"}
-
-@app.get("/conversations")
-async def list_conversations(user_id: str):
-    if not user_id:
-        raise HTTPException(400, detail="Missing user_id")
-    return {"conversations": get_conversations(user_id)}
-
-@app.post("/conversations")
-async def new_conversation(req: NewConversationRequest):
-    if not req.user_id:
-        raise HTTPException(400, detail="Missing user_id")
-    cid = create_conversation(req.user_id, req.title)
-    return {"id": cid, "title": req.title}
-
-@app.patch("/conversations/{conversation_id}")
-async def patch_conversation(conversation_id: int, req: RenameRequest):
-    if not req.title.strip():
-        raise HTTPException(400, detail="Empty title")
-    ok = rename_conversation(conversation_id, req.title.strip())
-    if not ok:
-        raise HTTPException(404, detail="Conversation not found")
-    return {"status": "renamed"}
-
-@app.delete("/conversations/{conversation_id}")
-async def remove_conversation(conversation_id: int):
-    delete_conversation(conversation_id)
-    return {"status": "deleted"}
-
 @app.post("/execute")
 async def execute_code(request: Request):
+    # Rate limit code execution
+    client_ip = request.client.host
+    if not _check_rate_limit(client_ip, max_requests=10, window_seconds=60):
+        raise HTTPException(429, detail="Too many code executions. Slow down.")
+    
     data = await request.json()
     code = data.get("code", "").strip()
     if not code:
@@ -551,10 +733,12 @@ async def health():
     groq_ok = bool(Config.GROQ_API_KEY)
     tavily_ok = bool(Config.TAVILY_API_KEY)
     gemini_ok = Config.gemini_ready()
+    google_oauth_ok = Config.google_oauth_ready()
     return {
         "status": "VEYRONIS is online",
         "version": "1.3-hindsight",
         "models": {"groq": groq_ok, "tavily": tavily_ok, "gemini": gemini_ok},
+        "oauth": {"google": google_oauth_ok},
         "timestamp": datetime.now().isoformat()
     }
 
@@ -563,7 +747,10 @@ async def ping():
     return {"message": "pong"}
 
 @app.get("/routes")
-async def routes():
+async def routes(current_user: dict = Depends(get_current_user_required)):
+    """Protected route list — only for authenticated users."""
+    if current_user is None:
+        raise HTTPException(401, detail="Not authenticated")
     route_list = []
     for route in app.routes:
         route_list.append({"path": route.path, "methods": list(route.methods) if hasattr(route, "methods") else []})

@@ -1,4 +1,4 @@
-"""SQLite database for chat history and users."""
+"""SQLite database for chat history, users, and usage limits."""
 import sqlite3
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -11,19 +11,69 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+def row_to_dict(row):
+    """Convert sqlite3.Row to dict for safe attribute access."""
+    return dict(row) if row else None
+
 def ensure_users_table():
     conn = get_db()
     conn.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
-            hashed_password TEXT NOT NULL,
+            hashed_password TEXT,
+            google_id TEXT,
+            avatar_url TEXT,
             is_pro BOOLEAN DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.commit()
     conn.close()
+
+def ensure_google_columns():
+    """Add google_id and avatar_url columns to users table if they don't exist."""
+    conn = get_db()
+    cursor = conn.execute("PRAGMA table_info(users)")
+    columns = [row["name"] for row in cursor.fetchall()]
+    
+    if "google_id" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN google_id TEXT")
+        print("[VEYRONIS] Added google_id column to users")
+    
+    if "avatar_url" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+        print("[VEYRONIS] Added avatar_url column to users")
+    
+    conn.commit()
+    conn.close()
+    
+    # Create unique index for google_id (ignoring NULLs)
+    try:
+        conn = get_db()
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL")
+        conn.commit()
+        print("[VEYRONIS] Created unique index on google_id")
+    except sqlite3.OperationalError as e:
+        print(f"[VEYRONIS] Note: {e}")
+    finally:
+        conn.close()
+
+def ensure_usage_table():
+    """Create usage_logs table if it doesn't exist."""
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS usage_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            date TEXT NOT NULL,
+            count INTEGER DEFAULT 0,
+            UNIQUE(user_id, date)
+        )
+    """)
+    conn.commit()
+    conn.close()
+    print("[VEYRONIS] Usage logs table ready")
 
 def init_db():
     conn = get_db()
@@ -61,7 +111,8 @@ def _migrate():
     conn.commit()
     conn.close()
 
-# Messages
+# ─── MESSAGES ───
+
 def save_message(user_id: str, role: str, content: str, conversation_id: Optional[int] = None, image_data: Optional[str] = None):
     conn = get_db()
     conn.execute(
@@ -98,7 +149,8 @@ def clear_history(user_id: str, conversation_id: Optional[int] = None):
     conn.commit()
     conn.close()
 
-# Conversations
+# ─── CONVERSATIONS ───
+
 def create_conversation(user_id: str, title: str = "New Chat") -> int:
     conn = get_db()
     cursor = conn.execute("INSERT INTO conversations (user_id, title) VALUES (?, ?)", (user_id, title))
@@ -132,28 +184,85 @@ def delete_conversation(conversation_id: int):
     conn.commit()
     conn.close()
 
-# Users
-def create_user(email: str, hashed_password: str) -> int:
+# ─── USERS ───
+
+def create_user(email: str, hashed_password: str = None, google_id: str = None, avatar_url: str = None) -> int:
     conn = get_db()
-    cursor = conn.execute("INSERT INTO users (email, hashed_password) VALUES (?, ?)", (email, hashed_password))
+    
+    if google_id:
+        existing = conn.execute("SELECT id FROM users WHERE google_id = ?", (google_id,)).fetchone()
+        if existing:
+            conn.close()
+            return existing["id"]
+        
+        existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE users SET google_id = ?, avatar_url = ? WHERE id = ?",
+                (google_id, avatar_url, existing["id"])
+            )
+            conn.commit()
+            conn.close()
+            return existing["id"]
+        
+        cursor = conn.execute(
+            "INSERT INTO users (email, google_id, avatar_url, is_pro) VALUES (?, ?, ?, 0)",
+            (email, google_id, avatar_url)
+        )
+    else:
+        if hashed_password is None:
+            raise ValueError("Password required for email registration")
+        cursor = conn.execute(
+            "INSERT INTO users (email, hashed_password) VALUES (?, ?)",
+            (email, hashed_password)
+        )
+    
     conn.commit()
     user_id = cursor.lastrowid
     conn.close()
     return user_id
 
 def get_user_by_email(email: str):
+    """Return user as dict or None."""
     conn = get_db()
-    cursor = conn.execute("SELECT id, email, hashed_password, is_pro FROM users WHERE email = ?", (email,))
-    user = cursor.fetchone()
+    cursor = conn.execute("SELECT id, email, hashed_password, is_pro, google_id, avatar_url FROM users WHERE email = ?", (email,))
+    row = cursor.fetchone()
     conn.close()
-    return user
+    return row_to_dict(row)  # Convert to dict
 
 def get_user_by_id(user_id: int):
+    """Return user as dict or None."""
     conn = get_db()
-    cursor = conn.execute("SELECT id, email, is_pro FROM users WHERE id = ?", (user_id,))
-    user = cursor.fetchone()
+    cursor = conn.execute("SELECT id, email, is_pro, avatar_url FROM users WHERE id = ?", (user_id,))
+    row = cursor.fetchone()
     conn.close()
-    return user
+    return row_to_dict(row)
+
+def get_user_by_google_id(google_id: str):
+    """Return user as dict or None."""
+    conn = get_db()
+    cursor = conn.execute(
+        "SELECT id, email, is_pro, avatar_url FROM users WHERE google_id = ?",
+        (google_id,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row_to_dict(row)
+
+def link_google_account(user_id: int, google_id: str, avatar_url: str = None):
+    conn = get_db()
+    if avatar_url:
+        conn.execute(
+            "UPDATE users SET google_id = ?, avatar_url = ? WHERE id = ?",
+            (google_id, avatar_url, user_id)
+        )
+    else:
+        conn.execute(
+            "UPDATE users SET google_id = ? WHERE id = ?",
+            (google_id, user_id)
+        )
+    conn.commit()
+    conn.close()
 
 def set_user_pro(user_id: int, is_pro: bool = True):
     conn = get_db()
@@ -161,7 +270,37 @@ def set_user_pro(user_id: int, is_pro: bool = True):
     conn.commit()
     conn.close()
 
+# ─── USAGE LIMITS ───
+
+def get_usage_count(user_id: str, date: str) -> int:
+    """Get message count for a user on a specific date."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT count FROM usage_logs WHERE user_id = ? AND date = ?",
+        (user_id, date)
+    ).fetchone()
+    conn.close()
+    return row["count"] if row else 0
+
+def increment_usage(user_id: str, date: str) -> int:
+    """Increment usage count for a user on a specific date. Returns new count."""
+    conn = get_db()
+    conn.execute("""
+        INSERT INTO usage_logs (user_id, date, count)
+        VALUES (?, ?, 1)
+        ON CONFLICT(user_id, date) DO UPDATE SET count = count + 1
+    """, (user_id, date))
+    conn.commit()
+    row = conn.execute(
+        "SELECT count FROM usage_logs WHERE user_id = ? AND date = ?",
+        (user_id, date)
+    ).fetchone()
+    conn.close()
+    return row["count"] if row else 0
+
 # ─── INIT ───
 init_db()
 _migrate()
 ensure_users_table()
+ensure_google_columns()
+ensure_usage_table()

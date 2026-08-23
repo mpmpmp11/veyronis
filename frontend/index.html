@@ -12,31 +12,65 @@
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
+    <base target="_blank">
 </head>
 <body>
 
-    <!-- ========== SETUP SCREEN (RESTORED) ========== -->
-    <div id="setup-screen" class="setup-screen">
+    <!-- ========== AUTH SCREEN ========== -->
+    <div id="auth-screen" class="auth-screen">
         <div class="ambient-bg">
             <div class="ambient-orb orb-1"></div>
             <div class="ambient-orb orb-2"></div>
             <div class="ambient-orb orb-3"></div>
         </div>
-        <div class="setup-card glass">
-            <div class="setup-brand">VEYRONIS</div>
-            <div class="setup-tag">Multi-AI Student Assistant</div>
-            <div class="setup-field">
-                <label>Server Address</label>
-                <input type="text" id="api-url" placeholder="http://localhost:8000" value="https://veyronis.onrender.com">
+        <div class="auth-card glass">
+            <div class="auth-brand">VEYRONIS</div>
+            <div class="auth-tag">Multi-AI Student Assistant</div>
+
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login" onclick="switchAuthTab('login')">Login</button>
+                <button class="auth-tab" data-tab="register" onclick="switchAuthTab('register')">Register</button>
             </div>
-            <div class="setup-field">
-                <label>Pro Code <span class="opt">(optional)</span></label>
-                <input type="text" id="pro-code" placeholder="Enter Pro code">
+
+            <div id="auth-login" class="auth-form active">
+                <div class="auth-field">
+                    <label>Email</label>
+                    <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email">
+                </div>
+                <div class="auth-field">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+                </div>
+                <div id="login-error" class="auth-error"></div>
+
+                <div class="auth-divider"><span>or</span></div>
+                <button class="auth-google-btn" onclick="handleGoogleLogin()">
+                    <svg width="18" height="18" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    Continue with Google
+                </button>
+                <button class="auth-action" onclick="handleLogin()">Login</button>
             </div>
-            <button class="setup-action" onclick="connect()">Connect</button>
-            <div class="setup-hint">
-                New here? Run <code>python api.py</code> in your project folder.<br>
-                Pro code: <code>DEV-MODE-2026</code>
+
+            <div id="auth-register" class="auth-form">
+                <div class="auth-field">
+                    <label>Email</label>
+                    <input type="email" id="register-email" placeholder="you@example.com" autocomplete="email">
+                </div>
+                <div class="auth-field">
+                    <label>Password</label>
+                    <input type="password" id="register-password" placeholder="Min 6 characters" autocomplete="new-password">
+                </div>
+                <div id="register-error" class="auth-error"></div>
+                <button class="auth-action" onclick="handleRegister()">Create Account</button>
+            </div>
+
+            <div class="auth-hint">
+                Local server running at <code>http://localhost:8000</code>
             </div>
         </div>
     </div>
@@ -108,29 +142,65 @@
 
         <!-- MAIN -->
         <main id="main">
-            <!-- TOP BAR -->
-            <header class="top-bar glass-header" id="top-bar">
+            <!-- TOP BAR (Glassmorphism) -->
+            <header class="top-bar glass" id="top-bar">
                 <div class="top-left">
-                    <button class="top-icon glass-icon hamburger" onclick="toggleSidebar()" title="Open sidebar">
+                    <button class="top-icon glass-icon" onclick="toggleSidebar()" title="Open sidebar">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <line x1="3" y1="6" x2="21" y2="6"/>
                             <line x1="3" y1="12" x2="21" y2="12"/>
                             <line x1="3" y1="18" x2="21" y2="18"/>
                         </svg>
                     </button>
-                    <div class="top-brand" onclick="newChat()">
-                        <span class="brand-text">VEYRONIS</span>
-                        <span class="brand-badge">DIGITAL FOOTPRINT</span>
-                    </div>
+                </div>
+                <div class="top-center">
+                    <span class="brand-text">VEYRONIS</span>
                 </div>
                 <div class="top-right">
-                    <!-- PRO Activation Button -->
                     <button class="top-icon glass-icon pro-btn" onclick="openUpgrade()" title="Upgrade to PRO">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                         </svg>
                     </button>
-                    <!-- Theme -->
+                    <div class="more-wrap">
+                        <button class="top-icon glass-icon more-btn" onclick="toggleMoreMenu()" title="More">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                <circle cx="12" cy="5" r="2"/>
+                                <circle cx="12" cy="12" r="2"/>
+                                <circle cx="12" cy="19" r="2"/>
+                            </svg>
+                        </button>
+                        <div class="more-menu glass" id="more-menu">
+                            <button class="more-item" onclick="newChat(); closeMoreMenu();">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                New Chat
+                            </button>
+                            <button class="more-item" onclick="renameCurrentConv(); closeMoreMenu();">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                Rename
+                            </button>
+                            <button class="more-item" onclick="archiveCurrentConv(); closeMoreMenu();">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                                Archive
+                            </button>
+                            <button class="more-item" onclick="searchMessages(); closeMoreMenu();">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                Search
+                            </button>
+                            <button class="more-item" onclick="deleteCurrentConv(); closeMoreMenu();">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                Delete
+                            </button>
+                            <button class="more-item" onclick="viewAttachments(); closeMoreMenu();">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                Attached Files
+                            </button>
+                            <button class="more-item" onclick="shareCurrentConv(); closeMoreMenu();">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                                Share
+                            </button>
+                        </div>
+                    </div>
                     <button class="top-icon glass-icon" onclick="cycleTheme()" title="Theme">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <circle cx="12" cy="12" r="5"/>
@@ -161,14 +231,15 @@
                         <button class="chip glass-chip" onclick="quickSend('Write a Python script that fetches weather data')">💻 Code</button>
                         <button class="chip glass-chip" onclick="quickSend('Create flashcards about the French Revolution')">📇 Flashcards</button>
                         <button class="chip glass-chip" onclick="quickSend('Draw me a majestic dragon')">🎨 Image</button>
+                        <button class="chip glass-chip" id="hindsight-chip" onclick="quickSend('What happens if I procrastinate on my final project until the last week?')">🔮 Hindsight</button>
                     </div>
                 </div>
             </div>
 
-            <!-- INPUT AREA (GLASS) -->
+            <!-- INPUT AREA (Glassmorphism, thinner) -->
             <div class="input-shell">
                 <div class="input-glass glass-strong" id="input-glass">
-                    <!-- Top row: Model toggle + Attach + Voice -->
+                    <!-- Top row: Model + Attach + Voice -->
                     <div class="input-top">
                         <button class="model-toggle glass-toggle" id="model-toggle" onclick="toggleModelMenu()">
                             <span id="model-label">Instant</span>
@@ -195,10 +266,16 @@
                             </button>
                         </div>
 
+                        <button class="simulation-toggle glass-toggle" id="sim-toggle" onclick="toggleSimulationMode()" title="Toggle VEYRONIS HINDSIGHT">
+                            <span class="sim-icon">🔮</span>
+                            <span>Hindsight</span>
+                            <span class="sim-limit-badge" id="sim-badge">1/1</span>
+                        </button>
+
                         <div class="input-actions">
                             <button class="composer-btn glass-icon attach-btn" onclick="toggleAttach()" title="Attach">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 5v14M5 12h14"/>
                                 </svg>
                             </button>
                             <div class="attach-pop glass" id="attach-pop">
@@ -251,9 +328,276 @@
     <!-- ========== DRAG OVERLAY ========== -->
     <div id="drag-overlay" class="drag-overlay">Drop file to upload</div>
 
-    <!-- ========== SETTINGS ========== -->
+    <!-- ========== SETTINGS PANEL ========== -->
     <div id="settings-panel" class="settings-panel hidden">
-        <!-- Full settings content — keep your existing version -->
+        <div class="settings-header">
+            <button class="settings-back" onclick="closeSettingsPanel()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <div class="settings-title">Settings</div>
+            <div style="width:36px"></div>
+        </div>
+        <div class="settings-scroll">
+            <!-- MAIN MENU -->
+            <div id="settings-main" class="settings-view">
+                <div class="settings-card">
+                    <div class="profile-hero">
+                        <div class="profile-avatar">V</div>
+                        <div class="profile-name" id="profile-name">You</div>
+                        <div class="profile-id" id="profile-user-id">Not logged in</div>
+                    </div>
+                    <div class="settings-section">Account</div>
+                    <div class="settings-row" onclick="openSettingsSub('profile')">
+                        <svg class="settings-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <div class="settings-label">Profile</div>
+                        <div class="settings-value" id="settings-tier-value">Free</div>
+                        <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="settings-row" onclick="openSettingsSub('chat-prefs')">
+                        <svg class="settings-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        <div class="settings-label">Chat Preferences</div>
+                        <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="settings-row" onclick="openSettingsSub('theme')">
+                        <svg class="settings-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                        <div class="settings-label">Theme</div>
+                        <div class="settings-value" id="settings-theme-value">Dark</div>
+                        <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="settings-row" onclick="openSettingsSub('plans')">
+                        <svg class="settings-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <div class="settings-label">Subscription</div>
+                        <div class="settings-value" id="profile-plan-value">Free</div>
+                        <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                </div>
+                <div class="settings-card">
+                    <div class="settings-section">About</div>
+                    <div class="settings-row" onclick="openSettingsSub('about')">
+                        <svg class="settings-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        <div class="settings-label">About VEYRONIS</div>
+                        <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div class="settings-row" onclick="openSettingsSub('feedback')">
+                        <svg class="settings-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                        <div class="settings-label">Send Feedback</div>
+                        <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                </div>
+                <button class="settings-logout" onclick="logout()">Logout</button>
+                <div class="settings-footer">VEYRONIS v1.3 · Built with 💜</div>
+            </div>
+
+            <!-- PROFILE SUB -->
+            <div id="settings-sub-profile" class="settings-sub hidden">
+                <div class="settings-header">
+                    <button class="settings-back" onclick="closeSettingsSub()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                    </button>
+                    <div class="settings-title">Profile</div>
+                    <div style="width:36px"></div>
+                </div>
+                <div class="settings-scroll">
+                    <div class="settings-card">
+                        <div class="profile-hero">
+                            <div class="profile-avatar">V</div>
+                            <div class="profile-name" id="profile-name-sub">You</div>
+                            <div class="profile-id" id="profile-id-value">Not logged in</div>
+                        </div>
+                        <div class="settings-section">Details</div>
+                        <div class="settings-row-static">
+                            <div class="settings-label">Plan</div>
+                            <div class="settings-value" id="profile-plan-value-sub">Free</div>
+                        </div>
+                        <div class="settings-row-static">
+                            <div class="settings-label">User ID</div>
+                            <div class="settings-value" id="profile-id-value-sub">—</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CHAT PREFS SUB -->
+            <div id="settings-sub-chat-prefs" class="settings-sub hidden">
+                <div class="settings-header">
+                    <button class="settings-back" onclick="closeSettingsSub()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                    </button>
+                    <div class="settings-title">Chat Preferences</div>
+                    <div style="width:36px"></div>
+                </div>
+                <div class="settings-scroll">
+                    <div class="settings-card">
+                        <div class="settings-section">Response Style</div>
+                        <div class="style-chips" style="padding:12px 16px 16px;">
+                            <button class="style-chip" data-style="concise" onclick="pickStyle('concise')">Concise</button>
+                            <button class="style-chip" data-style="balanced" onclick="pickStyle('balanced')">Balanced</button>
+                            <button class="style-chip" data-style="creative" onclick="pickStyle('creative')">Creative</button>
+                            <button class="style-chip" data-style="technical" onclick="pickStyle('technical')">Technical</button>
+                        </div>
+                    </div>
+                    <div class="settings-card">
+                        <div class="settings-section">Custom Instructions</div>
+                        <div style="padding:12px 16px 16px;">
+                            <textarea id="settings-custom-instructions" class="settings-textarea" rows="4" placeholder="e.g., Always explain like I'm 15. Use emojis. Be encouraging."></textarea>
+                            <div class="settings-hint" style="margin-top:8px;">These instructions apply to every conversation.</div>
+                        </div>
+                    </div>
+                    <div class="settings-card">
+                        <div class="settings-section">Voice</div>
+                        <div class="settings-row" onclick="toggleSettingsVoice()">
+                            <svg class="settings-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                            <div class="settings-label">Text-to-Speech</div>
+                            <div class="settings-value" id="settings-voice-value">On</div>
+                            <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                        <div class="settings-row-static" style="padding:8px 16px 16px;">
+                            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--text-secondary);">
+                                <input type="checkbox" id="auto-tts-toggle" style="width:16px;height:16px;accent-color:var(--accent);">
+                                Auto-read AI responses aloud
+                            </label>
+                        </div>
+                    </div>
+                    <button class="settings-logout" style="background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border:none;" onclick="saveChatPreferences()">Save Preferences</button>
+                </div>
+            </div>
+
+            <!-- THEME SUB -->
+            <div id="settings-sub-theme" class="settings-sub hidden">
+                <div class="settings-header">
+                    <button class="settings-back" onclick="closeSettingsSub()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                    </button>
+                    <div class="settings-title">Theme</div>
+                    <div style="width:36px"></div>
+                </div>
+                <div class="settings-scroll">
+                    <div class="settings-card">
+                        <div class="settings-section">Appearance</div>
+                        <div class="settings-row-radio" onclick="setTheme('dark')">
+                            <div class="radio-circle" id="radio-dark"></div>
+                            <div class="settings-label">Dark</div>
+                        </div>
+                        <div class="settings-row-radio" onclick="setTheme('light')">
+                            <div class="radio-circle" id="radio-light"></div>
+                            <div class="settings-label">Light</div>
+                        </div>
+                        <div class="settings-row-radio" onclick="setTheme('veyronis')">
+                            <div class="radio-circle" id="radio-veyronis"></div>
+                            <div class="settings-label">Veyronis</div>
+                        </div>
+                        <div class="settings-row-radio" onclick="setTheme('system')">
+                            <div class="radio-circle" id="radio-system"></div>
+                            <div class="settings-label">Follow System</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PLANS SUB -->
+            <div id="settings-sub-plans" class="settings-sub hidden">
+                <div class="settings-header">
+                    <button class="settings-back" onclick="closeSettingsSub()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                    </button>
+                    <div class="settings-title">Subscription</div>
+                    <div style="width:36px"></div>
+                </div>
+                <div class="settings-scroll">
+                    <div class="upgrade-hero">
+                        <div class="upgrade-title">Go Unlimited</div>
+                        <div class="upgrade-desc">Unlock the full power of VEYRONIS with PRO.</div>
+                    </div>
+                    <div class="settings-card">
+                        <div class="plan-card" id="plan-card-free">
+                            <div class="plan-header">
+                                <div class="plan-name">Free</div>
+                                <div class="plan-price">$0<span>/mo</span></div>
+                            </div>
+                            <div class="plan-features">
+                                <div class="plan-feature">✅ 20 messages/day</div>
+                                <div class="plan-feature">✅ Basic chat</div>
+                                <div class="plan-feature">✅ Standard speed</div>
+                            </div>
+                        </div>
+                        <div class="plan-card pro" id="plan-card-pro">
+                            <div class="plan-badge">BEST VALUE</div>
+                            <div class="plan-header">
+                                <div class="plan-name">Pro</div>
+                                <div class="plan-price">$9<span>/mo</span></div>
+                            </div>
+                            <div class="plan-features">
+                                <div class="plan-feature">✅ Unlimited messages</div>
+                                <div class="plan-feature">✅ Priority speed</div>
+                                <div class="plan-feature">✅ Deep Research mode</div>
+                                <div class="plan-feature">✅ Image & document analysis</div>
+                                <div class="plan-feature">✅ Advanced code execution</div>
+                                <div class="plan-feature">✅ Canvas whiteboard</div>
+                                <div class="plan-feature">✅ Hindsight simulation</div>
+                            </div>
+                            <button class="plan-btn" id="plan-btn-pro" onclick="activateProPlan()">Upgrade to Pro</button>
+                            <div class="plan-note">🎯 Beta pricing locked for first 100 users</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ABOUT SUB -->
+            <div id="settings-sub-about" class="settings-sub hidden">
+                <div class="settings-header">
+                    <button class="settings-back" onclick="closeSettingsSub()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                    </button>
+                    <div class="settings-title">About</div>
+                    <div style="width:36px"></div>
+                </div>
+                <div class="settings-scroll">
+                    <div class="settings-card">
+                        <div class="about-hero">
+                            <div class="about-logo">V</div>
+                            <div class="about-name">VEYRONIS</div>
+                            <div class="about-version">v1.3-hindsight</div>
+                        </div>
+                        <div class="settings-section">Info</div>
+                        <div class="settings-row-static">
+                            <div class="settings-label">Version</div>
+                            <div class="settings-value">1.3-hindsight</div>
+                        </div>
+                        <div class="settings-row-static">
+                            <div class="settings-label">Backend</div>
+                            <div class="settings-value">FastAPI + Python 3.11</div>
+                        </div>
+                        <div class="settings-row-static">
+                            <div class="settings-label">Models</div>
+                            <div class="settings-value">Groq, Gemini, Tavily</div>
+                        </div>
+                        <div class="settings-footer" style="padding:16px;text-align:center;">
+                            Built with 💜 for students and productivity hackers.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FEEDBACK SUB -->
+            <div id="settings-sub-feedback" class="settings-sub hidden">
+                <div class="settings-header">
+                    <button class="settings-back" onclick="closeSettingsSub()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                    </button>
+                    <div class="settings-title">Feedback</div>
+                    <div style="width:36px"></div>
+                </div>
+                <div class="settings-scroll">
+                    <div class="settings-card">
+                        <div class="settings-section">Send Feedback</div>
+                        <div style="padding:12px 16px 16px;">
+                            <textarea id="feedback-text" class="settings-textarea" rows="6" placeholder="Tell us what's working, what's broken, or what you'd love to see next..."></textarea>
+                        </div>
+                    </div>
+                    <button class="settings-logout" style="background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border:none;" onclick="submitFeedback()">Send Feedback</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- ========== LIGHTBOX ========== -->
@@ -301,7 +645,7 @@
 
     <!-- ========== SCRIPTS ========== -->
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/dist/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>

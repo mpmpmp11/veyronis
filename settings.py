@@ -1,10 +1,11 @@
 """
 VEYRONIS AI - Final Configuration Module
-Fixed: Restored GROQ_MODEL attribute to prevent AttributeError.
 Includes: 
 - Pro/Standard user model logic
 - 2026 Groq Official Model IDs
 - Rate-limit fallback to Gemini
+- Google OAuth configuration
+- JWT Secret enforcement
 """
 import os
 from pathlib import Path
@@ -21,7 +22,7 @@ def _strip_bom_from_env():
         return
     raw = ENV_PATH.read_bytes()
     if raw.startswith(b'\xef\xbb\xbf'):
-        ENV_PATH.write_bytes(raw[:])
+        ENV_PATH.write_bytes(raw[3:])
         print("[VEYRONIS] Fixed .env file (removed BOM).")
 
 _strip_bom_from_env()
@@ -33,25 +34,25 @@ class Config:
     TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "").strip()
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "").strip()
 
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+
+    # JWT Secret (MUST be set in .env)
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "").strip()
+
     # Official 2026 Model IDs
     MODEL_ULTRA: str = "openai/gpt-oss-120b"      # Smartest MoE model
     MODEL_STABLE: str = "llama-3.3-70b-versatile"  # Standard high-tier
     GEMINI_MODEL: str = "gemini-1.5-flash-latest"
 
-    # --- ATTR FIX: Restored for existing scripts ---
-    # Defaulting GROQ_MODEL to the Ultra model for standard initialization
     GROQ_MODEL: str = MODEL_ULTRA 
     JUDGE_MODEL: str = MODEL_ULTRA
 
     @classmethod
     def get_model(cls, is_pro: bool = False, is_limited: bool = False) -> str:
-        """
-        Dynamic model selector for VeyronisAI.
-        Returns Gemini if limited, 120b for Pro users, and 70b for Standard.
-        """
         if is_limited:
             return cls.GEMINI_MODEL
-        
         return cls.MODEL_ULTRA if is_pro else cls.MODEL_STABLE
 
     @classmethod
@@ -64,6 +65,22 @@ class Config:
     @classmethod
     def gemini_ready(cls) -> bool:
         return bool(cls.GOOGLE_API_KEY)
+
+    @classmethod
+    def google_oauth_ready(cls) -> bool:
+        return bool(cls.GOOGLE_CLIENT_ID and cls.GOOGLE_CLIENT_SECRET)
+
+    @classmethod
+    def validate_jwt(cls) -> None:
+        """Enforce JWT secret is set and secure."""
+        if not cls.JWT_SECRET_KEY or len(cls.JWT_SECRET_KEY) < 16:
+            raise ValueError(
+                "\n" + "=" * 60 + "\n"
+                "❌ JWT_SECRET_KEY must be set in .env and be at least 16 characters.\n"
+                "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'\n"
+                "Or use: openssl rand -base64 32\n"
+                "=" * 60
+            )
 
 def get_groq_client() -> Groq:
     Config.validate()

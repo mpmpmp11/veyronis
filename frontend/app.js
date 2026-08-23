@@ -1,9 +1,9 @@
 // ============================================================
-// VEYRONIS — Full App (with JWT Authentication)
+// VEYRONIS — Full App (with JWT Authentication + Google OAuth + PRO + Usage Limits)
 // ============================================================
 
 const state = {
-    apiUrl: 'https://veyronis.onrender.com',
+    apiUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8000' : 'https://veyronis.onrender.com',
     token: localStorage.getItem('veyronis_token') || null,
     user: JSON.parse(localStorage.getItem('veyronis_user') || 'null'),
     userId: '',
@@ -34,12 +34,27 @@ const state = {
     retryCount: 0,
     touchStartX: 0,
     touchStartY: 0,
-    isAuthenticated: false
+    isAuthenticated: false,
+    simulationMode: false,
+    simulationCount: parseInt(localStorage.getItem('veyronis_sim_count') || '0'),
+    simulationDate: localStorage.getItem('veyronis_sim_date') || ''
 };
 
 const THEMES = ['dark', 'light', 'veyronis'];
 let currentTheme = localStorage.getItem('veyronis_theme') || 'dark';
 document.documentElement.setAttribute('data-theme', currentTheme);
+
+// ─── UPDATE USAGE DISPLAY ───
+function updateUsageDisplay() {
+    const disclaimer = document.getElementById('input-disclaimer');
+    if (!disclaimer) return;
+    if (state.user?.is_pro) {
+        disclaimer.innerHTML = 'PRO MODE <span style="color:#fbbf24">★</span> · Unlimited messages';
+    } else {
+        const remaining = state.user?.remaining !== undefined ? state.user.remaining : 20;
+        disclaimer.textContent = `Free: ${20 - remaining}/${20} today · VEYRONIS can make mistakes`;
+    }
+}
 
 // ─── AUTH FUNCTIONS ───
 
@@ -88,7 +103,7 @@ async function handleLogin() {
 
 async function handleRegister() {
     const email = document.getElementById('register-email').value.trim();
-    let password = document.getElementById('register-password').value.trim(); // Trim whitespace
+    let password = document.getElementById('register-password').value.trim();
     const errorEl = document.getElementById('register-error');
 
     if (!email || !password) {
@@ -164,6 +179,55 @@ function handleLogout() {
     showEmpty(true);
 }
 
+// ─── GOOGLE OAUTH ───
+
+function handleGoogleLogin() {
+    window.location.href = `${state.apiUrl}/auth/google`;
+}
+
+function handleGoogleCallback() {
+    const hash = window.location.hash;
+    if (!hash || !hash.includes('auth=')) return;
+    
+    const params = new URLSearchParams(hash.substring(1));
+    const status = params.get('auth');
+    
+    if (status === 'success') {
+        const token = params.get('token');
+        const email = params.get('user');
+        const isPro = params.get('is_pro') === 'true';
+        const name = params.get('name') || email?.split('@')[0] || 'User';
+        const avatar = params.get('avatar') || null;
+        
+        if (token && email) {
+            state.token = token;
+            state.user = {
+                email: email,
+                is_pro: isPro,
+                name: name,
+                avatar_url: avatar,
+                auth_method: 'google'
+            };
+            state.isAuthenticated = true;
+            state.userId = email;
+            
+            localStorage.setItem('veyronis_token', token);
+            localStorage.setItem('veyronis_user', JSON.stringify(state.user));
+            
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            initApp();
+            toast(`Welcome ${name}! Logged in with Google 🎉`, 'success');
+        }
+    } else if (status === 'error') {
+        const message = params.get('message') || 'Google login failed';
+        toast('Google login failed: ' + decodeURIComponent(message), 'error');
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+}
+
 // ─── API HELPER ───
 
 async function apiFetch(endpoint, options = {}) {
@@ -187,8 +251,6 @@ function connect() {
     updateConnStatus('online');
     toast('Connected to VEYRONIS', 'success');
 }
-
-// ─── CONNECTION STATUS ───
 
 function updateConnStatus(status) {
     const dot = document.getElementById('conn-dot');
@@ -237,6 +299,7 @@ function initApp() {
             proBadge.className = 'sidebar-pro-badge' + (state.user.is_pro ? ' pro' : '');
         }
     }
+    updateUsageDisplay();
     try { mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' }); } catch(e) {}
     if (window.Chart) updateChartDefaults();
     loadConversations();
@@ -254,6 +317,7 @@ function initApp() {
     initConnectivity();
     initInstallPrompt();
     initSwipeSidebar();
+    initSimulationToggle();
     if (state.user && state.user.is_pro) setProUi();
     setTimeout(() => {
         if (state.apiUrl) {
@@ -261,6 +325,27 @@ function initApp() {
             checkServerHealth();
         }
     }, 100);
+}
+
+function refreshUserInfo() {
+    fetch(`${state.apiUrl}/me`, {
+        headers: { 'Authorization': `Bearer ${state.token}` }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.user) {
+            state.user = { ...state.user, ...data.user };
+            localStorage.setItem('veyronis_user', JSON.stringify(state.user));
+            updateUsageDisplay();
+            const proBadge = document.getElementById('sidebar-pro-badge');
+            if (proBadge) {
+                proBadge.textContent = state.user.is_pro ? '⭐ PRO' : 'FREE';
+                proBadge.className = 'sidebar-pro-badge' + (state.user.is_pro ? ' pro' : '');
+            }
+            if (state.user.is_pro) setProUi();
+        }
+    })
+    .catch(() => {});
 }
 
 // ─── SIDEBAR ───
@@ -1184,6 +1269,7 @@ function regenerateMsg(aiId) {
                             updateSendButton();
                             if (state.autoTts && state.ttsEnabled) speakMsg(aiId);
                             if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
+                            refreshUserInfo();
                         } else if (data.type === 'error') throw new Error(data.content);
                     } catch (e) { if (e instanceof SyntaxError) continue; }
                 }
@@ -1268,6 +1354,14 @@ async function sendMessage() {
     const hasImage = !!state.pendingImageBase64;
     const hasDoc = !!state.pendingDocContent;
     if (!state.editingId && !text && !hasImage && !hasDoc) return;
+
+    if (state.simulationMode && text && !hasImage && !hasDoc) {
+        await runHindsightSimulation(text);
+        input.value = '';
+        input.style.height = 'auto';
+        return;
+    }
+
     if (hasDoc && !state.editingId) {
         const docHeader = `Document: "${state.pendingDocFilename}"`;
         text = text ? `${docHeader}\n\n${state.pendingDocContent}\n\n${text}` : `${docHeader}\n\n${state.pendingDocContent}`;
@@ -1373,6 +1467,7 @@ async function sendMessage() {
                         if (data.tier === 'pro') setProUi();
                         else { state.msgCount++; const disclaimer = document.getElementById('input-disclaimer'); if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`; }
                         if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
+                        refreshUserInfo();
                     } else if (data.type === 'error') throw new Error(data.content);
                 } catch (e) { if (e instanceof SyntaxError) continue; throw e; }
             }
@@ -1445,6 +1540,7 @@ function loadHistory() {
             }
         }
         scrollBottom();
+        refreshUserInfo();
     }).catch(() => showEmpty(true));
 }
 
@@ -1590,6 +1686,7 @@ function syncSettingsValues() {
         if (proBtn) { proBtn.textContent = 'Active'; proBtn.disabled = true; }
         if (proCard) proCard.style.borderColor = '#22c55e';
     }
+    updateUsageDisplay();
 }
 
 function openSettingsSub(id) {
@@ -1677,9 +1774,6 @@ function activateProPlan() {
 function logout() {
     handleLogout();
 }
-
-// ─── CANVAS ───
-// (For brevity, I've kept the canvas code intact — you can reuse your existing canvas functions)
 
 // ─── CONNECTIVITY & PWA ───
 
@@ -1790,47 +1884,21 @@ function toast(msg, type) {
     }, 3000);
 }
 
-// ─── AUTO-LOGIN ON LOAD ───
-
-document.addEventListener('DOMContentLoaded', () => {
-    // Hardcode the API URL
-    const apiInput = document.getElementById('api-url');
-    if (apiInput) {
-        apiInput.value = 'https://veyronis.onrender.com';
-    }
-    const loggedIn = checkAuth();
-    if (!loggedIn) {
-        document.getElementById('auth-screen').classList.remove('hidden');
-        document.getElementById('app').classList.add('hidden');
-    }
-});
-
-// ═══════════════════════════════════════════════════════════
-// VEYRONIS HINDSIGHT — Frontend JavaScript Additions
-// Append this to the END of your existing app.js
-// ═══════════════════════════════════════════════════════════
-
-// ─── SIMULATION STATE ───
-state.simulationMode = false;
-state.simulationCount = parseInt(localStorage.getItem('veyronis_sim_count') || '0');
-state.simulationDate = localStorage.getItem('veyronis_sim_date') || '';
+// ─── HINDSIGHT SIMULATION ───
 
 function initSimulationToggle() {
-    const modelBar = document.querySelector('.model-bar');
-    if (!modelBar) return;
-
-    // Check if already added
-    if (document.getElementById('sim-toggle')) return;
-
-    const toggle = document.createElement('button');
-    toggle.className = 'simulation-toggle' + (state.simulationMode ? ' active' : '');
-    toggle.id = 'sim-toggle';
-    toggle.innerHTML = '<span class="sim-icon">🔮</span><span>Hindsight</span>';
-    toggle.onclick = toggleSimulationMode;
-    toggle.title = 'Toggle VEYRONIS HINDSIGHT simulation mode';
-
-    // Insert after model toggles
-    modelBar.appendChild(toggle);
+    let toggle = document.getElementById('sim-toggle');
+    if (!toggle) {
+        const modelBar = document.querySelector('.input-top');
+        if (!modelBar) return;
+        toggle = document.createElement('button');
+        toggle.className = 'simulation-toggle';
+        toggle.id = 'sim-toggle';
+        toggle.innerHTML = '<span class="sim-icon">🔮</span><span>Hindsight</span>';
+        toggle.onclick = toggleSimulationMode;
+        toggle.title = 'Toggle VEYRONIS HINDSIGHT simulation mode';
+        modelBar.appendChild(toggle);
+    }
     updateSimBadge();
 }
 
@@ -1838,36 +1906,25 @@ function toggleSimulationMode() {
     state.simulationMode = !state.simulationMode;
     const toggle = document.getElementById('sim-toggle');
     if (toggle) toggle.classList.toggle('active', state.simulationMode);
-
-    if (state.simulationMode) {
-        toast('🔮 Hindsight mode ON — Simulate consequences before you commit', 'success');
-    } else {
-        toast('Hindsight mode OFF', 'info');
-    }
+    toast(state.simulationMode ? '🔮 Hindsight mode ON' : 'Hindsight mode OFF', state.simulationMode ? 'success' : 'info');
     updateSimBadge();
 }
 
 function updateSimBadge() {
     const toggle = document.getElementById('sim-toggle');
     if (!toggle) return;
-
-    // Remove old badge if exists
     const oldBadge = toggle.querySelector('.sim-limit-badge');
     if (oldBadge) oldBadge.remove();
-
     const isPro = state.user?.is_pro || false;
     const today = new Date().toDateString();
-
     if (state.simulationDate !== today) {
         state.simulationCount = 0;
         state.simulationDate = today;
         localStorage.setItem('veyronis_sim_date', today);
         localStorage.setItem('veyronis_sim_count', '0');
     }
-
     const limit = isPro ? 20 : 1;
     const remaining = Math.max(0, limit - state.simulationCount);
-
     const badge = document.createElement('span');
     badge.className = 'sim-limit-badge' + (isPro ? ' pro' : '');
     badge.textContent = isPro ? `${remaining}/20` : `${remaining}/1`;
@@ -1880,58 +1937,22 @@ function incrementSimCount() {
     updateSimBadge();
 }
 
-// ─── SEND MESSAGE OVERRIDE (Hindsight Integration) ───
-const _originalSendMessage = sendMessage;
-
-async function sendMessage() {
-    if (state.isTyping) return;
-    const input = document.getElementById('msg-input');
-    if (!input) return;
-    let text = input.value.trim();
-    const hasImage = !!state.pendingImageBase64;
-    const hasDoc = !!state.pendingDocContent;
-
-    if (!state.editingId && !text && !hasImage && !hasDoc) return;
-
-    // ─── HINDSIGHT MODE BRANCH ───
-    if (state.simulationMode && text && !hasImage && !hasDoc) {
-        await runHindsightSimulation(text);
-        input.value = '';
-        input.style.height = 'auto';
-        return;
-    }
-
-    // ─── FALLBACK TO ORIGINAL CHAT ───
-    return _originalSendMessage();
-}
-
 async function runHindsightSimulation(scenario) {
     const isPro = state.user?.is_pro || false;
     const today = new Date().toDateString();
-
-    if (state.simulationDate !== today) {
-        state.simulationCount = 0;
-        state.simulationDate = today;
-    }
-
+    if (state.simulationDate !== today) { state.simulationCount = 0; state.simulationDate = today; }
     const limit = isPro ? 20 : 1;
     if (state.simulationCount >= limit) {
-        toast(isPro ? '⏳ PRO daily simulation limit reached (20/day)' : '⏳ Free tier: 1 simulation/day. Upgrade to PRO!', 'error');
+        toast(isPro ? '⏳ PRO daily limit reached (20/day)' : '⏳ Free tier: 1 simulation/day. Upgrade to PRO!', 'error');
         return;
     }
-
-    // Add user message
     addUserMsg('🔮 ' + scenario);
-
-    // Add AI shell for simulation
     const aiId = addAiShell();
     const textEl = document.getElementById('text-' + aiId);
     const thinkEl = document.getElementById('think-text-' + aiId);
     const thinkBlock = document.getElementById('think-' + aiId);
-
     if (thinkEl) thinkEl.textContent = 'Simulating timeline...';
     if (thinkBlock) thinkBlock.classList.add('expanded');
-
     state.isTyping = true;
     updateSendButton();
 
@@ -1940,181 +1961,94 @@ async function runHindsightSimulation(scenario) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                message: scenario,
-                pro_code: '',
+                message: scenario, pro_code: '',
                 user_id: state.userId || state.user?.email || '',
                 conversation_id: state.conversationId,
                 mode: 'simulation',
-                model_mode: state.model,
-                ai_model: state.aiModel,
+                model_mode: state.model, ai_model: state.aiModel,
                 custom_instructions: state.customInstructions,
                 response_style: state.responseStyle
             })
         });
-
         const data = await res.json();
-
-        if (!res.ok) {
-            throw new Error(data.detail || 'Simulation failed');
-        }
-
-        if (textEl) {
-            renderHindsightTimeline(textEl, data.response);
-        }
-
+        if (!res.ok) throw new Error(data.detail || 'Simulation failed');
+        if (textEl) renderHindsightTimeline(textEl, data.response);
         incrementSimCount();
-
-        if (data.conversation_id && !state.conversationId) {
-            state.conversationId = data.conversation_id;
-            loadConversations();
-        }
-
+        if (data.conversation_id && !state.conversationId) { state.conversationId = data.conversation_id; loadConversations(); }
         if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
-
+        refreshUserInfo();
     } catch (err) {
-        if (textEl) {
-            textEl.innerHTML = `<div class="sim-rate-limit"><span class="sim-rate-icon">⚠️</span>${escapeHtml(err.message)}</div>`;
-        }
+        if (textEl) textEl.innerHTML = `<div class="sim-rate-limit"><span class="sim-rate-icon">⚠️</span>${escapeHtml(err.message)}</div>`;
         if (thinkBlock) thinkBlock.classList.remove('expanded');
     }
-
     state.isTyping = false;
     updateSendButton();
 }
 
-// ─── RENDER HINDSIGHT TIMELINE ───
 function renderHindsightTimeline(container, jsonString) {
     let data;
-    try {
-        data = JSON.parse(jsonString);
-    } catch (e) {
+    try { data = JSON.parse(jsonString); } catch (e) {
         container.innerHTML = '<div style="color:#ef4444;font-size:13px;">⚠️ Failed to parse simulation result</div>';
         return;
     }
-
     const timeline = data.timeline || [];
     const butterfly = data.butterfly_effect || '';
     const advice = data.hindsight_advice || '';
     const scenario = data.initial_scenario || '';
 
     let html = '<div class="hindsight-container">';
-
-    // Header
-    html += `
-        <div class="hindsight-header">
-            <div class="hindsight-icon">🔮</div>
-            <div>
-                <div class="hindsight-title">VEYRONIS HINDSIGHT</div>
-                <div class="hindsight-subtitle">Simulate the consequences before you commit</div>
-            </div>
-        </div>
-    `;
-
-    // Scenario
-    if (scenario) {
-        html += `<div class="hindsight-scenario"><strong>Scenario:</strong> ${escapeHtml(scenario)}</div>`;
-    }
-
-    // Timeline
+    html += `<div class="hindsight-header"><div class="hindsight-icon">🔮</div><div><div class="hindsight-title">VEYRONIS HINDSIGHT</div><div class="hindsight-subtitle">Simulate the consequences before you commit</div></div></div>`;
+    if (scenario) html += `<div class="hindsight-scenario"><strong>Scenario:</strong> ${escapeHtml(scenario)}</div>`;
     if (timeline.length > 0) {
         html += '<div class="hindsight-timeline">';
         timeline.forEach((step, idx) => {
             const conf = step.confidence || 0.5;
             const confClass = conf >= 0.7 ? 'high' : (conf >= 0.4 ? 'medium' : 'low');
             const confPct = Math.round(conf * 100);
-
             html += `<div class="timeline-step">`;
-            html += `<div class="timeline-step-header">`;
-            html += `<span class="timeline-step-num">STEP ${step.step_number || idx + 1}</span>`;
-            html += `<span class="timeline-step-title">${escapeHtml(step.title || `Phase ${idx + 1}`)}</span>`;
-            html += `<div class="timeline-confidence">`;
-            html += `<div class="timeline-confidence-bar"><div class="timeline-confidence-fill ${confClass}" style="width:${confPct}%"></div></div>`;
-            html += `<span>${confPct}%</span>`;
-            html += `</div></div>`;
-
+            html += `<div class="timeline-step-header"><span class="timeline-step-num">STEP ${step.step_number || idx + 1}</span><span class="timeline-step-title">${escapeHtml(step.title || `Phase ${idx + 1}`)}</span><div class="timeline-confidence"><div class="timeline-confidence-bar"><div class="timeline-confidence-fill ${confClass}" style="width:${confPct}%"></div></div><span>${confPct}%</span></div></div>`;
             html += `<div class="timeline-state">${escapeHtml(step.state || '')}</div>`;
-
             if (step.consequences && step.consequences.length > 0) {
-                html += `<div class="timeline-consequences">`;
-                html += `<div class="timeline-consequences-label">Consequences</div>`;
-                step.consequences.forEach(c => {
-                    html += `<div class="timeline-consequence-item">${escapeHtml(c)}</div>`;
-                });
+                html += `<div class="timeline-consequences"><div class="timeline-consequences-label">Consequences</div>`;
+                step.consequences.forEach(c => { html += `<div class="timeline-consequence-item">${escapeHtml(c)}</div>`; });
                 html += `</div>`;
             }
-
             if (step.assumptions && step.assumptions.length > 0) {
-                html += `<div class="timeline-assumptions">`;
-                html += `<div class="timeline-assumptions-label">Assumptions</div>`;
-                step.assumptions.forEach(a => {
-                    html += `<div class="timeline-assumption-item">${escapeHtml(a)}</div>`;
-                });
+                html += `<div class="timeline-assumptions"><div class="timeline-assumptions-label">Assumptions</div>`;
+                step.assumptions.forEach(a => { html += `<div class="timeline-assumption-item">${escapeHtml(a)}</div>`; });
                 html += `</div>`;
             }
-
             html += `</div>`;
         });
         html += '</div>';
     }
-
-    // Butterfly Effect
-    if (butterfly) {
-        html += `
-            <div class="hindsight-butterfly">
-                <div class="hindsight-butterfly-label">Butterfly Effect</div>
-                <div class="hindsight-butterfly-text">${escapeHtml(butterfly)}</div>
-            </div>
-        `;
-    }
-
-    // Hindsight Advice
-    if (advice) {
-        html += `
-            <div class="hindsight-advice">
-                <div class="hindsight-advice-label">Hindsight Advice</div>
-                <div class="hindsight-advice-text">${escapeHtml(advice)}</div>
-            </div>
-        `;
-    }
-
+    if (butterfly) html += `<div class="hindsight-butterfly"><div class="hindsight-butterfly-label">Butterfly Effect</div><div class="hindsight-butterfly-text">${escapeHtml(butterfly)}</div></div>`;
+    if (advice) html += `<div class="hindsight-advice"><div class="hindsight-advice-label">Hindsight Advice</div><div class="hindsight-advice-text">${escapeHtml(advice)}</div></div>`;
     html += '</div>';
     container.innerHTML = html;
     scrollBottom();
 }
 
-// ─── INIT SIMULATION TOGGLE ON APP LOAD ───
-const _originalInitApp = initApp;
-initApp = function() {
-    _originalInitApp();
-    initSimulationToggle();
-};
+// ─── AUTO-LOGIN ON LOAD ───
 
-// ─── ADD HINDSIGHT CHIP TO EMPTY STATE ───
-const _originalShowEmpty = showEmpty;
-showEmpty = function(show) {
-    _originalShowEmpty(show);
-    if (show) {
-        const chips = document.querySelector('.chips');
-        if (chips && !document.getElementById('hindsight-chip')) {
-            const chip = document.createElement('button');
-            chip.className = 'chip';
-            chip.id = 'hindsight-chip';
-            chip.textContent = '🔮 Hindsight Simulation';
-            chip.onclick = () => {
-                state.simulationMode = true;
-                const toggle = document.getElementById('sim-toggle');
-                if (toggle) toggle.classList.add('active');
-                updateSimBadge();
-                const input = document.getElementById('msg-input');
-                if (input) {
-                    input.value = 'What happens if I procrastinate on my final project until the last week?';
-                    input.style.height = 'auto';
-                    input.style.height = Math.min(input.scrollHeight, 200) + 'px';
-                    input.focus();
-                }
-                toast('🔮 Hindsight mode ON — Type your scenario and press Enter', 'success');
-            };
-            chips.appendChild(chip);
-        }
+document.addEventListener('DOMContentLoaded', () => {
+    // Handle Google OAuth callback
+    if (window.location.hash && window.location.hash.includes('auth=')) {
+        handleGoogleCallback();
     }
-};
+    
+    const authScreen = document.getElementById('auth-screen');
+    const appElement = document.getElementById('app');
+    
+    // Safety check: if elements don't exist, don't proceed
+    if (!authScreen || !appElement) {
+        console.warn('Auth screen or app element missing');
+        return;
+    }
+    
+    const loggedIn = checkAuth();
+    if (!loggedIn) {
+        authScreen.classList.remove('hidden');
+        appElement.classList.add('hidden');
+    }
+});
