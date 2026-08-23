@@ -1,8 +1,9 @@
-"""VEYRONIS API Server + Frontend + JWT Auth + HINDSIGHT + PRO + Security."""
+"""VEYRONIS API Server — Production Hardened."""
 import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer
@@ -21,7 +22,8 @@ from database import (
     create_conversation, get_conversations, rename_conversation,
     delete_conversation,
     create_user, get_user_by_email, get_user_by_id, set_user_pro,
-    get_usage_count, increment_usage
+    get_usage_count, increment_usage,
+    delete_user  # <-- ADD THIS IMPORT
 )
 from settings import Config
 import base64
@@ -31,15 +33,13 @@ import time
 import traceback
 
 # Hindsight imports
-from hindsight_engine import HindsightEngine, SimulationStep, HindsightResponse
+from hindsight_engine import HindsightEngine
 
 # Google OAuth imports
 from auth import get_google_auth_url, handle_google_callback
 
 # ─── JWT SETUP ───
-# Validate JWT secret is set before anything else
 Config.validate_jwt()
-
 SECRET_KEY = Config.JWT_SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
@@ -81,7 +81,6 @@ def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme)):
     return {"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])}
 
 def get_current_user_required(token: str = Depends(oauth2_scheme)):
-    """Require authentication for protected endpoints."""
     if token is None:
         raise HTTPException(401, detail="Not authenticated")
     payload = decode_token(token)
@@ -101,13 +100,29 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 
 app = FastAPI(title="VEYRONIS API")
 
-# ─── CORS — Restricted to allowed origins ───
+# ─── HTTPS REDIRECT MIDDLEWARE ───
+class HTTPSRedirectMiddleware:
+    async def __call__(self, request: Request, call_next):
+        forwarded_proto = request.headers.get("x-forwarded-proto")
+        host = request.headers.get("host", "")
+        
+        if forwarded_proto == "http" and "onrender.com" in host:
+            https_url = f"https://{host}{request.url.path}"
+            if request.url.query:
+                https_url += f"?{request.url.query}"
+            return RedirectResponse(https_url, status_code=301)
+        
+        return await call_next(request)
+
+app.add_middleware(HTTPSRedirectMiddleware)
+
+# ─── CORS — Restricted ───
 ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://localhost:3000",
     "http://127.0.0.1:8000",
-    "https://veyronis-production.up.railway.app",
     "https://veyronis.onrender.com",
+    "https://veyronis-production.up.railway.app",
 ]
 
 app.add_middleware(
@@ -276,8 +291,6 @@ async def login(req: LoginRequest, request: Request):
 
 @app.get("/me")
 async def get_me(current_user: dict = Depends(get_current_user_required)):
-    if current_user is None:
-        raise HTTPException(401, detail="Not authenticated")
     user = get_user_by_id(current_user["id"])
     today = str(date.today())
     usage = get_usage_count(current_user["email"], today) if not user["is_pro"] else None
@@ -295,13 +308,20 @@ async def get_me(current_user: dict = Depends(get_current_user_required)):
 
 @app.post("/upgrade")
 async def upgrade_to_pro(current_user: dict = Depends(get_current_user_required)):
-    if current_user is None:
-        raise HTTPException(401, detail="Not authenticated")
     set_user_pro(current_user["id"], True)
     return {"message": "Upgraded to PRO", "is_pro": True}
 
-# ─── GOOGLE OAUTH ENDPOINTS ───
+# ─── ACCOUNT DELETION ───
+@app.delete("/account")
+async def delete_account(current_user: dict = Depends(get_current_user_required)):
+    """Permanently delete the authenticated user's account and all data."""
+    user_id = current_user["id"]
+    success = delete_user(user_id)
+    if not success:
+        raise HTTPException(500, detail="Failed to delete account")
+    return {"message": "Account deleted successfully"}
 
+# ─── GOOGLE OAUTH ───
 @app.get("/auth/google")
 async def google_login(request: Request):
     if not Config.google_oauth_ready():
@@ -350,7 +370,6 @@ async def google_callback(code: str, request: Request):
         return RedirectResponse(frontend_url)
 
 # ─── PROTECTED ENDPOINTS ───
-
 @app.get("/")
 async def root():
     return FileResponse(str(FRONTEND_DIR / "index.html"))
@@ -365,8 +384,6 @@ async def history(
     conversation_id: Optional[int] = None,
     current_user: dict = Depends(get_current_user_required)
 ):
-    if current_user is None:
-        raise HTTPException(401, detail="Not authenticated")
     if user_id != current_user["email"]:
         raise HTTPException(403, detail="Access denied")
     return {"messages": get_history(user_id, conversation_id=conversation_id)}
@@ -378,8 +395,6 @@ async def export_conversation(
     user_id: str = "",
     current_user: dict = Depends(get_current_user_required)
 ):
-    if current_user is None:
-        raise HTTPException(401, detail="Not authenticated")
     if user_id != current_user["email"]:
         raise HTTPException(403, detail="Access denied")
     if format not in ("json", "txt"):
@@ -403,8 +418,6 @@ async def list_conversations(
     user_id: str,
     current_user: dict = Depends(get_current_user_required)
 ):
-    if current_user is None:
-        raise HTTPException(401, detail="Not authenticated")
     if user_id != current_user["email"]:
         raise HTTPException(403, detail="Access denied")
     return {"conversations": get_conversations(user_id)}
@@ -414,8 +427,6 @@ async def new_conversation(
     req: NewConversationRequest,
     current_user: dict = Depends(get_current_user_required)
 ):
-    if current_user is None:
-        raise HTTPException(401, detail="Not authenticated")
     if req.user_id != current_user["email"]:
         raise HTTPException(403, detail="Access denied")
     cid = create_conversation(req.user_id, req.title)
@@ -427,9 +438,6 @@ async def patch_conversation(
     req: RenameRequest,
     current_user: dict = Depends(get_current_user_required)
 ):
-    if current_user is None:
-        raise HTTPException(401, detail="Not authenticated")
-    # Verify user owns this conversation
     convs = get_conversations(current_user["email"])
     if not any(c["id"] == conversation_id for c in convs):
         raise HTTPException(403, detail="Access denied")
@@ -445,9 +453,6 @@ async def remove_conversation(
     conversation_id: int,
     current_user: dict = Depends(get_current_user_required)
 ):
-    if current_user is None:
-        raise HTTPException(401, detail="Not authenticated")
-    # Verify user owns this conversation
     convs = get_conversations(current_user["email"])
     if not any(c["id"] == conversation_id for c in convs):
         raise HTTPException(403, detail="Access denied")
@@ -459,8 +464,6 @@ async def clear_chat(
     request: Request,
     current_user: dict = Depends(get_current_user_required)
 ):
-    if current_user is None:
-        raise HTTPException(401, detail="Not authenticated")
     data = await request.json()
     user_id = data.get("user_id", "")
     conversation_id = data.get("conversation_id")
@@ -478,7 +481,6 @@ async def upload_document(
     conversation_id: Optional[int] = None,
     request: Request = None
 ):
-    # Rate limit uploads
     client_ip = request.client.host if request else "unknown"
     if not _check_rate_limit(client_ip, max_requests=10, window_seconds=60):
         raise HTTPException(429, detail="Too many uploads. Slow down.")
@@ -519,7 +521,6 @@ async def chat(
     user_id = request.user_id.strip()
     conversation_id = request.conversation_id
     
-    # Rate limit ALL chat requests
     client_ip = req.client.host
     if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
         raise HTTPException(429, detail="Rate limit exceeded. Please slow down.")
@@ -608,7 +609,6 @@ async def chat_stream(
     user_id = request.user_id.strip()
     conversation_id = request.conversation_id
     
-    # Rate limit ALL streaming requests
     client_ip = req.client.host
     if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
         async def rate_limit_error():
@@ -717,7 +717,6 @@ async def chat_stream(
 
 @app.post("/execute")
 async def execute_code(request: Request):
-    # Rate limit code execution
     client_ip = request.client.host
     if not _check_rate_limit(client_ip, max_requests=10, window_seconds=60):
         raise HTTPException(429, detail="Too many code executions. Slow down.")
@@ -748,9 +747,6 @@ async def ping():
 
 @app.get("/routes")
 async def routes(current_user: dict = Depends(get_current_user_required)):
-    """Protected route list — only for authenticated users."""
-    if current_user is None:
-        raise HTTPException(401, detail="Not authenticated")
     route_list = []
     for route in app.routes:
         route_list.append({"path": route.path, "methods": list(route.methods) if hasattr(route, "methods") else []})

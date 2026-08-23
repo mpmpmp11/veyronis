@@ -223,15 +223,13 @@ def create_user(email: str, hashed_password: str = None, google_id: str = None, 
     return user_id
 
 def get_user_by_email(email: str):
-    """Return user as dict or None."""
     conn = get_db()
     cursor = conn.execute("SELECT id, email, hashed_password, is_pro, google_id, avatar_url FROM users WHERE email = ?", (email,))
     row = cursor.fetchone()
     conn.close()
-    return row_to_dict(row)  # Convert to dict
+    return row_to_dict(row)
 
 def get_user_by_id(user_id: int):
-    """Return user as dict or None."""
     conn = get_db()
     cursor = conn.execute("SELECT id, email, is_pro, avatar_url FROM users WHERE id = ?", (user_id,))
     row = cursor.fetchone()
@@ -239,7 +237,6 @@ def get_user_by_id(user_id: int):
     return row_to_dict(row)
 
 def get_user_by_google_id(google_id: str):
-    """Return user as dict or None."""
     conn = get_db()
     cursor = conn.execute(
         "SELECT id, email, is_pro, avatar_url FROM users WHERE google_id = ?",
@@ -270,10 +267,42 @@ def set_user_pro(user_id: int, is_pro: bool = True):
     conn.commit()
     conn.close()
 
+def delete_user(user_id: int) -> bool:
+    """Permanently delete a user and all associated data (GDPR compliant)."""
+    conn = get_db()
+    try:
+        user = get_user_by_id(user_id)
+        if not user:
+            return False
+        email = user["email"]
+        
+        # Delete messages from conversations
+        conn.execute("""
+            DELETE FROM messages WHERE conversation_id IN 
+            (SELECT id FROM conversations WHERE user_id = ?)
+        """, (email,))
+        
+        # Delete conversations
+        conn.execute("DELETE FROM conversations WHERE user_id = ?", (email,))
+        
+        # Delete usage logs
+        conn.execute("DELETE FROM usage_logs WHERE user_id = ?", (email,))
+        
+        # Delete user
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"[DELETE USER ERROR] {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
 # ─── USAGE LIMITS ───
 
 def get_usage_count(user_id: str, date: str) -> int:
-    """Get message count for a user on a specific date."""
     conn = get_db()
     row = conn.execute(
         "SELECT count FROM usage_logs WHERE user_id = ? AND date = ?",
@@ -283,7 +312,6 @@ def get_usage_count(user_id: str, date: str) -> int:
     return row["count"] if row else 0
 
 def increment_usage(user_id: str, date: str) -> int:
-    """Increment usage count for a user on a specific date. Returns new count."""
     conn = get_db()
     conn.execute("""
         INSERT INTO usage_logs (user_id, date, count)
