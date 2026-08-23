@@ -1,5 +1,5 @@
 // ============================================================
-// VEYRONIS — Full App (with JWT Authentication + Google OAuth + PRO + Usage Limits)
+// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Loading States)
 // ============================================================
 
 const state = {
@@ -56,6 +56,57 @@ function updateUsageDisplay() {
     }
 }
 
+// ─── LOADING STATES ───
+function showLoading(message = 'Loading...') {
+    const existing = document.getElementById('loading-overlay');
+    if (existing) existing.remove();
+    
+    const overlay = document.createElement('div');
+    overlay.id = 'loading-overlay';
+    overlay.className = 'loading-overlay';
+    overlay.innerHTML = `
+        <div style="text-align:center;">
+            <div class="loading-spinner"></div>
+            <div style="margin-top:16px;color:var(--text-secondary);font-size:14px;">${message}</div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+}
+
+function hideLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.remove();
+}
+
+// ─── MOBILE KEYBOARD HANDLER ───
+function initKeyboardHandler() {
+    const input = document.getElementById('msg-input');
+    const inputShell = document.querySelector('.input-shell');
+    const chatScroll = document.getElementById('chat-scroll');
+    
+    if (!input || !inputShell) return;
+
+    if ('visualViewport' in window) {
+        let lastHeight = window.visualViewport.height;
+        
+        window.visualViewport.addEventListener('resize', () => {
+            const currentHeight = window.visualViewport.height;
+            const isKeyboardOpen = currentHeight < lastHeight - 150;
+            
+            if (isKeyboardOpen) {
+                inputShell.classList.add('keyboard-open');
+                if (chatScroll) chatScroll.classList.add('keyboard-open');
+                setTimeout(scrollBottom, 100);
+            } else {
+                inputShell.classList.remove('keyboard-open');
+                if (chatScroll) chatScroll.classList.remove('keyboard-open');
+            }
+            
+            lastHeight = currentHeight;
+        });
+    }
+}
+
 // ─── AUTH FUNCTIONS ───
 
 function switchAuthTab(tab) {
@@ -75,6 +126,7 @@ async function handleLogin() {
         errorEl.textContent = 'Please enter email and password';
         return;
     }
+    showLoading('Logging in...');
     try {
         const res = await fetch(`${state.apiUrl}/login`, {
             method: 'POST',
@@ -82,6 +134,7 @@ async function handleLogin() {
             body: JSON.stringify({ email, password })
         });
         const data = await res.json();
+        hideLoading();
         if (!res.ok) {
             errorEl.textContent = data.detail || 'Login failed';
             return;
@@ -97,6 +150,7 @@ async function handleLogin() {
         initApp();
         toast('Welcome back, ' + data.user.email + '! 🎉', 'success');
     } catch (err) {
+        hideLoading();
         errorEl.textContent = 'Network error. Is the server running?';
     }
 }
@@ -119,6 +173,7 @@ async function handleRegister() {
         return;
     }
 
+    showLoading('Creating account...');
     try {
         const res = await fetch(`${state.apiUrl}/register`, {
             method: 'POST',
@@ -126,6 +181,7 @@ async function handleRegister() {
             body: JSON.stringify({ email, password })
         });
         const data = await res.json();
+        hideLoading();
 
         if (!res.ok) {
             errorEl.textContent = data.detail || 'Registration failed';
@@ -144,6 +200,7 @@ async function handleRegister() {
         initApp();
         toast('Account created! Welcome to VEYRONIS 🎉', 'success');
     } catch (err) {
+        hideLoading();
         errorEl.textContent = 'Network error. Is the server running?';
         console.error('Network error:', err);
     }
@@ -318,6 +375,7 @@ function initApp() {
     initInstallPrompt();
     initSwipeSidebar();
     initSimulationToggle();
+    initKeyboardHandler();  // ← NEW: mobile keyboard fix
     if (state.user && state.user.is_pro) setProUi();
     setTimeout(() => {
         if (state.apiUrl) {
@@ -1289,6 +1347,7 @@ function regenerateMsg(aiId) {
                             if (state.autoTts && state.ttsEnabled) speakMsg(aiId);
                             if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
                             refreshUserInfo();
+                            hideLoading(); // ← NEW
                         } else if (data.type === 'error') throw new Error(data.content);
                     } catch (e) { if (e instanceof SyntaxError) continue; }
                 }
@@ -1297,6 +1356,7 @@ function regenerateMsg(aiId) {
                 state.isTyping = false;
                 state.abortController = null;
                 updateSendButton();
+                hideLoading();
                 if (err.name !== 'AbortError' && textEl) textEl.textContent = 'Error: ' + err.message;
             });
         }
@@ -1305,6 +1365,7 @@ function regenerateMsg(aiId) {
         state.isTyping = false;
         state.abortController = null;
         updateSendButton();
+        hideLoading();
         if (textEl) textEl.textContent = err.name === 'AbortError' ? 'Generation stopped.' : 'Error: ' + err.message;
     });
 }
@@ -1433,6 +1494,8 @@ async function sendMessage() {
     const controller = state.abortController;
     const timeoutId = setTimeout(() => controller.abort(), 60000);
     updateSendButton();
+    
+    showLoading('Thinking...'); // ← NEW
 
     try {
         const requestBody = {
@@ -1453,7 +1516,11 @@ async function sendMessage() {
             body: JSON.stringify(requestBody)
         });
         clearTimeout(timeoutId);
-        if (!response.ok) { const errData = await response.json().catch(() => ({})); throw new Error(errData.detail || 'Server error'); }
+        if (!response.ok) { 
+            hideLoading();
+            const errData = await response.json().catch(() => ({})); 
+            throw new Error(errData.detail || 'Server error'); 
+        }
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '', fullResponse = '';
@@ -1479,6 +1546,7 @@ async function sendMessage() {
                     } else if (data.type === 'research_step') {
                         updateResearchProgress(aiId, data.content);
                     } else if (data.type === 'done') {
+                        hideLoading(); // ← NEW
                         state.isTyping = false;
                         if (sendBtn) sendBtn.disabled = false;
                         if (textEl) {
@@ -1496,6 +1564,7 @@ async function sendMessage() {
             }
         }
     } catch (err) {
+        hideLoading(); // ← NEW
         state.isTyping = false;
         state.abortController = null;
         if (sendBtn) sendBtn.disabled = false;
@@ -1547,11 +1616,33 @@ function loadHistory() {
     if (state.token) {
         headers['Authorization'] = `Bearer ${state.token}`;
     }
+    
+    // Show skeleton while loading
+    const msgsContainer = document.getElementById('messages');
+    if (msgsContainer && msgsContainer.children.length === 0) {
+        msgsContainer.innerHTML = `
+            <div class="skeleton">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line medium"></div>
+                <div class="skeleton-line short"></div>
+            </div>
+            <div class="skeleton">
+                <div class="skeleton-line"></div>
+                <div class="skeleton-line medium"></div>
+            </div>
+        `;
+    }
+    
     fetch(url, { headers })
         .then(r => r.json())
         .then(data => {
             const msgs = data.messages || [];
-            if (!msgs.length) { showEmpty(true); if (state.user?.is_pro) setProUi(); } else {
+            if (!msgs.length) { 
+                msgsContainer.innerHTML = '';
+                showEmpty(true); 
+                if (state.user?.is_pro) setProUi(); 
+            } else {
+                msgsContainer.innerHTML = '';
                 showEmpty(false);
                 msgs.forEach(m => {
                     if (m.role === 'user') {
@@ -1579,7 +1670,10 @@ function loadHistory() {
             scrollBottom();
             refreshUserInfo();
         })
-        .catch(() => showEmpty(true));
+        .catch(() => {
+            msgsContainer.innerHTML = '';
+            showEmpty(true);
+        });
 }
 
 function setProUi() {

@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════
    VEYRONIS v1.3 — Complete Glassmorphism Styles
-   Mobile-First + Clean UI
+   Mobile-First + Clean UI + Loading States
    ═══════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -1467,6 +1467,7 @@ body::before {
   z-index: 50;
   background: linear-gradient(to top, var(--bg) 50%, transparent);
   pointer-events: none;
+  transition: transform 0.15s ease;
 }
 
 .input-shell > * {
@@ -1743,6 +1744,10 @@ body::before {
   max-height: 120px;
   min-height: 20px;
   font-family: inherit;
+}
+
+#msg-input:focus {
+  font-size: 16px; /* Prevents iOS zoom */
 }
 #msg-input::placeholder {
   color: var(--text-muted);
@@ -2860,6 +2865,114 @@ body::before {
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.12); }
 [data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.08); }
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.15); }
+
+/* ============================================================
+   LOADING STATES
+   ============================================================ */
+
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 5, 8, 0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease;
+}
+
+.loading-overlay.hidden {
+    display: none !important;
+}
+
+.loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid var(--glass-border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Skeleton loading for messages */
+.skeleton {
+    background: var(--glass-bg);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    animation: pulse 1.5s ease-in-out infinite;
+    min-height: 60px;
+}
+
+.skeleton-line {
+    height: 12px;
+    background: var(--glass-border);
+    border-radius: 4px;
+    margin-bottom: 8px;
+    width: 100%;
+}
+
+.skeleton-line.short {
+    width: 60%;
+}
+.skeleton-line.medium {
+    width: 80%;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+}
+
+/* Button loading state */
+.btn-loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.btn-loading .btn-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.btn-spinner {
+    display: none;
+}
+
+/* ─── MOBILE KEYBOARD FIX ─── */
+@media (max-width: 768px) {
+    .input-shell {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        transition: transform 0.15s ease;
+    }
+
+    .input-shell.keyboard-open {
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+    }
+
+    #msg-input:focus {
+        font-size: 16px;
+    }
+
+    #chat-scroll.keyboard-open {
+        padding-bottom: 0;
+    }
+}
 
 /* ============================================================
    CANVAS / WHITEBOARD
