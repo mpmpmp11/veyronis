@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer
@@ -23,7 +22,7 @@ from database import (
     delete_conversation,
     create_user, get_user_by_email, get_user_by_id, set_user_pro,
     get_usage_count, increment_usage,
-    delete_user  # <-- ADD THIS IMPORT
+    delete_user
 )
 from settings import Config
 import base64
@@ -100,21 +99,19 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 
 app = FastAPI(title="VEYRONIS API")
 
-# ─── HTTPS REDIRECT MIDDLEWARE ───
-class HTTPSRedirectMiddleware:
-    async def __call__(self, request: Request, call_next):
-        forwarded_proto = request.headers.get("x-forwarded-proto")
-        host = request.headers.get("host", "")
-        
-        if forwarded_proto == "http" and "onrender.com" in host:
-            https_url = f"https://{host}{request.url.path}"
-            if request.url.query:
-                https_url += f"?{request.url.query}"
-            return RedirectResponse(https_url, status_code=301)
-        
-        return await call_next(request)
-
-app.add_middleware(HTTPSRedirectMiddleware)
+# ─── HTTPS REDIRECT MIDDLEWARE (Fixed) ───
+@app.middleware("http")
+async def https_redirect_middleware(request: Request, call_next):
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    host = request.headers.get("host", "")
+    
+    if forwarded_proto == "http" and "onrender.com" in host:
+        https_url = f"https://{host}{request.url.path}"
+        if request.url.query:
+            https_url += f"?{request.url.query}"
+        return RedirectResponse(https_url, status_code=301)
+    
+    return await call_next(request)
 
 # ─── CORS — Restricted ───
 ALLOWED_ORIGINS = [
