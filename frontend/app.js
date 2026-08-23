@@ -328,24 +328,26 @@ function initApp() {
 }
 
 function refreshUserInfo() {
-    fetch(`${state.apiUrl}/me`, {
-        headers: { 'Authorization': `Bearer ${state.token}` }
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.user) {
-            state.user = { ...state.user, ...data.user };
-            localStorage.setItem('veyronis_user', JSON.stringify(state.user));
-            updateUsageDisplay();
-            const proBadge = document.getElementById('sidebar-pro-badge');
-            if (proBadge) {
-                proBadge.textContent = state.user.is_pro ? '⭐ PRO' : 'FREE';
-                proBadge.className = 'sidebar-pro-badge' + (state.user.is_pro ? ' pro' : '');
+    const headers = {};
+    if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+    }
+    fetch(`${state.apiUrl}/me`, { headers })
+        .then(r => r.json())
+        .then(data => {
+            if (data.user) {
+                state.user = { ...state.user, ...data.user };
+                localStorage.setItem('veyronis_user', JSON.stringify(state.user));
+                updateUsageDisplay();
+                const proBadge = document.getElementById('sidebar-pro-badge');
+                if (proBadge) {
+                    proBadge.textContent = state.user.is_pro ? '⭐ PRO' : 'FREE';
+                    proBadge.className = 'sidebar-pro-badge' + (state.user.is_pro ? ' pro' : '');
+                }
+                if (state.user.is_pro) setProUi();
             }
-            if (state.user.is_pro) setProUi();
-        }
-    })
-    .catch(() => {});
+        })
+        .catch(() => {});
 }
 
 // ─── SIDEBAR ───
@@ -445,7 +447,12 @@ function toggleSearch() { toast('🔍 Search coming soon!', 'info'); }
 
 function loadConversations() {
     if (!state.apiUrl) return;
-    fetch(`${state.apiUrl}/conversations?user_id=${state.userId}`)
+    const url = `${state.apiUrl}/conversations?user_id=${state.userId}`;
+    const headers = {};
+    if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+    }
+    fetch(url, { headers })
         .then(r => r.json())
         .then(data => {
             const convs = data.conversations || [];
@@ -493,14 +500,26 @@ function switchConversation(id) {
 function renameConvPrompt(id, currentTitle) {
     const newTitle = prompt('Rename conversation:', currentTitle);
     if (!newTitle || newTitle.trim() === '' || newTitle.trim() === currentTitle) return;
-    fetch(`${state.apiUrl}/conversations/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newTitle.trim() }) })
+    const headers = { 'Content-Type': 'application/json' };
+    if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+    }
+    fetch(`${state.apiUrl}/conversations/${id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ title: newTitle.trim() })
+    })
         .then(r => { if (r.ok) { toast('Renamed', 'success'); loadConversations(); } else toast('Failed to rename', 'error'); })
         .catch(() => toast('Failed to rename', 'error'));
 }
 
 function deleteConv(id) {
     if (!confirm('Delete this conversation?')) return;
-    fetch(`${state.apiUrl}/conversations/${id}`, { method: 'DELETE' })
+    const headers = {};
+    if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+    }
+    fetch(`${state.apiUrl}/conversations/${id}`, { method: 'DELETE', headers })
         .then(r => {
             if (r.ok) {
                 toast('Deleted', 'success');
@@ -524,7 +543,7 @@ function toggleModelMenu() {
     if (toggle) toggle.classList.toggle('open');
 }
 
-function pickModel(id, label) {
+function pickModel(event, id, label) {
     state.model = id;
     const labelEl = document.getElementById('model-label');
     if (labelEl) labelEl.textContent = label;
@@ -1317,7 +1336,11 @@ function quickSend(text) {
 
 function exportChat(format) {
     if (!state.conversationId) { toast('No conversation to export', 'error'); return; }
-    fetch(`${state.apiUrl}/export/${state.conversationId}?format=${format}&user_id=${state.userId || state.user?.email || ''}`)
+    const headers = {};
+    if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+    }
+    fetch(`${state.apiUrl}/export/${state.conversationId}?format=${format}&user_id=${state.userId || state.user?.email || ''}`, { headers })
         .then(r => { if (!r.ok) throw new Error('Export failed'); return r.json(); })
         .then(data => {
             if (format === 'json') {
@@ -1499,7 +1522,15 @@ async function sendMessage() {
 
 function clearChat() {
     if (!confirm('Clear all messages?')) return;
-    fetch(`${state.apiUrl}/clear`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: state.userId || state.user?.email || '', conversation_id: state.conversationId }) })
+    const headers = { 'Content-Type': 'application/json' };
+    if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+    }
+    fetch(`${state.apiUrl}/clear`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ user_id: state.userId || state.user?.email || '', conversation_id: state.conversationId })
+    })
         .then(() => {
             const msgs = document.getElementById('messages');
             if (msgs) msgs.innerHTML = '';
@@ -1512,36 +1543,43 @@ function loadHistory() {
     if (!state.apiUrl) return;
     let url = `${state.apiUrl}/history?user_id=${state.userId || state.user?.email || ''}`;
     if (state.conversationId) url += `&conversation_id=${state.conversationId}`;
-    fetch(url).then(r => r.json()).then(data => {
-        const msgs = data.messages || [];
-        if (!msgs.length) { showEmpty(true); if (state.user?.is_pro) setProUi(); } else {
-            showEmpty(false);
-            msgs.forEach(m => {
-                if (m.role === 'user') {
-                    if (m.image_data) {
-                        addHistoricalImageMsg(m.content, m.image_data);
+    const headers = {};
+    if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+    }
+    fetch(url, { headers })
+        .then(r => r.json())
+        .then(data => {
+            const msgs = data.messages || [];
+            if (!msgs.length) { showEmpty(true); if (state.user?.is_pro) setProUi(); } else {
+                showEmpty(false);
+                msgs.forEach(m => {
+                    if (m.role === 'user') {
+                        if (m.image_data) {
+                            addHistoricalImageMsg(m.content, m.image_data);
+                        } else {
+                            addUserMsg(m.content);
+                        }
                     } else {
-                        addUserMsg(m.content);
+                        const id = addAiShell();
+                        const thinkBlock = document.getElementById('think-' + id);
+                        const thinkText = document.getElementById('think-text-' + id);
+                        if (thinkBlock) thinkBlock.classList.remove('expanded');
+                        if (thinkText) thinkText.textContent = 'Loaded from history';
+                        const textEl = document.getElementById('text-' + id);
+                        if (textEl) renderMarkdown(textEl, m.content);
                     }
-                } else {
-                    const id = addAiShell();
-                    const thinkBlock = document.getElementById('think-' + id);
-                    const thinkText = document.getElementById('think-text-' + id);
-                    if (thinkBlock) thinkBlock.classList.remove('expanded');
-                    if (thinkText) thinkText.textContent = 'Loaded from history';
-                    const textEl = document.getElementById('text-' + id);
-                    if (textEl) renderMarkdown(textEl, m.content);
+                });
+                if (!state.user?.is_pro) {
+                    state.msgCount = msgs.filter(m => m.role === 'user').length;
+                    const disclaimer = document.getElementById('input-disclaimer');
+                    if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`;
                 }
-            });
-            if (!state.user?.is_pro) {
-                state.msgCount = msgs.filter(m => m.role === 'user').length;
-                const disclaimer = document.getElementById('input-disclaimer');
-                if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`;
             }
-        }
-        scrollBottom();
-        refreshUserInfo();
-    }).catch(() => showEmpty(true));
+            scrollBottom();
+            refreshUserInfo();
+        })
+        .catch(() => showEmpty(true));
 }
 
 function setProUi() {
