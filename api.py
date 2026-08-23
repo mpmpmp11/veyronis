@@ -1,4 +1,4 @@
-"""VEYRONIS API Server — Production Hardened."""
+"""VEYRONIS API Server — Production Hardened + Cloudinary."""
 import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends
@@ -31,17 +31,32 @@ import json
 import time
 import traceback
 
+# Cloudinary
+import cloudinary
+import cloudinary.uploader
+
 # Hindsight imports
 from hindsight_engine import HindsightEngine
 
 # Google OAuth imports
 from auth import get_google_auth_url, handle_google_callback
 
+# ─── CONFIGURE CLOUDINARY ───
+if Config.cloudinary_ready():
+    cloudinary.config(
+        cloud_name=Config.CLOUDINARY_CLOUD_NAME,
+        api_key=Config.CLOUDINARY_API_KEY,
+        api_secret=Config.CLOUDINARY_API_SECRET
+    )
+    print("[VEYRONIS] Cloudinary configured successfully")
+else:
+    print("[VEYRONIS] Cloudinary not configured — uploads will use local storage")
+
 # ─── JWT SETUP ───
 Config.validate_jwt()
 SECRET_KEY = Config.JWT_SECRET_KEY
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
 
@@ -99,13 +114,13 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 
 app = FastAPI(title="VEYRONIS API")
 
-# ─── HTTPS REDIRECT MIDDLEWARE (Fixed) ───
+# ─── HTTPS REDIRECT MIDDLEWARE ───
 @app.middleware("http")
 async def https_redirect_middleware(request: Request, call_next):
     forwarded_proto = request.headers.get("x-forwarded-proto")
     host = request.headers.get("host", "")
     
-    if forwarded_proto == "http" and "onrender.com" in host:
+    if forwarded_proto == "http" and ("onrender.com" in host or "railway.app" in host):
         https_url = f"https://{host}{request.url.path}"
         if request.url.query:
             https_url += f"?{request.url.query}"
@@ -311,7 +326,6 @@ async def upgrade_to_pro(current_user: dict = Depends(get_current_user_required)
 # ─── ACCOUNT DELETION ───
 @app.delete("/account")
 async def delete_account(current_user: dict = Depends(get_current_user_required)):
-    """Permanently delete the authenticated user's account and all data."""
     user_id = current_user["id"]
     success = delete_user(user_id)
     if not success:
@@ -367,6 +381,7 @@ async def google_callback(code: str, request: Request):
         return RedirectResponse(frontend_url)
 
 # ─── PROTECTED ENDPOINTS ───
+
 @app.get("/")
 async def root():
     return FileResponse(str(FRONTEND_DIR / "index.html"))
@@ -469,7 +484,7 @@ async def clear_chat(
     clear_history(user_id, conversation_id=conversation_id)
     return {"status": "Chat cleared"}
 
-# ─── UNPROTECTED ENDPOINTS (with rate limiting) ───
+# ─── UPLOAD ENDPOINT (With Cloudinary) ───
 
 @app.post("/upload")
 async def upload_document(
@@ -484,8 +499,31 @@ async def upload_document(
     
     if not user_id:
         user_id = "u_auto_" + str(int(time.time()))
+    
     content = await file.read()
+    cloudinary_url = None
+    
+    # Upload to Cloudinary if configured
+    if Config.cloudinary_ready():
+        try:
+            upload_result = cloudinary.uploader.upload(
+                content,
+                folder=f"veyronis/uploads/{user_id}",
+                public_id=file.filename,
+                resource_type="auto",
+                use_filename=True,
+                unique_filename=False,
+                overwrite=True
+            )
+            cloudinary_url = upload_result.get("secure_url")
+            print(f"[CLOUDINARY] Uploaded: {cloudinary_url}")
+        except Exception as e:
+            print(f"[CLOUDINARY ERROR] {e}")
+            cloudinary_url = None
+    
+    # Extract text from document
     text = DocumentParser.extract_text(content, file.filename)
+    
     gemini_analysis = None
     try:
         if Config.gemini_ready() and orchestrator.gemini_agent:
@@ -495,18 +533,23 @@ async def upload_document(
             )
     except Exception as e:
         print(f"[VEYRONIS] Gemini doc analysis failed: {e}")
+    
     if not conversation_id:
         conversation_id = create_conversation(user_id, title=file.filename)
+    
     response = {
         "filename": file.filename,
         "extracted_length": len(text),
         "preview": text[:500],
         "content": text[:3000],
-        "conversation_id": conversation_id
+        "conversation_id": conversation_id,
+        "cloudinary_url": cloudinary_url
     }
     if gemini_analysis:
         response["gemini_analysis"] = gemini_analysis
     return response
+
+# ─── CHAT ENDPOINTS ───
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
@@ -730,11 +773,13 @@ async def health():
     tavily_ok = bool(Config.TAVILY_API_KEY)
     gemini_ok = Config.gemini_ready()
     google_oauth_ok = Config.google_oauth_ready()
+    cloudinary_ok = Config.cloudinary_ready()
     return {
         "status": "VEYRONIS is online",
         "version": "1.3-hindsight",
         "models": {"groq": groq_ok, "tavily": tavily_ok, "gemini": gemini_ok},
         "oauth": {"google": google_oauth_ok},
+        "storage": {"cloudinary": cloudinary_ok},
         "timestamp": datetime.now().isoformat()
     }
 

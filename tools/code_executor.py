@@ -1,11 +1,10 @@
-"""Safe code execution sandbox for VEYRONIS."""
+"""Safe code execution sandbox for VEYRONIS with resource limits."""
 import ast
 import os
 import subprocess
 import sys
 import tempfile
 from typing import Tuple
-
 
 class CodeExecutor:
     BANNED_MODULES = {
@@ -41,6 +40,20 @@ class CodeExecutor:
         return True, ""
 
     @classmethod
+    def _set_limits_posix(cls):
+        """Set resource limits on POSIX systems (Linux/Mac)."""
+        try:
+            import resource
+            # CPU time limit: 2 seconds
+            resource.setrlimit(resource.RLIMIT_CPU, (2, 2))
+            # Memory limit: 128 MB
+            resource.setrlimit(resource.RLIMIT_AS, (128 * 1024 * 1024, 128 * 1024 * 1024))
+            # File size limit: 1 MB
+            resource.setrlimit(resource.RLIMIT_FSIZE, (1 * 1024 * 1024, 1 * 1024 * 1024))
+        except Exception:
+            pass  # Silently ignore if resource module not available
+
+    @classmethod
     def run(cls, code: str) -> dict:
         safe, reason = cls._check_ast(code)
         if not safe:
@@ -51,11 +64,15 @@ class CodeExecutor:
             tmp_path = f.name
 
         try:
+            # Set limits only on POSIX systems
+            preexec_fn = cls._set_limits_posix if os.name == 'posix' else None
+            
             result = subprocess.run(
                 [sys.executable, tmp_path],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
+                preexec_fn=preexec_fn
             )
             return {
                 "success": result.returncode == 0,

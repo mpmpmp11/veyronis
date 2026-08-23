@@ -14,3 +14,4 @@ passlib[bcrypt]
 bcrypt
 authlib
 httpx
+cloudinary>=1.33.0

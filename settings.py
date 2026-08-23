@@ -6,6 +6,7 @@ Includes:
 - Rate-limit fallback to Gemini
 - Google OAuth configuration
 - JWT Secret enforcement
+- Cloudinary configuration
 """
 import os
 from pathlib import Path
@@ -38,12 +39,17 @@ class Config:
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "").strip()
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
 
-    # JWT Secret (MUST be set in .env)
+    # JWT Secret
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "").strip()
 
+    # Cloudinary
+    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "").strip()
+    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "").strip()
+    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "").strip()
+
     # Official 2026 Model IDs
-    MODEL_ULTRA: str = "openai/gpt-oss-120b"      # Smartest MoE model
-    MODEL_STABLE: str = "llama-3.3-70b-versatile"  # Standard high-tier
+    MODEL_ULTRA: str = "openai/gpt-oss-120b"
+    MODEL_STABLE: str = "llama-3.3-70b-versatile"
     GEMINI_MODEL: str = "gemini-1.5-flash-latest"
 
     GROQ_MODEL: str = MODEL_ULTRA 
@@ -72,15 +78,17 @@ class Config:
 
     @classmethod
     def validate_jwt(cls) -> None:
-        """Enforce JWT secret is set and secure."""
         if not cls.JWT_SECRET_KEY or len(cls.JWT_SECRET_KEY) < 16:
             raise ValueError(
                 "\n" + "=" * 60 + "\n"
                 "❌ JWT_SECRET_KEY must be set in .env and be at least 16 characters.\n"
                 "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'\n"
-                "Or use: openssl rand -base64 32\n"
                 "=" * 60
             )
+
+    @classmethod
+    def cloudinary_ready(cls) -> bool:
+        return bool(cls.CLOUDINARY_CLOUD_NAME and cls.CLOUDINARY_API_KEY and cls.CLOUDINARY_API_SECRET)
 
 def get_groq_client() -> Groq:
     Config.validate()
