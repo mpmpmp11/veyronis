@@ -1,5 +1,5 @@
 // ============================================================
-// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password)
+// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password + Fixed Sidebar)
 // ============================================================
 
 const state = {
@@ -141,10 +141,10 @@ async function handleLogin() {
         }
         state.token = data.access_token;
         state.user = data.user;
+        state.userId = data.user.email;  // ← CRITICAL: Set userId
         localStorage.setItem('veyronis_token', state.token);
         localStorage.setItem('veyronis_user', JSON.stringify(state.user));
         state.isAuthenticated = true;
-        state.userId = data.user.email;
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
         initApp();
@@ -191,10 +191,10 @@ async function handleRegister() {
 
         state.token = data.access_token;
         state.user = data.user;
+        state.userId = data.user.email;  // ← CRITICAL: Set userId
         localStorage.setItem('veyronis_token', state.token);
         localStorage.setItem('veyronis_user', JSON.stringify(state.user));
         state.isAuthenticated = true;
-        state.userId = data.user.email;
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
         initApp();
@@ -212,8 +212,8 @@ function checkAuth() {
     if (token && user) {
         state.token = token;
         state.user = user;
+        state.userId = user.email;  // ← CRITICAL: Set userId
         state.isAuthenticated = true;
-        state.userId = user.email;
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
         initApp();
@@ -228,6 +228,7 @@ function handleLogout() {
     localStorage.removeItem('veyronis_user');
     state.token = null;
     state.user = null;
+    state.userId = '';
     state.isAuthenticated = false;
     document.getElementById('app').classList.add('hidden');
     document.getElementById('auth-screen').classList.remove('hidden');
@@ -265,8 +266,8 @@ function handleGoogleCallback() {
                 avatar_url: avatar,
                 auth_method: 'google'
             };
+            state.userId = email;  // ← CRITICAL: Set userId
             state.isAuthenticated = true;
-            state.userId = email;
             
             localStorage.setItem('veyronis_token', token);
             localStorage.setItem('veyronis_user', JSON.stringify(state.user));
@@ -394,6 +395,10 @@ function initApp() {
             proBadge.className = 'sidebar-pro-badge' + (state.user.is_pro ? ' pro' : '');
         }
     }
+    // Ensure userId is set (fallback)
+    if (!state.userId && state.user) {
+        state.userId = state.user.email;
+    }
     updateUsageDisplay();
     try { mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' }); } catch(e) {}
     if (window.Chart) updateChartDefaults();
@@ -433,6 +438,7 @@ function refreshUserInfo() {
         .then(data => {
             if (data.user) {
                 state.user = { ...state.user, ...data.user };
+                state.userId = state.user.email; // sync
                 localStorage.setItem('veyronis_user', JSON.stringify(state.user));
                 updateUsageDisplay();
                 const proBadge = document.getElementById('sidebar-pro-badge');
@@ -539,17 +545,25 @@ function shareCurrentConv() { if (!state.conversationId) { toast('No conversatio
 function openUpgrade() { toast('⭐ Upgrade to PRO — Coming soon with Google Play Billing!', 'info'); closeMoreMenu(); }
 function toggleSearch() { toast('🔍 Search coming soon!', 'info'); }
 
-// ─── CONVERSATIONS ───
+// ─── CONVERSATIONS (FIXED) ───
 
 function loadConversations() {
     if (!state.apiUrl) return;
-    const url = `${state.apiUrl}/conversations?user_id=${state.userId}`;
+    if (!state.userId) {
+        console.warn('No userId set, cannot load conversations');
+        return;
+    }
+    const url = `${state.apiUrl}/conversations?user_id=${encodeURIComponent(state.userId)}`;
     const headers = {};
     if (state.token) {
         headers['Authorization'] = `Bearer ${state.token}`;
     }
+    console.log('Loading conversations for user:', state.userId);
     fetch(url, { headers })
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) throw new Error('Failed to load conversations');
+            return r.json();
+        })
         .then(data => {
             const convs = data.conversations || [];
             const today = [], yesterday = [], week = [];
@@ -569,7 +583,11 @@ function loadConversations() {
             else if (!convs.length) showEmpty(true);
             state.isNewChat = false;
         })
-        .catch(() => {});
+        .catch(err => {
+            console.error('Error loading conversations:', err);
+            // show empty state
+            document.getElementById('conv-list-today').innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:12px;">Error loading chats</div>';
+        });
 }
 
 function makeConvItem(c) {
@@ -1648,12 +1666,17 @@ function clearChat() {
 
 function loadHistory() {
     if (!state.apiUrl) return;
-    let url = `${state.apiUrl}/history?user_id=${state.userId || state.user?.email || ''}`;
+    if (!state.userId) {
+        console.warn('No userId set, cannot load history');
+        return;
+    }
+    let url = `${state.apiUrl}/history?user_id=${encodeURIComponent(state.userId)}`;
     if (state.conversationId) url += `&conversation_id=${state.conversationId}`;
     const headers = {};
     if (state.token) {
         headers['Authorization'] = `Bearer ${state.token}`;
     }
+    console.log('Loading history for user:', state.userId);
     
     const msgsContainer = document.getElementById('messages');
     if (msgsContainer && msgsContainer.children.length === 0) {
@@ -1671,15 +1694,17 @@ function loadHistory() {
     }
     
     fetch(url, { headers })
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) throw new Error('Failed to load history');
+            return r.json();
+        })
         .then(data => {
             const msgs = data.messages || [];
+            msgsContainer.innerHTML = '';
             if (!msgs.length) { 
-                msgsContainer.innerHTML = '';
                 showEmpty(true); 
                 if (state.user?.is_pro) setProUi(); 
             } else {
-                msgsContainer.innerHTML = '';
                 showEmpty(false);
                 msgs.forEach(m => {
                     if (m.role === 'user') {
@@ -1707,7 +1732,8 @@ function loadHistory() {
             scrollBottom();
             refreshUserInfo();
         })
-        .catch(() => {
+        .catch(err => {
+            console.error('Error loading history:', err);
             msgsContainer.innerHTML = '';
             showEmpty(true);
         });

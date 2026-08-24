@@ -45,7 +45,7 @@
 
                 <!-- FORGOT PASSWORD LINK -->
                 <div style="text-align: right; margin-top: 4px; margin-bottom: 12px;">
-                    <a href="javascript:void(0)" onclick="showForgotPassword();" style="color: var(--accent); font-size: 12px; text-decoration: none;">Forgot Password?</a>
+                    <a href="javascript:void(0)" onclick="event.preventDefault(); showForgotPassword();" style="color: var(--accent); font-size: 12px; text-decoration: none;">Forgot Password?</a>
                 </div>
 
                 <div class="auth-divider"><span>or</span></div>
@@ -681,6 +681,7 @@
                 .catch(err => console.log('[VEYRONIS] SW failed', err));
         }
     </script>
-    <script src="/static/app.js"></script>
+    <!-- CACHE BUST: v=2 ensures fresh app.js -->
+    <script src="/static/app.js?v=2"></script>
 </body>
 </html>
