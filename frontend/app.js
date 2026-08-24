@@ -234,6 +234,43 @@ function handleLogout() {
     toast('Logged out', 'info');
     document.getElementById('messages').innerHTML = '';
     showEmpty(true);
+
+    // ─── FORGOT PASSWORD ───
+
+function showForgotPassword() {
+    const modal = document.getElementById('forgot-password-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeForgotPassword() {
+    const modal = document.getElementById('forgot-password-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function sendResetLink() {
+    const email = document.getElementById('reset-email').value.trim();
+    if (!email) {
+        toast('Please enter your email', 'error');
+        return;
+    }
+    try {
+        const res = await fetch(`${state.apiUrl}/forgot-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            toast('Reset link sent! Check your email.', 'success');
+            closeForgotPassword();
+            document.getElementById('reset-email').value = '';
+        } else {
+            toast(data.detail || 'Something went wrong', 'error');
+        }
+    } catch (err) {
+        toast('Network error', 'error');
+    }
+}
 }
 
 // ─── GOOGLE OAUTH ───

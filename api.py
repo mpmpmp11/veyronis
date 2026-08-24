@@ -1,4 +1,4 @@
-"""VEYRONIS API Server — Production Hardened + Cloudinary."""
+"""VEYRONIS API Server — Production Hardened + Cloudinary + Email."""
 import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends
@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
 import hashlib
 import bcrypt
+import secrets
 from orchestrator import CentralOrchestrator
 from guardrails import check_input
 from tools.document_parser import DocumentParser
@@ -22,7 +23,9 @@ from database import (
     delete_conversation,
     create_user, get_user_by_email, get_user_by_id, set_user_pro,
     get_usage_count, increment_usage,
-    delete_user
+    delete_user, get_user_by_verification_token, verify_user,
+    set_verification_token, set_reset_token, get_user_by_reset_token,
+    clear_reset_token, get_db
 )
 from settings import Config
 import base64
@@ -34,6 +37,9 @@ import traceback
 # Cloudinary
 import cloudinary
 import cloudinary.uploader
+
+# Email
+from email import send_reset_email, send_verification_email
 
 # Hindsight imports
 from hindsight_engine import HindsightEngine
@@ -264,6 +270,15 @@ async def register(req: RegisterRequest, request: Request):
         hashed = get_password_hash(req.password)
         user_id = create_user(req.email, hashed)
         token = create_access_token({"sub": str(user_id)})
+        
+        # Send verification email
+        if Config.email_ready():
+            verification_token = secrets.token_urlsafe(32)
+            expires = datetime.utcnow() + timedelta(hours=24)
+            set_verification_token(req.email, verification_token, expires)
+            base_url = Config.APP_BASE_URL
+            send_verification_email(req.email, verification_token, base_url)
+        
         return TokenResponse(
             access_token=token,
             token_type="bearer",
@@ -314,7 +329,8 @@ async def get_me(current_user: dict = Depends(get_current_user_required)):
             "is_pro": bool(user["is_pro"]),
             "avatar_url": user.get("avatar_url"),
             "usage": usage,
-            "remaining": remaining
+            "remaining": remaining,
+            "is_verified": bool(user.get("is_verified", False))
         }
     }
 
@@ -332,7 +348,71 @@ async def delete_account(current_user: dict = Depends(get_current_user_required)
         raise HTTPException(500, detail="Failed to delete account")
     return {"message": "Account deleted successfully"}
 
+# ─── FORGOT PASSWORD ───
+
+@app.post("/forgot-password")
+async def forgot_password(request: Request):
+    if not Config.email_ready():
+        raise HTTPException(503, detail="Email service not configured")
+    
+    data = await request.json()
+    email = data.get("email", "").strip()
+    
+    if not email:
+        raise HTTPException(400, detail="Email is required")
+    
+    user = get_user_by_email(email)
+    if not user:
+        return {"message": "If this email exists, a reset link has been sent."}
+    
+    token = secrets.token_urlsafe(32)
+    expires = datetime.utcnow() + timedelta(hours=1)
+    set_reset_token(email, token, expires)
+    
+    base_url = Config.APP_BASE_URL
+    success = send_reset_email(email, token, base_url)
+    if not success:
+        raise HTTPException(500, detail="Failed to send reset email. Try again later.")
+    
+    return {"message": "If this email exists, a reset link has been sent."}
+
+@app.post("/reset-password")
+async def reset_password(request: Request):
+    data = await request.json()
+    token = data.get("token", "").strip()
+    new_password = data.get("new_password", "").strip()
+    
+    if not token or not new_password:
+        raise HTTPException(400, detail="Token and new password required")
+    if len(new_password) < 6:
+        raise HTTPException(400, detail="Password must be at least 6 characters")
+    
+    user = get_user_by_reset_token(token)
+    if not user:
+        raise HTTPException(400, detail="Invalid or expired token")
+    
+    hashed = get_password_hash(new_password)
+    conn = get_db()
+    conn.execute("UPDATE users SET hashed_password = ? WHERE id = ?", (hashed, user["id"]))
+    conn.execute("UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?", (user["id"],))
+    conn.commit()
+    conn.close()
+    
+    return {"message": "Password reset successfully"}
+
+# ─── EMAIL VERIFICATION ───
+
+@app.get("/verify-email")
+async def verify_email(token: str):
+    user = get_user_by_verification_token(token)
+    if not user:
+        raise HTTPException(400, detail="Invalid or expired verification link")
+    
+    verify_user(user["email"])
+    return RedirectResponse(f"{Config.APP_BASE_URL}/#email-verified")
+
 # ─── GOOGLE OAUTH ───
+
 @app.get("/auth/google")
 async def google_login(request: Request):
     if not Config.google_oauth_ready():
@@ -503,7 +583,6 @@ async def upload_document(
     content = await file.read()
     cloudinary_url = None
     
-    # Upload to Cloudinary if configured
     if Config.cloudinary_ready():
         try:
             upload_result = cloudinary.uploader.upload(
@@ -521,7 +600,6 @@ async def upload_document(
             print(f"[CLOUDINARY ERROR] {e}")
             cloudinary_url = None
     
-    # Extract text from document
     text = DocumentParser.extract_text(content, file.filename)
     
     gemini_analysis = None
@@ -774,12 +852,14 @@ async def health():
     gemini_ok = Config.gemini_ready()
     google_oauth_ok = Config.google_oauth_ready()
     cloudinary_ok = Config.cloudinary_ready()
+    email_ok = Config.email_ready()
     return {
         "status": "VEYRONIS is online",
         "version": "1.3-hindsight",
         "models": {"groq": groq_ok, "tavily": tavily_ok, "gemini": gemini_ok},
         "oauth": {"google": google_oauth_ok},
         "storage": {"cloudinary": cloudinary_ok},
+        "email": {"resend": email_ok},
         "timestamp": datetime.now().isoformat()
     }
 

@@ -1,12 +1,8 @@
 """
 VEYRONIS AI - Final Configuration Module
-Includes: 
-- Pro/Standard user model logic
-- 2026 Groq Official Model IDs
-- Rate-limit fallback to Gemini
-- Google OAuth configuration
-- JWT Secret enforcement
-- Cloudinary configuration
+Includes: Pro/Standard user model logic, 2026 Groq Official Model IDs,
+Rate-limit fallback to Gemini, Google OAuth configuration,
+JWT Secret enforcement, Cloudinary configuration, Email (Resend)
 """
 import os
 from pathlib import Path
@@ -18,7 +14,6 @@ BASE_DIR = Path(__file__).resolve().parent
 ENV_PATH = BASE_DIR / ".env"
 
 def _strip_bom_from_env():
-    """Remove UTF-8 BOM that Windows Notepad adds so dotenv can read the first line."""
     if not ENV_PATH.exists():
         return
     raw = ENV_PATH.read_bytes()
@@ -46,6 +41,10 @@ class Config:
     CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "").strip()
     CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "").strip()
     CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "").strip()
+
+    # Email (Resend)
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "").strip()
+    APP_BASE_URL: str = os.getenv("APP_BASE_URL", "https://veyronis.onrender.com").strip()
 
     # Official 2026 Model IDs
     MODEL_ULTRA: str = "openai/gpt-oss-120b"
@@ -89,6 +88,10 @@ class Config:
     @classmethod
     def cloudinary_ready(cls) -> bool:
         return bool(cls.CLOUDINARY_CLOUD_NAME and cls.CLOUDINARY_API_KEY and cls.CLOUDINARY_API_SECRET)
+
+    @classmethod
+    def email_ready(cls) -> bool:
+        return bool(cls.RESEND_API_KEY)
 
 def get_groq_client() -> Groq:
     Config.validate()

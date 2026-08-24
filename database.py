@@ -12,7 +12,6 @@ def get_db():
     return conn
 
 def row_to_dict(row):
-    """Convert sqlite3.Row to dict for safe attribute access."""
     return dict(row) if row else None
 
 def ensure_users_table():
@@ -32,7 +31,6 @@ def ensure_users_table():
     conn.close()
 
 def ensure_google_columns():
-    """Add google_id and avatar_url columns to users table if they don't exist."""
     conn = get_db()
     cursor = conn.execute("PRAGMA table_info(users)")
     columns = [row["name"] for row in cursor.fetchall()]
@@ -48,7 +46,6 @@ def ensure_google_columns():
     conn.commit()
     conn.close()
     
-    # Create unique index for google_id (ignoring NULLs)
     try:
         conn = get_db()
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL")
@@ -59,8 +56,32 @@ def ensure_google_columns():
     finally:
         conn.close()
 
+def ensure_auth_columns():
+    """Add email verification and password reset columns."""
+    conn = get_db()
+    cursor = conn.execute("PRAGMA table_info(users)")
+    columns = [row["name"] for row in cursor.fetchall()]
+    
+    if "verification_token" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN verification_token TEXT")
+        print("[VEYRONIS] Added verification_token column")
+    if "verification_token_expires" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN verification_token_expires TIMESTAMP")
+        print("[VEYRONIS] Added verification_token_expires column")
+    if "is_verified" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 0")
+        print("[VEYRONIS] Added is_verified column")
+    if "reset_token" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN reset_token TEXT")
+        print("[VEYRONIS] Added reset_token column")
+    if "reset_token_expires" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN reset_token_expires TIMESTAMP")
+        print("[VEYRONIS] Added reset_token_expires column")
+    
+    conn.commit()
+    conn.close()
+
 def ensure_usage_table():
-    """Create usage_logs table if it doesn't exist."""
     conn = get_db()
     conn.execute("""
         CREATE TABLE IF NOT EXISTS usage_logs (
@@ -268,7 +289,6 @@ def set_user_pro(user_id: int, is_pro: bool = True):
     conn.close()
 
 def delete_user(user_id: int) -> bool:
-    """Permanently delete a user and all associated data (GDPR compliant)."""
     conn = get_db()
     try:
         user = get_user_by_id(user_id)
@@ -276,21 +296,13 @@ def delete_user(user_id: int) -> bool:
             return False
         email = user["email"]
         
-        # Delete messages from conversations
         conn.execute("""
             DELETE FROM messages WHERE conversation_id IN 
             (SELECT id FROM conversations WHERE user_id = ?)
         """, (email,))
-        
-        # Delete conversations
         conn.execute("DELETE FROM conversations WHERE user_id = ?", (email,))
-        
-        # Delete usage logs
         conn.execute("DELETE FROM usage_logs WHERE user_id = ?", (email,))
-        
-        # Delete user
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
-        
         conn.commit()
         return True
     except Exception as e:
@@ -299,6 +311,64 @@ def delete_user(user_id: int) -> bool:
         return False
     finally:
         conn.close()
+
+# ─── AUTH TOKENS ───
+
+def set_verification_token(email: str, token: str, expires):
+    conn = get_db()
+    conn.execute(
+        "UPDATE users SET verification_token = ?, verification_token_expires = ? WHERE email = ?",
+        (token, expires, email)
+    )
+    conn.commit()
+    conn.close()
+
+def get_user_by_verification_token(token: str):
+    conn = get_db()
+    cursor = conn.execute(
+        "SELECT id, email FROM users WHERE verification_token = ? AND verification_token_expires > datetime('now')",
+        (token,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row_to_dict(row)
+
+def verify_user(email: str):
+    conn = get_db()
+    conn.execute(
+        "UPDATE users SET is_verified = 1, verification_token = NULL, verification_token_expires = NULL WHERE email = ?",
+        (email,)
+    )
+    conn.commit()
+    conn.close()
+
+def set_reset_token(email: str, token: str, expires):
+    conn = get_db()
+    conn.execute(
+        "UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE email = ?",
+        (token, expires, email)
+    )
+    conn.commit()
+    conn.close()
+
+def get_user_by_reset_token(token: str):
+    conn = get_db()
+    cursor = conn.execute(
+        "SELECT id, email FROM users WHERE reset_token = ? AND reset_token_expires > datetime('now')",
+        (token,)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row_to_dict(row)
+
+def clear_reset_token(email: str):
+    conn = get_db()
+    conn.execute(
+        "UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE email = ?",
+        (email,)
+    )
+    conn.commit()
+    conn.close()
 
 # ─── USAGE LIMITS ───
 
@@ -331,4 +401,5 @@ init_db()
 _migrate()
 ensure_users_table()
 ensure_google_columns()
+ensure_auth_columns()
 ensure_usage_table()
