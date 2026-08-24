@@ -2,12 +2,10 @@
 import resend
 from settings import Config
 
-# Only configure if API key is set
 if Config.RESEND_API_KEY:
     resend.api_key = Config.RESEND_API_KEY
 
 def send_reset_email(email: str, token: str, base_url: str) -> bool:
-    """Send password reset email with a secure link."""
     reset_link = f"{base_url}/reset-password?token={token}"
     html_content = f"""
     <!DOCTYPE html>
@@ -30,7 +28,7 @@ def send_reset_email(email: str, token: str, base_url: str) -> bool:
     """
     try:
         resend.Emails.send({
-            "from": "VEYRONIS <onboarding@resend.dev>",
+            "from": "onboarding@resend.dev",
             "to": [email],
             "subject": "Reset Your VEYRONIS Password",
             "html": html_content
@@ -41,7 +39,6 @@ def send_reset_email(email: str, token: str, base_url: str) -> bool:
         return False
 
 def send_verification_email(email: str, token: str, base_url: str) -> bool:
-    """Send email verification link to new users."""
     verify_link = f"{base_url}/verify-email?token={token}"
     html_content = f"""
     <!DOCTYPE html>
@@ -63,7 +60,7 @@ def send_verification_email(email: str, token: str, base_url: str) -> bool:
     """
     try:
         resend.Emails.send({
-            "from": "VEYRONIS <onboarding@resend.dev>",
+            "from": "onboarding@resend.dev",
             "to": [email],
             "subject": "Verify Your VEYRONIS Email",
             "html": html_content

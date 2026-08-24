@@ -289,7 +289,7 @@ async def register(req: RegisterRequest, request: Request):
     except Exception as e:
         print(f"[REGISTER ERROR] {e}")
         traceback.print_exc()
-        raise HTTPException(500, detail=f"Internal error: {str(e)}")
+        raise HTTPException(500, detail="Registration failed. Please try again.")
 
 @app.post("/login")
 async def login(req: LoginRequest, request: Request):
@@ -314,7 +314,7 @@ async def login(req: LoginRequest, request: Request):
     except Exception as e:
         print(f"[LOGIN ERROR] {e}")
         traceback.print_exc()
-        raise HTTPException(500, detail=f"Internal error: {str(e)}")
+        raise HTTPException(500, detail="Login failed. Please try again.")
 
 @app.get("/me")
 async def get_me(current_user: dict = Depends(get_current_user_required)):
@@ -363,6 +363,7 @@ async def forgot_password(request: Request):
     
     user = get_user_by_email(email)
     if not user:
+        # Return 200 even if user doesn't exist (security)
         return {"message": "If this email exists, a reset link has been sent."}
     
     token = secrets.token_urlsafe(32)
@@ -372,7 +373,9 @@ async def forgot_password(request: Request):
     base_url = Config.APP_BASE_URL
     success = send_reset_email(email, token, base_url)
     if not success:
-        raise HTTPException(500, detail="Failed to send reset email. Try again later.")
+        print(f"[FORGOT PASSWORD] Failed to send email to {email}")
+        # Still return success to avoid user enumeration
+        return {"message": "If this email exists, a reset link has been sent."}
     
     return {"message": "If this email exists, a reset link has been sent."}
 
@@ -680,7 +683,7 @@ async def chat(
         except Exception as e:
             print(f"[HINDSIGHT ERROR] {e}")
             traceback.print_exc()
-            raise HTTPException(500, detail=f"Simulation failed: {str(e)}")
+            raise HTTPException(500, detail="Hindsight simulation failed. Please try again.")
 
     if msg and not check_input(msg)[0]:
         raise HTTPException(400, detail="Blocked")
@@ -715,7 +718,7 @@ async def chat(
             citations=result.get("citations")
         )
     except Exception as e:
-        raise HTTPException(500, detail=str(e))
+        raise HTTPException(500, detail="Chat failed. Please try again.")
 
 @app.post("/chat/stream")
 async def chat_stream(

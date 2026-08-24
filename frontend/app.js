@@ -141,7 +141,7 @@ async function handleLogin() {
         }
         state.token = data.access_token;
         state.user = data.user;
-        state.userId = data.user.email;  // ← CRITICAL: Set userId
+        state.userId = data.user.email;
         localStorage.setItem('veyronis_token', state.token);
         localStorage.setItem('veyronis_user', JSON.stringify(state.user));
         state.isAuthenticated = true;
@@ -191,7 +191,7 @@ async function handleRegister() {
 
         state.token = data.access_token;
         state.user = data.user;
-        state.userId = data.user.email;  // ← CRITICAL: Set userId
+        state.userId = data.user.email;
         localStorage.setItem('veyronis_token', state.token);
         localStorage.setItem('veyronis_user', JSON.stringify(state.user));
         state.isAuthenticated = true;
@@ -212,7 +212,7 @@ function checkAuth() {
     if (token && user) {
         state.token = token;
         state.user = user;
-        state.userId = user.email;  // ← CRITICAL: Set userId
+        state.userId = user.email;
         state.isAuthenticated = true;
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
@@ -266,7 +266,7 @@ function handleGoogleCallback() {
                 avatar_url: avatar,
                 auth_method: 'google'
             };
-            state.userId = email;  // ← CRITICAL: Set userId
+            state.userId = email;
             state.isAuthenticated = true;
             
             localStorage.setItem('veyronis_token', token);
@@ -305,6 +305,7 @@ async function sendResetLink() {
         toast('Please enter your email', 'error');
         return;
     }
+    showLoading('Sending reset link...');
     try {
         const res = await fetch(`${state.apiUrl}/forgot-password`, {
             method: 'POST',
@@ -312,6 +313,7 @@ async function sendResetLink() {
             body: JSON.stringify({ email })
         });
         const data = await res.json();
+        hideLoading();
         if (res.ok) {
             toast('Reset link sent! Check your email.', 'success');
             closeForgotPassword();
@@ -320,7 +322,9 @@ async function sendResetLink() {
             toast(data.detail || 'Something went wrong', 'error');
         }
     } catch (err) {
+        hideLoading();
         toast('Network error', 'error');
+        console.error(err);
     }
 }
 
@@ -395,7 +399,6 @@ function initApp() {
             proBadge.className = 'sidebar-pro-badge' + (state.user.is_pro ? ' pro' : '');
         }
     }
-    // Ensure userId is set (fallback)
     if (!state.userId && state.user) {
         state.userId = state.user.email;
     }
@@ -438,7 +441,7 @@ function refreshUserInfo() {
         .then(data => {
             if (data.user) {
                 state.user = { ...state.user, ...data.user };
-                state.userId = state.user.email; // sync
+                state.userId = state.user.email;
                 localStorage.setItem('veyronis_user', JSON.stringify(state.user));
                 updateUsageDisplay();
                 const proBadge = document.getElementById('sidebar-pro-badge');
@@ -585,7 +588,6 @@ function loadConversations() {
         })
         .catch(err => {
             console.error('Error loading conversations:', err);
-            // show empty state
             document.getElementById('conv-list-today').innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:12px;">Error loading chats</div>';
         });
 }

@@ -147,11 +147,11 @@
 
         <!-- MAIN -->
         <main id="main">
-            <!-- TOP BAR (Glassmorphism) -->
+            <!-- TOP BAR — Clean, Full Canvas, Round Glass Buttons -->
             <header class="top-bar glass" id="top-bar">
                 <div class="top-left">
-                    <button class="top-icon glass-icon" onclick="toggleSidebar()" title="Open sidebar">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <button class="top-icon round-icon" onclick="toggleSidebar()" title="Open sidebar">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <line x1="3" y1="6" x2="21" y2="6"/>
                             <line x1="3" y1="12" x2="21" y2="12"/>
                             <line x1="3" y1="18" x2="21" y2="18"/>
@@ -159,17 +159,23 @@
                     </button>
                 </div>
                 <div class="top-center">
-                    <span class="brand-text">VEYRONIS</span>
+                    <!-- No VEYRONIS text here — clean canvas -->
                 </div>
                 <div class="top-right">
-                    <button class="top-icon glass-icon pro-btn" onclick="openUpgrade()" title="Upgrade to PRO">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <button class="top-icon round-icon pro-btn" onclick="openUpgrade()" title="Upgrade to PRO">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                         </svg>
                     </button>
+                    <button class="top-icon round-icon" onclick="cycleTheme()" title="Theme">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5"/>
+                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                        </svg>
+                    </button>
                     <div class="more-wrap">
-                        <button class="top-icon glass-icon more-btn" onclick="toggleMoreMenu()" title="More">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                        <button class="top-icon round-icon more-btn" onclick="toggleMoreMenu()" title="More">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                                 <circle cx="12" cy="5" r="2"/>
                                 <circle cx="12" cy="12" r="2"/>
                                 <circle cx="12" cy="19" r="2"/>
@@ -206,16 +212,10 @@
                             </button>
                         </div>
                     </div>
-                    <button class="top-icon glass-icon" onclick="cycleTheme()" title="Theme">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="5"/>
-                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-                        </svg>
-                    </button>
                 </div>
             </header>
 
-            <!-- CONNECTION STATUS -->
+            <!-- CONNECTION STATUS (Minimal) -->
             <div class="conn-status-bar">
                 <div class="conn-status-wrap checking" id="conn-status-wrap">
                     <div class="conn-dot checking" id="conn-dot"></div>
@@ -228,24 +228,65 @@
                 <div id="messages"></div>
                 <div id="empty-state" class="empty-state">
                     <div class="empty-brand">VEYRONIS</div>
-                    <div class="empty-hint">What do you want to explore today?</div>
+                    <div class="empty-hint">How can I help you today?</div>
                     <div class="chips">
-                        <button class="chip glass-chip" onclick="quickSend('Explain quantum physics like I am 15')">🔬 Quantum</button>
-                        <button class="chip glass-chip" onclick="quickSend('Help me outline an essay about climate change')">📝 Essay</button>
-                        <button class="chip glass-chip" onclick="quickSend('Solve step by step: 2x² + 5x - 3 = 0')">🧮 Math</button>
-                        <button class="chip glass-chip" onclick="quickSend('Write a Python script that fetches weather data')">💻 Code</button>
+                        <button class="chip glass-chip" onclick="quickSend('Explain quantum physics like I am 15')">🔬 Quantum Physics</button>
+                        <button class="chip glass-chip" onclick="quickSend('Help me outline an essay about climate change')">📝 Essay Outline</button>
+                        <button class="chip glass-chip" onclick="quickSend('Solve step by step: 2x² + 5x - 3 = 0')">🧮 Math Solver</button>
+                        <button class="chip glass-chip" onclick="quickSend('Write a Python script that fetches weather data')">💻 Python Code</button>
                         <button class="chip glass-chip" onclick="quickSend('Create flashcards about the French Revolution')">📇 Flashcards</button>
-                        <button class="chip glass-chip" onclick="quickSend('Draw me a majestic dragon')">🎨 Image</button>
+                        <button class="chip glass-chip" onclick="quickSend('Draw me a majestic dragon')">🎨 Image Gen</button>
                         <button class="chip glass-chip" id="hindsight-chip" onclick="quickSend('What happens if I procrastinate on my final project until the last week?')">🔮 Hindsight</button>
                     </div>
                 </div>
             </div>
 
-            <!-- INPUT AREA (Glassmorphism, thinner) -->
+            <!-- INPUT COMPOSER — Clean +, Text, Voice, Send -->
             <div class="input-shell">
                 <div class="input-glass glass-strong" id="input-glass">
-                    <!-- Top row: Model + Attach + Voice -->
-                    <div class="input-top">
+                    <div class="input-composer">
+                        <button class="composer-btn glass-icon attach-btn" onclick="toggleAttach()" title="Attach">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 5v14M5 12h14"/>
+                            </svg>
+                        </button>
+                        <div class="attach-pop glass" id="attach-pop">
+                            <div class="attach-item" onclick="triggerDocumentUpload()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                                    <polyline points="13 2 13 9 20 9"/>
+                                </svg>
+                                Document
+                            </div>
+                            <div class="attach-item" onclick="triggerImageUpload()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                                    <polyline points="21 15 16 10 5 21"/>
+                                </svg>
+                                Image
+                            </div>
+                        </div>
+                        <div class="composer-input-wrap">
+                            <input type="text" id="msg-input" placeholder="Message VEYRONIS..." autocomplete="off">
+                        </div>
+                        <button class="composer-btn glass-icon mic-btn" id="mic-btn" onclick="toggleMic()" title="Voice">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                <line x1="12" y1="19" x2="12" y2="23"/>
+                                <line x1="8" y1="23" x2="16" y2="23"/>
+                            </svg>
+                        </button>
+                        <button class="composer-btn send-btn" id="send-btn" onclick="sendMessage()" title="Send">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <!-- Model selector moved inline -->
+                    <div class="composer-model-row">
                         <button class="model-toggle glass-toggle" id="model-toggle" onclick="toggleModelMenu()">
                             <span id="model-label">Instant</span>
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -270,55 +311,10 @@
                                 <div class="model-row-desc">Deep research report</div>
                             </button>
                         </div>
-
                         <button class="simulation-toggle glass-toggle" id="sim-toggle" onclick="toggleSimulationMode()" title="Toggle VEYRONIS HINDSIGHT">
                             <span class="sim-icon">🔮</span>
                             <span>Hindsight</span>
                             <span class="sim-limit-badge" id="sim-badge">1/1</span>
-                        </button>
-
-                        <div class="input-actions">
-                            <button class="composer-btn glass-icon attach-btn" onclick="toggleAttach()" title="Attach">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M12 5v14M5 12h14"/>
-                                </svg>
-                            </button>
-                            <div class="attach-pop glass" id="attach-pop">
-                                <div class="attach-item" onclick="triggerDocumentUpload()">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-                                        <polyline points="13 2 13 9 20 9"/>
-                                    </svg>
-                                    Document
-                                </div>
-                                <div class="attach-item" onclick="triggerImageUpload()">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                                        <circle cx="8.5" cy="8.5" r="1.5"/>
-                                        <polyline points="21 15 16 10 5 21"/>
-                                    </svg>
-                                    Image
-                                </div>
-                            </div>
-                            <button class="composer-btn glass-icon mic-btn" id="mic-btn" onclick="toggleMic()" title="Voice">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                                    <line x1="12" y1="19" x2="12" y2="23"/>
-                                    <line x1="8" y1="23" x2="16" y2="23"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Bottom row: Text input + Send -->
-                    <div class="input-bottom">
-                        <textarea id="msg-input" placeholder="Message VEYRONIS..." rows="1"></textarea>
-                        <button class="composer-btn send-btn glass-send" id="send-btn" onclick="sendMessage()" title="Send">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                <line x1="22" y1="2" x2="11" y2="13"/>
-                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                            </svg>
                         </button>
                     </div>
                 </div>
@@ -343,7 +339,6 @@
             <div style="width:36px"></div>
         </div>
         <div class="settings-scroll">
-            <!-- MAIN MENU -->
             <div id="settings-main" class="settings-view">
                 <div class="settings-card">
                     <div class="profile-hero">
@@ -681,7 +676,6 @@
                 .catch(err => console.log('[VEYRONIS] SW failed', err));
         }
     </script>
-    <!-- CACHE BUST: v=2 ensures fresh app.js -->
-    <script src="/static/app.js?v=2"></script>
+    <script src="/static/app.js?v=3"></script>
 </body>
 </html>
