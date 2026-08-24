@@ -277,7 +277,9 @@ async def register(req: RegisterRequest, request: Request):
             expires = datetime.utcnow() + timedelta(hours=24)
             set_verification_token(req.email, verification_token, expires)
             base_url = Config.APP_BASE_URL
-            send_verification_email(req.email, verification_token, base_url)
+            success = send_verification_email(req.email, verification_token, base_url)
+            if not success:
+                print(f"[VEYRONIS] Verification email failed to send for {req.email}")
         
         return TokenResponse(
             access_token=token,
@@ -318,26 +320,34 @@ async def login(req: LoginRequest, request: Request):
 
 @app.get("/me")
 async def get_me(current_user: dict = Depends(get_current_user_required)):
-    user = get_user_by_id(current_user["id"])
-    today = str(date.today())
-    usage = get_usage_count(current_user["email"], today) if not user["is_pro"] else None
-    remaining = max(0, 20 - usage) if usage is not None else None
-    return {
-        "user": {
-            "id": user["id"],
-            "email": user["email"],
-            "is_pro": bool(user["is_pro"]),
-            "avatar_url": user.get("avatar_url"),
-            "usage": usage,
-            "remaining": remaining,
-            "is_verified": bool(user.get("is_verified", False))
+    try:
+        user = get_user_by_id(current_user["id"])
+        today = str(date.today())
+        usage = get_usage_count(current_user["email"], today) if not user["is_pro"] else None
+        remaining = max(0, 20 - usage) if usage is not None else None
+        return {
+            "user": {
+                "id": user["id"],
+                "email": user["email"],
+                "is_pro": bool(user["is_pro"]),
+                "avatar_url": user.get("avatar_url"),
+                "usage": usage,
+                "remaining": remaining,
+                "is_verified": bool(user.get("is_verified", False))
+            }
         }
-    }
+    except Exception as e:
+        print(f"[ME ERROR] {e}")
+        raise HTTPException(500, detail="Could not retrieve user info")
 
 @app.post("/upgrade")
 async def upgrade_to_pro(current_user: dict = Depends(get_current_user_required)):
-    set_user_pro(current_user["id"], True)
-    return {"message": "Upgraded to PRO", "is_pro": True}
+    try:
+        set_user_pro(current_user["id"], True)
+        return {"message": "Upgraded to PRO", "is_pro": True}
+    except Exception as e:
+        print(f"[UPGRADE ERROR] {e}")
+        raise HTTPException(500, detail="Upgrade failed")
 
 # ─── ACCOUNT DELETION ───
 @app.delete("/account")
@@ -353,66 +363,78 @@ async def delete_account(current_user: dict = Depends(get_current_user_required)
 @app.post("/forgot-password")
 async def forgot_password(request: Request):
     if not Config.email_ready():
-        raise HTTPException(503, detail="Email service not configured")
-    
-    data = await request.json()
-    email = data.get("email", "").strip()
-    
-    if not email:
-        raise HTTPException(400, detail="Email is required")
-    
-    user = get_user_by_email(email)
-    if not user:
-        # Return 200 even if user doesn't exist (security)
+        # Return a friendly message even if email not configured
         return {"message": "If this email exists, a reset link has been sent."}
     
-    token = secrets.token_urlsafe(32)
-    expires = datetime.utcnow() + timedelta(hours=1)
-    set_reset_token(email, token, expires)
-    
-    base_url = Config.APP_BASE_URL
-    success = send_reset_email(email, token, base_url)
-    if not success:
-        print(f"[FORGOT PASSWORD] Failed to send email to {email}")
-        # Still return success to avoid user enumeration
+    try:
+        data = await request.json()
+        email = data.get("email", "").strip()
+        if not email:
+            raise HTTPException(400, detail="Email is required")
+        
+        user = get_user_by_email(email)
+        if not user:
+            # Always return success to avoid user enumeration
+            return {"message": "If this email exists, a reset link has been sent."}
+        
+        token = secrets.token_urlsafe(32)
+        expires = datetime.utcnow() + timedelta(hours=1)
+        set_reset_token(email, token, expires)
+        
+        base_url = Config.APP_BASE_URL
+        success = send_reset_email(email, token, base_url)
+        if not success:
+            print(f"[FORGOT PASSWORD] Failed to send email to {email}")
         return {"message": "If this email exists, a reset link has been sent."}
-    
-    return {"message": "If this email exists, a reset link has been sent."}
+    except Exception as e:
+        print(f"[FORGOT PASSWORD ERROR] {e}")
+        return {"message": "If this email exists, a reset link has been sent."}
 
 @app.post("/reset-password")
 async def reset_password(request: Request):
-    data = await request.json()
-    token = data.get("token", "").strip()
-    new_password = data.get("new_password", "").strip()
-    
-    if not token or not new_password:
-        raise HTTPException(400, detail="Token and new password required")
-    if len(new_password) < 6:
-        raise HTTPException(400, detail="Password must be at least 6 characters")
-    
-    user = get_user_by_reset_token(token)
-    if not user:
-        raise HTTPException(400, detail="Invalid or expired token")
-    
-    hashed = get_password_hash(new_password)
-    conn = get_db()
-    conn.execute("UPDATE users SET hashed_password = ? WHERE id = ?", (hashed, user["id"]))
-    conn.execute("UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?", (user["id"],))
-    conn.commit()
-    conn.close()
-    
-    return {"message": "Password reset successfully"}
+    try:
+        data = await request.json()
+        token = data.get("token", "").strip()
+        new_password = data.get("new_password", "").strip()
+        
+        if not token or not new_password:
+            raise HTTPException(400, detail="Token and new password required")
+        if len(new_password) < 6:
+            raise HTTPException(400, detail="Password must be at least 6 characters")
+        
+        user = get_user_by_reset_token(token)
+        if not user:
+            raise HTTPException(400, detail="Invalid or expired token")
+        
+        hashed = get_password_hash(new_password)
+        conn = get_db()
+        conn.execute("UPDATE users SET hashed_password = ? WHERE id = ?", (hashed, user["id"]))
+        conn.execute("UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?", (user["id"],))
+        conn.commit()
+        conn.close()
+        
+        return {"message": "Password reset successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[RESET PASSWORD ERROR] {e}")
+        raise HTTPException(500, detail="Password reset failed")
 
 # ─── EMAIL VERIFICATION ───
 
 @app.get("/verify-email")
 async def verify_email(token: str):
-    user = get_user_by_verification_token(token)
-    if not user:
-        raise HTTPException(400, detail="Invalid or expired verification link")
-    
-    verify_user(user["email"])
-    return RedirectResponse(f"{Config.APP_BASE_URL}/#email-verified")
+    try:
+        user = get_user_by_verification_token(token)
+        if not user:
+            raise HTTPException(400, detail="Invalid or expired verification link")
+        verify_user(user["email"])
+        return RedirectResponse(f"{Config.APP_BASE_URL}/#email-verified")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[VERIFY EMAIL ERROR] {e}")
+        raise HTTPException(500, detail="Verification failed")
 
 # ─── GOOGLE OAUTH ───
 
@@ -460,6 +482,7 @@ async def google_callback(code: str, request: Request):
         )
         return RedirectResponse(frontend_url)
     except Exception as e:
+        print(f"[GOOGLE CALLBACK ERROR] {e}")
         frontend_url = f"{base_url}/#auth=error&message={str(e)}"
         return RedirectResponse(frontend_url)
 
@@ -481,7 +504,11 @@ async def history(
 ):
     if user_id != current_user["email"]:
         raise HTTPException(403, detail="Access denied")
-    return {"messages": get_history(user_id, conversation_id=conversation_id)}
+    try:
+        return {"messages": get_history(user_id, conversation_id=conversation_id)}
+    except Exception as e:
+        print(f"[HISTORY ERROR] {e}")
+        raise HTTPException(500, detail="Could not retrieve history")
 
 @app.get("/export/{conversation_id}")
 async def export_conversation(
@@ -494,19 +521,23 @@ async def export_conversation(
         raise HTTPException(403, detail="Access denied")
     if format not in ("json", "txt"):
         raise HTTPException(400, detail="Format must be json or txt")
-    msgs = get_history(user_id, conversation_id=conversation_id, limit=1000)
-    if format == "json":
-        return {"conversation_id": conversation_id, "exported_at": datetime.now().isoformat(), "messages": msgs}
-    else:
-        lines = [
-            f"VEYRONIS Chat Export\n{'='*50}\n",
-            f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n",
-            f"Conversation ID: {conversation_id}\n",
-            f"{'='*50}\n\n"
-        ]
-        for m in msgs:
-            lines.append(f"[{'You' if m['role'] == 'user' else 'VEYRONIS'}] {m.get('time', '')}\n{m['content']}\n\n")
-        return {"content": "".join(lines), "filename": f"veyronis_chat_{conversation_id}.txt"}
+    try:
+        msgs = get_history(user_id, conversation_id=conversation_id, limit=1000)
+        if format == "json":
+            return {"conversation_id": conversation_id, "exported_at": datetime.now().isoformat(), "messages": msgs}
+        else:
+            lines = [
+                f"VEYRONIS Chat Export\n{'='*50}\n",
+                f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n",
+                f"Conversation ID: {conversation_id}\n",
+                f"{'='*50}\n\n"
+            ]
+            for m in msgs:
+                lines.append(f"[{'You' if m['role'] == 'user' else 'VEYRONIS'}] {m.get('time', '')}\n{m['content']}\n\n")
+            return {"content": "".join(lines), "filename": f"veyronis_chat_{conversation_id}.txt"}
+    except Exception as e:
+        print(f"[EXPORT ERROR] {e}")
+        raise HTTPException(500, detail="Export failed")
 
 @app.get("/conversations")
 async def list_conversations(
@@ -515,7 +546,11 @@ async def list_conversations(
 ):
     if user_id != current_user["email"]:
         raise HTTPException(403, detail="Access denied")
-    return {"conversations": get_conversations(user_id)}
+    try:
+        return {"conversations": get_conversations(user_id)}
+    except Exception as e:
+        print(f"[CONVERSATIONS ERROR] {e}")
+        raise HTTPException(500, detail="Could not load conversations")
 
 @app.post("/conversations")
 async def new_conversation(
@@ -524,8 +559,12 @@ async def new_conversation(
 ):
     if req.user_id != current_user["email"]:
         raise HTTPException(403, detail="Access denied")
-    cid = create_conversation(req.user_id, req.title)
-    return {"id": cid, "title": req.title}
+    try:
+        cid = create_conversation(req.user_id, req.title)
+        return {"id": cid, "title": req.title}
+    except Exception as e:
+        print(f"[NEW CONV ERROR] {e}")
+        raise HTTPException(500, detail="Could not create conversation")
 
 @app.patch("/conversations/{conversation_id}")
 async def patch_conversation(
@@ -538,10 +577,16 @@ async def patch_conversation(
         raise HTTPException(403, detail="Access denied")
     if not req.title.strip():
         raise HTTPException(400, detail="Empty title")
-    ok = rename_conversation(conversation_id, req.title.strip())
-    if not ok:
-        raise HTTPException(404, detail="Conversation not found")
-    return {"status": "renamed"}
+    try:
+        ok = rename_conversation(conversation_id, req.title.strip())
+        if not ok:
+            raise HTTPException(404, detail="Conversation not found")
+        return {"status": "renamed"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[RENAME ERROR] {e}")
+        raise HTTPException(500, detail="Rename failed")
 
 @app.delete("/conversations/{conversation_id}")
 async def remove_conversation(
@@ -551,8 +596,12 @@ async def remove_conversation(
     convs = get_conversations(current_user["email"])
     if not any(c["id"] == conversation_id for c in convs):
         raise HTTPException(403, detail="Access denied")
-    delete_conversation(conversation_id)
-    return {"status": "deleted"}
+    try:
+        delete_conversation(conversation_id)
+        return {"status": "deleted"}
+    except Exception as e:
+        print(f"[DELETE CONV ERROR] {e}")
+        raise HTTPException(500, detail="Delete failed")
 
 @app.post("/clear")
 async def clear_chat(
@@ -564,8 +613,12 @@ async def clear_chat(
     conversation_id = data.get("conversation_id")
     if user_id != current_user["email"]:
         raise HTTPException(403, detail="Access denied")
-    clear_history(user_id, conversation_id=conversation_id)
-    return {"status": "Chat cleared"}
+    try:
+        clear_history(user_id, conversation_id=conversation_id)
+        return {"status": "Chat cleared"}
+    except Exception as e:
+        print(f"[CLEAR ERROR] {e}")
+        raise HTTPException(500, detail="Clear failed")
 
 # ─── UPLOAD ENDPOINT (With Cloudinary) ───
 
@@ -583,52 +636,56 @@ async def upload_document(
     if not user_id:
         user_id = "u_auto_" + str(int(time.time()))
     
-    content = await file.read()
-    cloudinary_url = None
-    
-    if Config.cloudinary_ready():
-        try:
-            upload_result = cloudinary.uploader.upload(
-                content,
-                folder=f"veyronis/uploads/{user_id}",
-                public_id=file.filename,
-                resource_type="auto",
-                use_filename=True,
-                unique_filename=False,
-                overwrite=True
-            )
-            cloudinary_url = upload_result.get("secure_url")
-            print(f"[CLOUDINARY] Uploaded: {cloudinary_url}")
-        except Exception as e:
-            print(f"[CLOUDINARY ERROR] {e}")
-            cloudinary_url = None
-    
-    text = DocumentParser.extract_text(content, file.filename)
-    
-    gemini_analysis = None
     try:
-        if Config.gemini_ready() and orchestrator.gemini_agent:
-            gemini_analysis = orchestrator.gemini_agent.generate_document_response(
-                content, file.filename,
-                prompt="Analyze this document thoroughly. Provide a concise summary, key points, main arguments, important data, and notable sections."
-            )
+        content = await file.read()
+        cloudinary_url = None
+        
+        if Config.cloudinary_ready():
+            try:
+                upload_result = cloudinary.uploader.upload(
+                    content,
+                    folder=f"veyronis/uploads/{user_id}",
+                    public_id=file.filename,
+                    resource_type="auto",
+                    use_filename=True,
+                    unique_filename=False,
+                    overwrite=True
+                )
+                cloudinary_url = upload_result.get("secure_url")
+                print(f"[CLOUDINARY] Uploaded: {cloudinary_url}")
+            except Exception as e:
+                print(f"[CLOUDINARY ERROR] {e}")
+                cloudinary_url = None
+        
+        text = DocumentParser.extract_text(content, file.filename)
+        
+        gemini_analysis = None
+        try:
+            if Config.gemini_ready() and orchestrator.gemini_agent:
+                gemini_analysis = orchestrator.gemini_agent.generate_document_response(
+                    content, file.filename,
+                    prompt="Analyze this document thoroughly. Provide a concise summary, key points, main arguments, important data, and notable sections."
+                )
+        except Exception as e:
+            print(f"[VEYRONIS] Gemini doc analysis failed: {e}")
+        
+        if not conversation_id:
+            conversation_id = create_conversation(user_id, title=file.filename)
+        
+        response = {
+            "filename": file.filename,
+            "extracted_length": len(text),
+            "preview": text[:500],
+            "content": text[:3000],
+            "conversation_id": conversation_id,
+            "cloudinary_url": cloudinary_url
+        }
+        if gemini_analysis:
+            response["gemini_analysis"] = gemini_analysis
+        return response
     except Exception as e:
-        print(f"[VEYRONIS] Gemini doc analysis failed: {e}")
-    
-    if not conversation_id:
-        conversation_id = create_conversation(user_id, title=file.filename)
-    
-    response = {
-        "filename": file.filename,
-        "extracted_length": len(text),
-        "preview": text[:500],
-        "content": text[:3000],
-        "conversation_id": conversation_id,
-        "cloudinary_url": cloudinary_url
-    }
-    if gemini_analysis:
-        response["gemini_analysis"] = gemini_analysis
-    return response
+        print(f"[UPLOAD ERROR] {e}")
+        raise HTTPException(500, detail="Upload failed")
 
 # ─── CHAT ENDPOINTS ───
 
@@ -638,69 +695,70 @@ async def chat(
     req: Request, 
     current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
-    msg = request.message.strip()
-    user_id = request.user_id.strip()
-    conversation_id = request.conversation_id
-    
-    client_ip = req.client.host
-    if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
-        raise HTTPException(429, detail="Rate limit exceeded. Please slow down.")
-    
-    if current_user:
-        user_id = current_user["email"]
-        is_pro = current_user["is_pro"]
-    else:
-        is_pro = request.pro_code in PRO_CODES
-        if not user_id:
-            user_id = "u_" + str(int(time.time()))
-
-    today = str(date.today())
-    if not is_pro:
-        usage = get_usage_count(user_id, today)
-        if usage >= 20:
-            raise HTTPException(429, detail="FREE limit reached (20 messages/day). Upgrade to PRO for unlimited.")
-
-    if request.mode == "simulation":
-        if not msg:
-            raise HTTPException(400, detail="Empty scenario")
-        try:
-            result, status = hindsight_engine.run(user_id, msg, is_pro=is_pro)
-            if not conversation_id:
-                title = msg[:40] + ("..." if len(msg) > 40 else "")
-                conversation_id = create_conversation(user_id, title=title)
-            save_message(user_id, "user", f"🔮 {msg}", conversation_id=conversation_id)
-            save_message(user_id, "assistant", result.model_dump_json(), conversation_id=conversation_id)
-            if not is_pro:
-                increment_usage(user_id, today)
-            return ChatResponse(
-                response=result.model_dump_json(),
-                tier="pro" if is_pro else "free",
-                conversation_id=conversation_id,
-                reasoning=f"Simulated {len(result.timeline)} steps"
-            )
-        except RuntimeError as e:
-            raise HTTPException(429, detail=str(e))
-        except Exception as e:
-            print(f"[HINDSIGHT ERROR] {e}")
-            traceback.print_exc()
-            raise HTTPException(500, detail="Hindsight simulation failed. Please try again.")
-
-    if msg and not check_input(msg)[0]:
-        raise HTTPException(400, detail="Blocked")
-    if not msg and not request.image:
-        raise HTTPException(400, detail="Empty message")
-    if request.mode == "canvas" and not is_pro:
-        raise HTTPException(403, detail="Canvas is a Pro feature")
-    if not is_pro and not check_free_limit(client_ip):
-        raise HTTPException(429, detail="FREE LIMIT reached (IP-based)")
-    
-    if not conversation_id:
-        title = msg[:40] + ("..." if len(msg) > 40 else "") if msg else "Image upload"
-        conversation_id = create_conversation(user_id, title=title)
-    image_data_url = _b64_to_data_url(request.image) if request.image else None
-    user_content = msg or "[Image uploaded for analysis]"
-    save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
     try:
+        msg = request.message.strip()
+        user_id = request.user_id.strip()
+        conversation_id = request.conversation_id
+        
+        client_ip = req.client.host
+        if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
+            raise HTTPException(429, detail="Rate limit exceeded. Please slow down.")
+        
+        if current_user:
+            user_id = current_user["email"]
+            is_pro = current_user["is_pro"]
+        else:
+            is_pro = request.pro_code in PRO_CODES
+            if not user_id:
+                user_id = "u_" + str(int(time.time()))
+
+        today = str(date.today())
+        if not is_pro:
+            usage = get_usage_count(user_id, today)
+            if usage >= 20:
+                raise HTTPException(429, detail="FREE limit reached (20 messages/day). Upgrade to PRO for unlimited.")
+
+        if request.mode == "simulation":
+            if not msg:
+                raise HTTPException(400, detail="Empty scenario")
+            try:
+                result, status = hindsight_engine.run(user_id, msg, is_pro=is_pro)
+                if not conversation_id:
+                    title = msg[:40] + ("..." if len(msg) > 40 else "")
+                    conversation_id = create_conversation(user_id, title=title)
+                save_message(user_id, "user", f"🔮 {msg}", conversation_id=conversation_id)
+                save_message(user_id, "assistant", result.model_dump_json(), conversation_id=conversation_id)
+                if not is_pro:
+                    increment_usage(user_id, today)
+                return ChatResponse(
+                    response=result.model_dump_json(),
+                    tier="pro" if is_pro else "free",
+                    conversation_id=conversation_id,
+                    reasoning=f"Simulated {len(result.timeline)} steps"
+                )
+            except RuntimeError as e:
+                raise HTTPException(429, detail=str(e))
+            except Exception as e:
+                print(f"[HINDSIGHT ERROR] {e}")
+                traceback.print_exc()
+                raise HTTPException(500, detail="Hindsight simulation failed. Please try again.")
+
+        if msg and not check_input(msg)[0]:
+            raise HTTPException(400, detail="Blocked")
+        if not msg and not request.image:
+            raise HTTPException(400, detail="Empty message")
+        if request.mode == "canvas" and not is_pro:
+            raise HTTPException(403, detail="Canvas is a Pro feature")
+        if not is_pro and not check_free_limit(client_ip):
+            raise HTTPException(429, detail="FREE LIMIT reached (IP-based)")
+        
+        if not conversation_id:
+            title = msg[:40] + ("..." if len(msg) > 40 else "") if msg else "Image upload"
+            conversation_id = create_conversation(user_id, title=title)
+        image_data_url = _b64_to_data_url(request.image) if request.image else None
+        user_content = msg or "[Image uploaded for analysis]"
+        save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
+        
         result = orchestrator.process_pipeline(
             msg, mode=request.mode, user_id=user_id, conversation_id=conversation_id,
             image_b64=request.image, model_mode=request.model_mode, ai_model=request.ai_model,
@@ -717,7 +775,11 @@ async def chat(
             reasoning=result.get("reasoning"),
             citations=result.get("citations")
         )
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"[CHAT ERROR] {e}")
+        traceback.print_exc()
         raise HTTPException(500, detail="Chat failed. Please try again.")
 
 @app.post("/chat/stream")
@@ -726,115 +788,122 @@ async def chat_stream(
     req: Request, 
     current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
-    msg = request.message.strip()
-    user_id = request.user_id.strip()
-    conversation_id = request.conversation_id
-    
-    client_ip = req.client.host
-    if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
-        async def rate_limit_error():
-            yield f"data: {json.dumps({'type': 'error', 'content': 'Rate limit exceeded. Please slow down.'})}\n\n"
-        return StreamingResponse(rate_limit_error(), media_type="text/event-stream")
-    
-    if current_user:
-        user_id = current_user["email"]
-        is_pro = current_user["is_pro"]
-    else:
-        is_pro = request.pro_code in PRO_CODES
-        if not user_id:
-            user_id = "u_" + str(int(time.time()))
-    
-    today = str(date.today())
-    if not is_pro:
-        usage = get_usage_count(user_id, today)
-        if usage >= 20:
-            async def limit_error():
-                yield f"data: {json.dumps({'type': 'error', 'content': 'FREE limit reached (20/day). Upgrade to PRO for unlimited.'})}\n\n"
-            return StreamingResponse(limit_error(), media_type="text/event-stream")
+    try:
+        msg = request.message.strip()
+        user_id = request.user_id.strip()
+        conversation_id = request.conversation_id
+        
+        client_ip = req.client.host
+        if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
+            async def rate_limit_error():
+                yield f"data: {json.dumps({'type': 'error', 'content': 'Rate limit exceeded. Please slow down.'})}\n\n"
+            return StreamingResponse(rate_limit_error(), media_type="text/event-stream")
+        
+        if current_user:
+            user_id = current_user["email"]
+            is_pro = current_user["is_pro"]
+        else:
+            is_pro = request.pro_code in PRO_CODES
+            if not user_id:
+                user_id = "u_" + str(int(time.time()))
+        
+        today = str(date.today())
+        if not is_pro:
+            usage = get_usage_count(user_id, today)
+            if usage >= 20:
+                async def limit_error():
+                    yield f"data: {json.dumps({'type': 'error', 'content': 'FREE limit reached (20/day). Upgrade to PRO for unlimited.'})}\n\n"
+                return StreamingResponse(limit_error(), media_type="text/event-stream")
 
-    if request.mode == "canvas" and not is_pro:
-        async def err_gen():
-            yield f"data: {json.dumps({'type': 'error', 'content': 'Canvas is Pro feature'})}\n\n"
-        return StreamingResponse(err_gen(), media_type="text/event-stream")
-    
-    has_image = request.image is not None and len(request.image) > 0
-    has_text = len(msg) > 0
-    if has_text and not check_input(msg)[0]:
-        async def err_gen():
-            yield f"data: {json.dumps({'type': 'error', 'content': 'Blocked'})}\n\n"
-        return StreamingResponse(err_gen(), media_type="text/event-stream")
-    if not has_text and not has_image:
-        async def err_gen():
-            yield f"data: {json.dumps({'type': 'error', 'content': 'Empty'})}\n\n"
-        return StreamingResponse(err_gen(), media_type="text/event-stream")
-    if not is_pro and not check_free_limit(client_ip):
-        async def err_gen():
-            yield f"data: {json.dumps({'type': 'error', 'content': 'Free limit reached'})}\n\n"
-        return StreamingResponse(err_gen(), media_type="text/event-stream")
-    
-    if not conversation_id:
-        title = msg[:40] + ("..." if len(msg) > 40 else "") if has_text else "Image upload"
-        conversation_id = create_conversation(user_id, title=title)
-    image_data_url = _b64_to_data_url(request.image) if has_image else None
-    user_content = msg if has_text else "[Image uploaded for analysis]"
-    save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
+        if request.mode == "canvas" and not is_pro:
+            async def err_gen():
+                yield f"data: {json.dumps({'type': 'error', 'content': 'Canvas is Pro feature'})}\n\n"
+            return StreamingResponse(err_gen(), media_type="text/event-stream")
+        
+        has_image = request.image is not None and len(request.image) > 0
+        has_text = len(msg) > 0
+        if has_text and not check_input(msg)[0]:
+            async def err_gen():
+                yield f"data: {json.dumps({'type': 'error', 'content': 'Blocked'})}\n\n"
+            return StreamingResponse(err_gen(), media_type="text/event-stream")
+        if not has_text and not has_image:
+            async def err_gen():
+                yield f"data: {json.dumps({'type': 'error', 'content': 'Empty'})}\n\n"
+            return StreamingResponse(err_gen(), media_type="text/event-stream")
+        if not is_pro and not check_free_limit(client_ip):
+            async def err_gen():
+                yield f"data: {json.dumps({'type': 'error', 'content': 'Free limit reached'})}\n\n"
+            return StreamingResponse(err_gen(), media_type="text/event-stream")
+        
+        if not conversation_id:
+            title = msg[:40] + ("..." if len(msg) > 40 else "") if has_text else "Image upload"
+            conversation_id = create_conversation(user_id, title=title)
+        image_data_url = _b64_to_data_url(request.image) if has_image else None
+        user_content = msg if has_text else "[Image uploaded for analysis]"
+        save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
 
-    async def event_generator():
-        full_response = ""
-        effective_query = msg if has_text else ""
+        async def event_generator():
+            full_response = ""
+            effective_query = msg if has_text else ""
 
-        if request.mode == "simulation":
-            try:
-                yield f"data: {json.dumps({'type': 'reasoning', 'content': '🔮 Running Hindsight simulation...'})}\n\n"
-                result, status = hindsight_engine.run(user_id, effective_query, is_pro=is_pro)
-                json_output = result.model_dump_json()
-                yield f"data: {json.dumps({'type': 'token', 'content': json_output})}\n\n"
-                yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free'})}\n\n"
-                save_message(user_id, "assistant", json_output, conversation_id=conversation_id)
-                if not is_pro:
-                    increment_usage(user_id, today)
-                return
-            except RuntimeError as e:
-                yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
-                return
-            except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'content': f'Simulation failed: {str(e)}'})}\n\n"
-                return
-
-        try:
-            for event_type, content in orchestrator.process_pipeline_stream(
-                effective_query, mode=request.mode, user_id=user_id, conversation_id=conversation_id,
-                image_b64=request.image if has_image else None, model_mode=request.model_mode,
-                ai_model=request.ai_model, custom_instructions=request.custom_instructions,
-                response_style=request.response_style
-            ):
-                if event_type == "token":
-                    full_response += content
-                    yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
-                elif event_type == "reasoning" and content:
-                    yield f"data: {json.dumps({'type': 'reasoning', 'content': content})}\n\n"
-                elif event_type == "citations":
-                    yield f"data: {json.dumps({'type': 'citations', 'content': content})}\n\n"
-                elif event_type == "research_step":
-                    yield f"data: {json.dumps({'type': 'research_step', 'content': content})}\n\n"
-                elif event_type == "error":
-                    yield f"data: {json.dumps({'type': 'error', 'content': content})}\n\n"
+            if request.mode == "simulation":
+                try:
+                    yield f"data: {json.dumps({'type': 'reasoning', 'content': '🔮 Running Hindsight simulation...'})}\n\n"
+                    result, status = hindsight_engine.run(user_id, effective_query, is_pro=is_pro)
+                    json_output = result.model_dump_json()
+                    yield f"data: {json.dumps({'type': 'token', 'content': json_output})}\n\n"
+                    yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free'})}\n\n"
+                    save_message(user_id, "assistant", json_output, conversation_id=conversation_id)
+                    if not is_pro:
+                        increment_usage(user_id, today)
                     return
-            yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free'})}\n\n"
-            save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
-            if not is_pro:
-                add_free_request(client_ip)
-                increment_usage(user_id, today)
-        except GeneratorExit:
-            if full_response:
-                save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
-            raise
-        except Exception as e:
-            print(f"[STREAM ERROR] {e}")
-            traceback.print_exc()
-            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                except RuntimeError as e:
+                    yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                    return
+                except Exception as e:
+                    print(f"[STREAM SIM ERROR] {e}")
+                    yield f"data: {json.dumps({'type': 'error', 'content': 'Simulation failed. Please try again.'})}\n\n"
+                    return
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+            try:
+                for event_type, content in orchestrator.process_pipeline_stream(
+                    effective_query, mode=request.mode, user_id=user_id, conversation_id=conversation_id,
+                    image_b64=request.image if has_image else None, model_mode=request.model_mode,
+                    ai_model=request.ai_model, custom_instructions=request.custom_instructions,
+                    response_style=request.response_style
+                ):
+                    if event_type == "token":
+                        full_response += content
+                        yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+                    elif event_type == "reasoning" and content:
+                        yield f"data: {json.dumps({'type': 'reasoning', 'content': content})}\n\n"
+                    elif event_type == "citations":
+                        yield f"data: {json.dumps({'type': 'citations', 'content': content})}\n\n"
+                    elif event_type == "research_step":
+                        yield f"data: {json.dumps({'type': 'research_step', 'content': content})}\n\n"
+                    elif event_type == "error":
+                        yield f"data: {json.dumps({'type': 'error', 'content': 'An error occurred. Please try again.'})}\n\n"
+                        return
+                yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free'})}\n\n"
+                save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
+                if not is_pro:
+                    add_free_request(client_ip)
+                    increment_usage(user_id, today)
+            except GeneratorExit:
+                if full_response:
+                    save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
+                raise
+            except Exception as e:
+                print(f"[STREAM ERROR] {e}")
+                traceback.print_exc()
+                yield f"data: {json.dumps({'type': 'error', 'content': 'Stream failed. Please try again.'})}\n\n"
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+    except Exception as e:
+        print(f"[STREAM SETUP ERROR] {e}")
+        async def err_gen():
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Service temporarily unavailable. Please try again.'})}\n\n"
+        return StreamingResponse(err_gen(), media_type="text/event-stream")
 
 @app.post("/execute")
 async def execute_code(request: Request):
@@ -842,11 +911,15 @@ async def execute_code(request: Request):
     if not _check_rate_limit(client_ip, max_requests=10, window_seconds=60):
         raise HTTPException(429, detail="Too many code executions. Slow down.")
     
-    data = await request.json()
-    code = data.get("code", "").strip()
-    if not code:
-        raise HTTPException(400, detail="Empty code")
-    return CodeExecutor.run(code)
+    try:
+        data = await request.json()
+        code = data.get("code", "").strip()
+        if not code:
+            raise HTTPException(400, detail="Empty code")
+        return CodeExecutor.run(code)
+    except Exception as e:
+        print(f"[EXECUTE ERROR] {e}")
+        raise HTTPException(500, detail="Code execution failed")
 
 @app.get("/health")
 async def health():

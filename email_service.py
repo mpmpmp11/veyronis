@@ -4,6 +4,8 @@ from settings import Config
 
 if Config.RESEND_API_KEY:
     resend.api_key = Config.RESEND_API_KEY
+else:
+    print("[VEYRONIS] WARNING: RESEND_API_KEY not set. Email disabled.")
 
 def send_reset_email(email: str, token: str, base_url: str) -> bool:
     reset_link = f"{base_url}/reset-password?token={token}"
@@ -33,9 +35,10 @@ def send_reset_email(email: str, token: str, base_url: str) -> bool:
             "subject": "Reset Your VEYRONIS Password",
             "html": html_content
         })
+        print(f"[EMAIL] Reset email sent to {email}")
         return True
     except Exception as e:
-        print(f"[EMAIL ERROR] {e}")
+        print(f"[EMAIL ERROR] Failed to send reset to {email}: {e}")
         return False
 
 def send_verification_email(email: str, token: str, base_url: str) -> bool:
@@ -65,7 +68,8 @@ def send_verification_email(email: str, token: str, base_url: str) -> bool:
             "subject": "Verify Your VEYRONIS Email",
             "html": html_content
         })
+        print(f"[EMAIL] Verification email sent to {email}")
         return True
     except Exception as e:
-        print(f"[EMAIL ERROR] {e}")
+        print(f"[EMAIL ERROR] Failed to send verification to {email}: {e}")
         return False
