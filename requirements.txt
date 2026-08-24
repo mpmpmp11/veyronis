@@ -15,3 +15,4 @@ bcrypt
 authlib
 httpx
 cloudinary>=1.33.0
+resend>=1.0.0
