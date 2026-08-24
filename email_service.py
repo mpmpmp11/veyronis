@@ -30,7 +30,7 @@ def send_reset_email(email: str, token: str, base_url: str) -> bool:
     """
     try:
         resend.Emails.send({
-            "from": "VEYRONIS <noreply@veyronis.onrender.com>",
+            "from": "VEYRONIS <onboarding@resend.dev>",
             "to": [email],
             "subject": "Reset Your VEYRONIS Password",
             "html": html_content
@@ -63,7 +63,7 @@ def send_verification_email(email: str, token: str, base_url: str) -> bool:
     """
     try:
         resend.Emails.send({
-            "from": "VEYRONIS <noreply@veyronis.onrender.com>",
+            "from": "VEYRONIS <onboarding@resend.dev>",
             "to": [email],
             "subject": "Verify Your VEYRONIS Email",
             "html": html_content

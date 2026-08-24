@@ -39,7 +39,7 @@ import cloudinary
 import cloudinary.uploader
 
 # Email
-from email import send_reset_email, send_verification_email
+from email_service import send_reset_email, send_verification_email
 
 # Hindsight imports
 from hindsight_engine import HindsightEngine
