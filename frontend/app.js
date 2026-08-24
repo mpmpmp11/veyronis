@@ -1,5 +1,5 @@
 // ============================================================
-// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Loading States)
+// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password)
 // ============================================================
 
 const state = {
@@ -234,43 +234,6 @@ function handleLogout() {
     toast('Logged out', 'info');
     document.getElementById('messages').innerHTML = '';
     showEmpty(true);
-
-    // ─── FORGOT PASSWORD ───
-
-function showForgotPassword() {
-    const modal = document.getElementById('forgot-password-modal');
-    if (modal) modal.classList.remove('hidden');
-}
-
-function closeForgotPassword() {
-    const modal = document.getElementById('forgot-password-modal');
-    if (modal) modal.classList.add('hidden');
-}
-
-async function sendResetLink() {
-    const email = document.getElementById('reset-email').value.trim();
-    if (!email) {
-        toast('Please enter your email', 'error');
-        return;
-    }
-    try {
-        const res = await fetch(`${state.apiUrl}/forgot-password`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-        });
-        const data = await res.json();
-        if (res.ok) {
-            toast('Reset link sent! Check your email.', 'success');
-            closeForgotPassword();
-            document.getElementById('reset-email').value = '';
-        } else {
-            toast(data.detail || 'Something went wrong', 'error');
-        }
-    } catch (err) {
-        toast('Network error', 'error');
-    }
-}
 }
 
 // ─── GOOGLE OAUTH ───
@@ -319,6 +282,44 @@ function handleGoogleCallback() {
         const message = params.get('message') || 'Google login failed';
         toast('Google login failed: ' + decodeURIComponent(message), 'error');
         window.history.replaceState({}, document.title, window.location.pathname);
+    }
+}
+
+// ─── FORGOT PASSWORD ───
+
+function showForgotPassword() {
+    const modal = document.getElementById('forgot-password-modal');
+    if (modal) modal.classList.remove('hidden');
+    else console.warn('Forgot password modal not found');
+}
+
+function closeForgotPassword() {
+    const modal = document.getElementById('forgot-password-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function sendResetLink() {
+    const email = document.getElementById('reset-email').value.trim();
+    if (!email) {
+        toast('Please enter your email', 'error');
+        return;
+    }
+    try {
+        const res = await fetch(`${state.apiUrl}/forgot-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            toast('Reset link sent! Check your email.', 'success');
+            closeForgotPassword();
+            document.getElementById('reset-email').value = '';
+        } else {
+            toast(data.detail || 'Something went wrong', 'error');
+        }
+    } catch (err) {
+        toast('Network error', 'error');
     }
 }
 
@@ -412,7 +413,7 @@ function initApp() {
     initInstallPrompt();
     initSwipeSidebar();
     initSimulationToggle();
-    initKeyboardHandler();  // ← NEW: mobile keyboard fix
+    initKeyboardHandler();
     if (state.user && state.user.is_pro) setProUi();
     setTimeout(() => {
         if (state.apiUrl) {
@@ -1384,7 +1385,7 @@ function regenerateMsg(aiId) {
                             if (state.autoTts && state.ttsEnabled) speakMsg(aiId);
                             if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
                             refreshUserInfo();
-                            hideLoading(); // ← NEW
+                            hideLoading();
                         } else if (data.type === 'error') throw new Error(data.content);
                     } catch (e) { if (e instanceof SyntaxError) continue; }
                 }
@@ -1532,7 +1533,7 @@ async function sendMessage() {
     const timeoutId = setTimeout(() => controller.abort(), 60000);
     updateSendButton();
     
-    showLoading('Thinking...'); // ← NEW
+    showLoading('Thinking...');
 
     try {
         const requestBody = {
@@ -1583,7 +1584,7 @@ async function sendMessage() {
                     } else if (data.type === 'research_step') {
                         updateResearchProgress(aiId, data.content);
                     } else if (data.type === 'done') {
-                        hideLoading(); // ← NEW
+                        hideLoading();
                         state.isTyping = false;
                         if (sendBtn) sendBtn.disabled = false;
                         if (textEl) {
@@ -1601,7 +1602,7 @@ async function sendMessage() {
             }
         }
     } catch (err) {
-        hideLoading(); // ← NEW
+        hideLoading();
         state.isTyping = false;
         state.abortController = null;
         if (sendBtn) sendBtn.disabled = false;
@@ -1654,7 +1655,6 @@ function loadHistory() {
         headers['Authorization'] = `Bearer ${state.token}`;
     }
     
-    // Show skeleton while loading
     const msgsContainer = document.getElementById('messages');
     if (msgsContainer && msgsContainer.children.length === 0) {
         msgsContainer.innerHTML = `
