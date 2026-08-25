@@ -25,6 +25,8 @@ const state = {
     ttsEnabled: localStorage.getItem('veyronis_tts') !== 'false',
     autoTts: localStorage.getItem('veyronis_auto_tts') === 'true',
     speakingId: null,
+    isSpeaking: false,
+    currentUtterance: null,
     citations: {},
     customInstructions: localStorage.getItem('veyronis_custom_instructions') || '',
     responseStyle: localStorage.getItem('veyronis_response_style') || 'balanced',
@@ -580,26 +582,44 @@ function toggleSearch() { toast('🔍 Search coming soon!', 'info'); }
 // ─── CONVERSATIONS ───
 
 function loadConversations() {
-    if (!state.apiUrl) return;
-    if (!state.userId) {
-        console.warn('No userId set, cannot load conversations');
+    if (!state.apiUrl) {
+        console.warn('[Sidebar] No API URL');
         return;
     }
+    if (!state.userId) {
+        console.warn('[Sidebar] No userId set, cannot load conversations');
+        if (state.user?.email) {
+            state.userId = state.user.email;
+        } else {
+            return;
+        }
+    }
+    
     const url = `${state.apiUrl}/conversations?user_id=${encodeURIComponent(state.userId)}`;
     const headers = {};
     if (state.token) {
         headers['Authorization'] = `Bearer ${state.token}`;
     }
-    console.log('Loading conversations for user:', state.userId);
+    
+    console.log('[Sidebar] Loading conversations for user:', state.userId);
+    
     fetch(url, { headers })
         .then(r => {
-            if (!r.ok) throw new Error('Failed to load conversations');
+            if (!r.ok) {
+                if (r.status === 401) {
+                    console.warn('[Sidebar] Auth failed – token may be expired');
+                }
+                throw new Error(`HTTP ${r.status}`);
+            }
             return r.json();
         })
         .then(data => {
             const convs = data.conversations || [];
+            console.log('[Sidebar] Loaded', convs.length, 'conversations');
+            
             const today = [], yesterday = [], week = [];
             const now = new Date();
+            
             convs.forEach(c => {
                 const d = new Date(c.updated_at);
                 const diffDays = (now - d) / (1000 * 60 * 60 * 24);
@@ -608,28 +628,49 @@ function loadConversations() {
                 else if (diffDays < 2) yesterday.push(html);
                 else if (diffDays < 8) week.push(html);
             });
-            document.getElementById('conv-list-today').innerHTML = today.join('') || '<div style="padding:8px;color:var(--text-muted);font-size:12px;">No chats</div>';
-            document.getElementById('conv-list-yesterday').innerHTML = yesterday.join('') || '';
-            document.getElementById('conv-list-week').innerHTML = week.join('') || '';
-            if (convs.length && !state.conversationId && !state.isNewChat) switchConversation(convs[0].id);
-            else if (!convs.length) showEmpty(true);
+            
+            document.getElementById('conv-list-today').innerHTML = 
+                today.join('') || '<div class="conv-empty">No chats today</div>';
+            document.getElementById('conv-list-yesterday').innerHTML = 
+                yesterday.join('') || '';
+            document.getElementById('conv-list-week').innerHTML = 
+                week.join('') || '';
+            
+            if (convs.length && !state.conversationId && !state.isNewChat) {
+                switchConversation(convs[0].id);
+            } else if (!convs.length) {
+                showEmpty(true);
+            }
             state.isNewChat = false;
         })
         .catch(err => {
-            console.error('Error loading conversations:', err);
-            document.getElementById('conv-list-today').innerHTML = '<div style="padding:8px;color:var(--text-muted);font-size:12px;">Error loading chats</div>';
+            console.error('[Sidebar] Error loading conversations:', err);
+            document.getElementById('conv-list-today').innerHTML = 
+                '<div class="conv-error">⚠️ Could not load chats</div>';
         });
 }
 
 function makeConvItem(c) {
     const isActive = state.conversationId === c.id ? 'active' : '';
-    const safeTitle = escapeHtml(c.title).replace(/'/g, "\\'");
+    const safeTitle = escapeHtml(c.title || 'New Chat').replace(/'/g, "\\'");
     return `<div class="conv-item ${isActive}" data-id="${c.id}" onclick="switchConversation(${c.id})">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span class="conv-title">${escapeHtml(c.title)}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span class="conv-title">${safeTitle}</span>
         <div class="conv-actions">
-            <button class="conv-action" onclick="event.stopPropagation(); renameConvPrompt(${c.id}, '${safeTitle}')" title="Rename"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-            <button class="conv-action" onclick="event.stopPropagation(); deleteConv(${c.id})" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            <button class="conv-action" onclick="event.stopPropagation(); renameConvPrompt(${c.id}, '${safeTitle}')" title="Rename">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+            </button>
+            <button class="conv-action" onclick="event.stopPropagation(); deleteConv(${c.id})" title="Delete">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+            </button>
         </div>
     </div>`;
 }
@@ -986,7 +1027,6 @@ function renderMarkdown(el, raw) {
     if (!el) return;
     if (!window.marked) { el.textContent = raw; return; }
     const mathPlaceholders = [];
-    // Handle $$...$$, $...$, \(...\), \[...\]
     let processed = raw.replace(/\$\$([\s\S]*?)\$\$/g, (match) => { mathPlaceholders.push(match); return `%%MATHBLOCK${mathPlaceholders.length-1}%%`; });
     processed = processed.replace(/\$([^\$\n]+?)\$/g, (match) => { mathPlaceholders.push(match); return `%%MATHINLINE${mathPlaceholders.length-1}%%`; });
     processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match) => { mathPlaceholders.push(match); return `%%MATHINLINE${mathPlaceholders.length-1}%%`; });
@@ -1216,6 +1256,7 @@ function hideResearchProgress(aiId) {
 }
 
 // ─── MESSAGE FUNCTIONS ───
+// Updated: icon-only actions, speak/stop toggle
 
 function addUserMsg(text, id) {
     showEmpty(false);
@@ -1223,7 +1264,7 @@ function addUserMsg(text, id) {
     const div = document.createElement('div');
     div.className = 'msg user';
     div.id = mid;
-    div.innerHTML = `<div class="msg-body"><div class="msg-bubble">${escapeHtml(text)}</div><div class="msg-actions"><button class="msg-action-btn" onclick="editMsg('${mid}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><span>Edit</span></button><button class="msg-action-btn" onclick="copyMsg('${mid}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copy</span></button><button class="msg-action-btn" onclick="delMsg('${mid}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Delete</span></button><button class="msg-action-btn" onclick="shareMsg('${mid}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg><span>Share</span></button></div></div>`;
+    div.innerHTML = `<div class="msg-body"><div class="msg-bubble">${escapeHtml(text)}</div><div class="msg-actions"><button class="msg-action-btn" onclick="editMsg('${mid}')" title="Edit"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button><button class="msg-action-btn" onclick="copyMsg('${mid}')" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="msg-action-btn" onclick="delMsg('${mid}')" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button><button class="msg-action-btn" onclick="shareMsg('${mid}')" title="Share"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button></div></div>`;
     const msgs = document.getElementById('messages');
     if (msgs) msgs.appendChild(div);
     scrollBottom();
@@ -1237,7 +1278,7 @@ function addUserImageMsg(text, dataUrl, filename, id) {
     div.className = 'msg user';
     div.id = mid;
     const textHtml = text ? `<div style="margin-top:8px;white-space:pre-wrap;">${escapeHtml(text)}</div>` : '';
-    div.innerHTML = `<div class="msg-body"><div class="msg-bubble" style="padding:10px;max-width:320px;"><img src="${dataUrl}" style="max-width:100%;border-radius:8px;display:block;cursor:zoom-in;" onclick="openLightbox('${dataUrl}')"><div style="font-size:11px;opacity:0.6;text-align:right;margin-top:4px;">${escapeHtml(filename)}</div>${textHtml}</div><div class="msg-actions"><button class="msg-action-btn" onclick="copyMsg('${mid}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copy</span></button><button class="msg-action-btn" onclick="delMsg('${mid}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Delete</span></button></div></div>`;
+    div.innerHTML = `<div class="msg-body"><div class="msg-bubble" style="padding:10px;max-width:320px;"><img src="${dataUrl}" style="max-width:100%;border-radius:8px;display:block;cursor:zoom-in;" onclick="openLightbox('${dataUrl}')"><div style="font-size:11px;opacity:0.6;text-align:right;margin-top:4px;">${escapeHtml(filename)}</div>${textHtml}</div><div class="msg-actions"><button class="msg-action-btn" onclick="copyMsg('${mid}')" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="msg-action-btn" onclick="delMsg('${mid}')" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></div>`;
     const msgs = document.getElementById('messages');
     if (msgs) msgs.appendChild(div);
     scrollBottom();
@@ -1252,7 +1293,7 @@ function addHistoricalImageMsg(text, dataUrl, id) {
     div.id = mid;
     const isPlaceholder = !text || text === '[Image upload]';
     const textHtml = !isPlaceholder ? `<div style="margin-top:8px;white-space:pre-wrap;">${escapeHtml(text)}</div>` : '';
-    div.innerHTML = `<div class="msg-body"><div class="msg-bubble" style="padding:10px;max-width:320px;"><img src="${dataUrl}" style="max-width:100%;border-radius:8px;display:block;cursor:zoom-in;" onclick="openLightbox('${dataUrl}')" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><div style="display:none;font-size:12px;color:var(--text-muted);padding:8px;">Image unavailable</div>${textHtml}</div><div class="msg-actions"><button class="msg-action-btn" onclick="copyMsg('${mid}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copy</span></button><button class="msg-action-btn" onclick="delMsg('${mid}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span>Delete</span></button></div></div>`;
+    div.innerHTML = `<div class="msg-body"><div class="msg-bubble" style="padding:10px;max-width:320px;"><img src="${dataUrl}" style="max-width:100%;border-radius:8px;display:block;cursor:zoom-in;" onclick="openLightbox('${dataUrl}')" onerror="this.style.display='none';this.nextElementSibling.style.display='block';"><div style="display:none;font-size:12px;color:var(--text-muted);padding:8px;">Image unavailable</div>${textHtml}</div><div class="msg-actions"><button class="msg-action-btn" onclick="copyMsg('${mid}')" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="msg-action-btn" onclick="delMsg('${mid}')" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></div>`;
     const msgs = document.getElementById('messages');
     if (msgs) msgs.appendChild(div);
     scrollBottom();
@@ -1265,7 +1306,7 @@ function addAiShell() {
     const div = document.createElement('div');
     div.className = 'msg ai';
     div.id = id;
-    div.innerHTML = `<div class="msg-avatar">V</div><div class="msg-body"><div class="think-block expanded" id="think-${id}"><div class="think-header" onclick="toggleThink('think-${id}')"><div class="think-title"><span class="think-icon">💡</span><span>Think</span></div><svg class="think-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div></div><div class="think-body"><div class="think-inner"><div class="think-content" id="think-text-${id}">Analyzing...</div></div></div></div><div class="msg-text" id="text-${id}"></div><div class="msg-actions bot-actions"><button class="msg-action-btn" onclick="speakMsg('${id}')" title="Read aloud"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg><span>Speak</span></button><button class="msg-action-btn" onclick="regenerateMsg('${id}')" title="Regenerate"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg><span>Regenerate</span></button><button class="msg-action-btn" onclick="copyAiMsg('${id}')" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copy</span></button><button class="msg-action-btn" onclick="shareAiMsg('${id}')" title="Share"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg><span>Share</span></button><button class="msg-action-btn thumb-up" id="up-${id}" onclick="thumbUp('${id}')" title="Helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg><span>Helpful</span></button><button class="msg-action-btn thumb-down" id="down-${id}" onclick="thumbDown('${id}')" title="Not helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg><span>Not helpful</span></button></div></div>`;
+    div.innerHTML = `<div class="msg-avatar">V</div><div class="msg-body"><div class="think-block expanded" id="think-${id}"><div class="think-header" onclick="toggleThink('think-${id}')"><div class="think-title"><span class="think-icon">💡</span><span>Think</span></div><svg class="think-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div></div><div class="think-body"><div class="think-inner"><div class="think-content" id="think-text-${id}">Analyzing...</div></div></div></div><div class="msg-text" id="text-${id}"></div><div class="msg-actions bot-actions"><button class="msg-action-btn speak-btn" id="speak-${id}" onclick="toggleSpeak('${id}')" title="Read aloud"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button><button class="msg-action-btn" onclick="regenerateMsg('${id}')" title="Regenerate"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button><button class="msg-action-btn" onclick="copyAiMsg('${id}')" title="Copy"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="msg-action-btn" onclick="shareAiMsg('${id}')" title="Share"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button><button class="msg-action-btn thumb-up" id="up-${id}" onclick="thumbUp('${id}')" title="Helpful"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button><button class="msg-action-btn thumb-down" id="down-${id}" onclick="thumbDown('${id}')" title="Not helpful"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button></div></div>`;
     const msgs = document.getElementById('messages');
     if (msgs) msgs.appendChild(div);
     scrollBottom();
@@ -1327,23 +1368,80 @@ function shareAiMsg(id) {
     else navigator.clipboard.writeText(text).then(() => toast('Copied to share', 'success'));
 }
 
-function speakMsg(id) {
-    if (!state.ttsEnabled) { toast('Text-to-speech is muted', 'info'); return; }
+// ─── SPEAK / STOP TOGGLE ───
+
+function stopSpeaking() {
+    if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+    }
+    state.isSpeaking = false;
+    state.speakingId = null;
+    state.currentUtterance = null;
+    // Update all speak buttons
+    document.querySelectorAll('.speak-btn').forEach(btn => {
+        btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
+        btn.classList.remove('speaking');
+    });
+}
+
+function toggleSpeak(id) {
+    const btn = document.getElementById('speak-' + id);
+    if (!btn) return;
+    
+    // If currently speaking this message, stop
+    if (state.isSpeaking && state.speakingId === id) {
+        stopSpeaking();
+        return;
+    }
+    
+    // If speaking something else, stop it first
+    if (state.isSpeaking) {
+        stopSpeaking();
+    }
+    
+    // Start speaking this message
     const el = document.getElementById('text-' + id);
     if (!el) return;
     const text = el.textContent || el.innerText;
     if (!text) return;
-    window.speechSynthesis.cancel();
+    
     state.speakingId = id;
+    state.isSpeaking = true;
+    btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`;
+    btn.classList.add('speaking');
+    
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.1;
     utterance.pitch = 1;
-    utterance.onend = () => { state.speakingId = null; };
-    utterance.onerror = () => { state.speakingId = null; };
+    utterance.onend = () => {
+        state.isSpeaking = false;
+        state.speakingId = null;
+        if (btn) {
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
+            btn.classList.remove('speaking');
+        }
+    };
+    utterance.onerror = () => {
+        state.isSpeaking = false;
+        state.speakingId = null;
+        if (btn) {
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
+            btn.classList.remove('speaking');
+        }
+    };
+    state.currentUtterance = utterance;
     window.speechSynthesis.speak(utterance);
 }
 
+function speakMsg(id) {
+    // Legacy function – now uses toggleSpeak
+    toggleSpeak(id);
+}
+
 function regenerateMsg(aiId) {
+    // Stop any ongoing speech
+    stopSpeaking();
+    
     const aiMsg = document.getElementById(aiId);
     if (!aiMsg) return;
     let userMsg = aiMsg.previousElementSibling;
@@ -1421,7 +1519,13 @@ function regenerateMsg(aiId) {
                                 renderCitations(aiId, state.citations[aiId]);
                             }
                             updateSendButton();
-                            if (state.autoTts && state.ttsEnabled) speakMsg(aiId);
+                            if (state.autoTts && state.ttsEnabled) {
+                                // Auto-read with stop capability
+                                setTimeout(() => {
+                                    const speakBtn = document.getElementById('speak-' + aiId);
+                                    if (speakBtn) toggleSpeak(aiId);
+                                }, 300);
+                            }
                             if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
                             refreshUserInfo();
                             hideLoading();
@@ -1635,6 +1739,13 @@ async function sendMessage() {
                         if (data.tier === 'pro') setProUi();
                         else { state.msgCount++; const disclaimer = document.getElementById('input-disclaimer'); if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`; }
                         if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
+                        // Auto-read if enabled
+                        if (state.autoTts && state.ttsEnabled) {
+                            setTimeout(() => {
+                                const speakBtn = document.getElementById('speak-' + aiId);
+                                if (speakBtn) toggleSpeak(aiId);
+                            }, 400);
+                        }
                         refreshUserInfo();
                     } else if (data.type === 'error') throw new Error(data.content);
                 } catch (e) { if (e instanceof SyntaxError) continue; throw e; }
@@ -2260,7 +2371,6 @@ async function deleteAccount() {
         hideLoading();
         if (res.ok) {
             toast('Account deleted successfully.', 'success');
-            // Log out
             localStorage.removeItem('veyronis_token');
             localStorage.removeItem('veyronis_user');
             state.token = null;
@@ -2281,7 +2391,6 @@ async function deleteAccount() {
 // ─── AUTO-LOGIN ON LOAD ───
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Handle Google OAuth callback
     if (window.location.hash && window.location.hash.includes('auth=')) {
         handleGoogleCallback();
     }
@@ -2300,7 +2409,6 @@ document.addEventListener('DOMContentLoaded', () => {
         appElement.classList.add('hidden');
     }
 
-    // ─── EXTRA SAFETY: Forgot Password button listener ───
     var btn = document.getElementById('forgot-password-btn');
     if (btn) {
         btn.removeAttribute('onclick');
