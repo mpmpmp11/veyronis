@@ -157,7 +157,7 @@ orchestrator = CentralOrchestrator()
 hindsight_engine = HindsightEngine()
 
 limits_file = BASE_DIR / "daily_limits.json"
-PRO_CODES = {"VEYRONIS-PRO-2026", "MATRIX-TEAM-VIP", "DEV-MODE-2026"}
+# PRO_CODES removed – no more bypass
 
 def _b64_to_data_url(b64_string: str) -> str:
     try:
@@ -214,7 +214,7 @@ def add_free_request(client_ip: str):
 # ─── REQUEST MODELS ───
 class ChatRequest(BaseModel):
     message: str = ""
-    pro_code: str = ""
+    pro_code: str = ""  # kept for backward compatibility but ignored
     user_id: str = ""
     mode: str = "chat"
     model_mode: str = "instant"
@@ -704,11 +704,13 @@ async def chat(
         if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
             raise HTTPException(429, detail="Rate limit exceeded. Please slow down.")
         
+        # ─── Determine user and pro status ───
         if current_user:
             user_id = current_user["email"]
             is_pro = current_user["is_pro"]
         else:
-            is_pro = request.pro_code in PRO_CODES
+            # Anonymous users are always free; ignore pro_code
+            is_pro = False
             if not user_id:
                 user_id = "u_" + str(int(time.time()))
 
@@ -799,11 +801,12 @@ async def chat_stream(
                 yield f"data: {json.dumps({'type': 'error', 'content': 'Rate limit exceeded. Please slow down.'})}\n\n"
             return StreamingResponse(rate_limit_error(), media_type="text/event-stream")
         
+        # ─── Determine user and pro status ───
         if current_user:
             user_id = current_user["email"]
             is_pro = current_user["is_pro"]
         else:
-            is_pro = request.pro_code in PRO_CODES
+            is_pro = False
             if not user_id:
                 user_id = "u_" + str(int(time.time()))
         
