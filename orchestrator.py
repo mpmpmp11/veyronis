@@ -106,7 +106,6 @@ class CentralOrchestrator:
         """Build vision prompt with fallback for image-only queries."""
         if user_query and user_query.strip() and user_query != "[Image uploaded for analysis]":
             return user_query
-        # Default vision prompt for image-only analysis
         return (
             "Analyze this image in detail. Describe what you see in the image, including:\n"
             "1. The main subject(s) and objects\n"
@@ -146,6 +145,68 @@ class CentralOrchestrator:
             return "creative" if self.gemini_agent else "standard"
         return "standard"
 
+    # ─── MATH POST‑PROCESSING ───
+    def _format_math_response(self, raw_response: str, final_answer: str) -> str:
+        """
+        Take the raw AI response and format it with clean step numbering,
+        LaTeX display, and a boxed final answer.
+        """
+        lines = raw_response.split('\n')
+        formatted_lines = []
+        step_counter = 0
+        in_step = False
+        step_buffer = []
+
+        for line in lines:
+            stripped = line.strip()
+            # Detect step starts: "Step 1:", "Step 2:", "1)", "1.", "Step 1 -", etc.
+            step_match = re.match(r'(?:Step\s*)?(\d+)[\):.\-]\s*(.*)', stripped, re.IGNORECASE)
+            if step_match:
+                # Close previous step
+                if in_step and step_buffer:
+                    step_text = '\n'.join(step_buffer).strip()
+                    if step_text:
+                        formatted_lines.append(f'<div class="math-step">')
+                        formatted_lines.append(f'<span class="math-step-number">Step {step_counter}:</span>')
+                        formatted_lines.append(f'<div class="math-step-content">{step_text}</div>')
+                        formatted_lines.append('</div>')
+                    step_buffer = []
+                # Start new step
+                step_counter = int(step_match.group(1))
+                step_buffer.append(step_match.group(2).strip() or '')
+                in_step = True
+            elif in_step and stripped:
+                # Content inside current step
+                step_buffer.append(line)
+            elif not in_step and stripped:
+                # Content outside steps – keep as is (like intro text)
+                formatted_lines.append(line)
+
+        # Close last step
+        if in_step and step_buffer:
+            step_text = '\n'.join(step_buffer).strip()
+            if step_text:
+                formatted_lines.append(f'<div class="math-step">')
+                formatted_lines.append(f'<span class="math-step-number">Step {step_counter}:</span>')
+                formatted_lines.append(f'<div class="math-step-content">{step_text}</div>')
+                formatted_lines.append('</div>')
+
+        # Build the final response
+        result = '\n'.join(formatted_lines)
+
+        # Ensure final answer is boxed and highlighted
+        if final_answer and not re.search(r'boxed\{', result):
+            result += f'\n\n<div class="math-solution">✅ Final Answer: <span class="math-boxed">\\[ {final_answer} \\]</span></div>'
+        elif final_answer and re.search(r'boxed\{', result):
+            # Already has a boxed answer – just wrap it nicely
+            result = re.sub(
+                r'(\\boxed\{[^}]+\})',
+                r'<span class="math-boxed">\1</span>',
+                result
+            )
+
+        return result
+
     def _run_standard(self, query: str, system_prompt: str, history: list, model_mode: str = "instant") -> dict:
         config = self._get_model_config(model_mode)
         search_result = self.search_tool.search(self._optimize_search_query(query))
@@ -160,7 +221,6 @@ class CentralOrchestrator:
             max_tokens=config["max_tokens"]
         )
 
-        # Fallback to Gemini if Groq fails
         if self._is_rate_limit_error(base):
             return self._fallback_to_gemini(query, system_prompt, history)
 
@@ -190,12 +250,20 @@ class CentralOrchestrator:
         return {"response": cleaned, "reasoning": reasoning, "citations": []}
 
     def _run_math(self, query: str, system_prompt: str, history: list, model_mode: str = "instant") -> dict:
+        """Solve math with clean step-by-step and boxed answer."""
         result = self.calculator.evaluate(query)
+        
+        # Build a prompt that forces structured step-by-step
         steps_prompt = (
-            f"Show step-by-step how to solve: {query}\n"
-            f"Final answer: {result}\n\n"
-            f"Explain like you're teaching a 15-year-old. Number each step. Keep it simple."
+            f"Solve this step by step: {query}\n\n"
+            "RULES:\n"
+            "1. Number each step clearly: Step 1:, Step 2:, etc.\n"
+            "2. Use LaTeX for all math expressions.\n"
+            "3. Show the final answer in a \\boxed{} at the end.\n"
+            "4. Be clear and educational.\n\n"
+            f"The final answer is: {result}"
         )
+        
         config = self._get_model_config(model_mode)
         explanation = self.groq_agent.generate_response(
             steps_prompt,
@@ -204,8 +272,17 @@ class CentralOrchestrator:
             temperature=config["temperature"],
             max_tokens=config["max_tokens"]
         )
+        
         reasoning, cleaned = self._extract_reasoning(explanation)
-        return {"response": f"🧮 Step-by-Step:\n\n{cleaned}\n\n✅ Answer: {result}", "reasoning": reasoning, "citations": []}
+        
+        # Apply post-processing to format steps and boxed answer
+        formatted = self._format_math_response(cleaned, result)
+        
+        return {
+            "response": f"🧮 Step-by-Step Solution:\n\n{formatted}",
+            "reasoning": reasoning,
+            "citations": []
+        }
 
     def _run_image(self, query: str) -> dict:
         url = ImageGenTool.generate(query)
@@ -240,7 +317,6 @@ class CentralOrchestrator:
         return {"response": resp, "reasoning": "Generated flashcards from content", "citations": []}
 
     def _run_canvas(self, query: str, system_prompt: str, history: list, model_mode: str = "instant") -> dict:
-        """Canvas whiteboard mode - generates structured visualization instructions."""
         config = self._get_model_config(model_mode)
 
         canvas_prompt = (
@@ -264,10 +340,9 @@ class CentralOrchestrator:
         return {"response": cleaned, "reasoning": reasoning or "Canvas visualization generated", "citations": []}
 
     def _run_research(self, query: str, system_prompt: str, history: list, model_mode: str = "instant", custom_instructions: str = None, response_style: str = None) -> dict:
-        """Multi-step deep research: plan → search → synthesize."""
         config = self._get_model_config(model_mode)
 
-        # Step 1: Plan - break into sub-questions
+        # Step 1: Plan
         plan_prompt = (
             f"Break this research question into 3-5 specific sub-questions that will help answer it comprehensively. "
             f"Return ONLY a JSON array of strings, nothing else.\n\nQuestion: {query}"
@@ -279,10 +354,8 @@ class CentralOrchestrator:
             max_tokens=512
         )
 
-        # Extract JSON array
         sub_questions = []
         try:
-            # Try to find JSON array in response
             match = re.search(r'\[(.*?)\]', plan_raw.replace('\n', ' '), re.DOTALL)
             if match:
                 sub_questions = json.loads('[' + match.group(1) + ']')
@@ -291,14 +364,13 @@ class CentralOrchestrator:
             if not isinstance(sub_questions, list):
                 sub_questions = []
         except Exception:
-            # Fallback: split by numbers or newlines
             lines = [l.strip('- ').strip() for l in plan_raw.split('\n') if l.strip() and len(l.strip()) > 10]
             sub_questions = lines[:5] if lines else [query]
 
         if not sub_questions:
             sub_questions = [query]
 
-        # Step 2: Search each sub-question
+        # Step 2: Search
         all_citations = []
         all_contexts = []
 
@@ -308,7 +380,7 @@ class CentralOrchestrator:
                 all_citations.extend(search_result["results"])
                 all_contexts.append(f"--- Sub-question {idx}: {sq} ---\n{search_result['formatted']}\n")
 
-        # Deduplicate citations by URL
+        # Deduplicate
         seen_urls = set()
         unique_citations = []
         for c in all_citations:
@@ -317,7 +389,6 @@ class CentralOrchestrator:
                 c["index"] = len(unique_citations) + 1
                 unique_citations.append(c)
 
-        # Renumber
         for i, c in enumerate(unique_citations, 1):
             c["index"] = i
 
@@ -358,10 +429,8 @@ class CentralOrchestrator:
         }
 
     def _run_research_stream(self, query: str, system_prompt: str, history: list, model_mode: str = "instant", custom_instructions: str = None, response_style: str = None):
-        """Streaming deep research with progress updates."""
         config = self._get_model_config(model_mode)
 
-        # Step 1: Plan
         yield ("research_step", {"phase": "planning", "message": "Planning research strategy..."})
 
         plan_prompt = (
@@ -393,7 +462,6 @@ class CentralOrchestrator:
 
         yield ("research_step", {"phase": "planned", "message": f"Breaking into {len(sub_questions)} research angles...", "sub_questions": sub_questions})
 
-        # Step 2: Search
         all_citations = []
         all_contexts = []
 
@@ -404,7 +472,6 @@ class CentralOrchestrator:
                 all_citations.extend(search_result["results"])
                 all_contexts.append(f"--- Sub-question {idx}: {sq} ---\n{search_result['formatted']}\n")
 
-        # Deduplicate
         seen_urls = set()
         unique_citations = []
         for c in all_citations:
@@ -419,7 +486,6 @@ class CentralOrchestrator:
         yield ("citations", unique_citations)
         yield ("research_step", {"phase": "synthesizing", "message": f"Synthesizing findings from {len(unique_citations)} sources..."})
 
-        # Step 3: Synthesize
         combined_context = "\n".join(all_contexts)
         research_system = system_prompt + "\n\nYou are now in DEEP RESEARCH mode. Write a comprehensive, well-structured research report. Use clear section headers, bullet points, and cite sources using [1], [2], etc. Be thorough but concise."
         research_system = self._inject_personality(research_system, custom_instructions, response_style)
@@ -473,7 +539,6 @@ class CentralOrchestrator:
                 traceback.print_exc()
                 return {"response": f"⚠️ Vision analysis failed: {str(e)}", "reasoning": None, "citations": []}
 
-        # If image present but no Gemini, warn regardless of text
         if image_b64 and not self.gemini_agent:
             return {"response": "⚠️ Image upload requires a Google API key (Gemini) to be configured in .env", "reasoning": None, "citations": []}
 
@@ -554,7 +619,6 @@ class CentralOrchestrator:
         return result
 
     def _run_gemini_text(self, user_query: str, model_mode: str = "instant") -> dict:
-        """Route text queries to Gemini when explicitly selected."""
         try:
             resp = self.gemini_agent.generate_response(user_query)
             return {"response": resp, "reasoning": None, "citations": []}
@@ -562,9 +626,6 @@ class CentralOrchestrator:
             return {"response": f"Gemini failed: {str(e)}. Falling back to Groq.", "reasoning": None, "citations": []}
 
     def process_pipeline_stream(self, user_query: str, mode: str = "chat", user_id: str = "default", conversation_id: int = None, image_b64: str = None, model_mode: str = "instant", ai_model: str = "groq", custom_instructions: str = None, response_style: str = None):
-        """Yield (event_type, content) tuples for real SSE streaming."""
-
-        # ─── CANVAS ROUTE ───
         if mode == "canvas":
             history = self._get_history(user_id, user_query, conversation_id)
             system_prompt = "You are VEYRONIS Canvas, an AI that helps users create visualizations on a whiteboard."
@@ -576,7 +637,6 @@ class CentralOrchestrator:
             yield ("done", response)
             return
 
-        # ─── VISION ROUTE ───
         if image_b64 and self.gemini_agent:
             vision_prompt = self._build_vision_prompt(user_query)
             try:
@@ -593,7 +653,6 @@ class CentralOrchestrator:
             yield ("error", "Image upload requires a Google API key (Gemini) to be configured in .env")
             return
 
-        # ─── AI MODEL ROUTING ───
         if ai_model == "gemini" and self.gemini_agent:
             yield ("reasoning", "Using Gemini...")
             result = self._run_gemini_text(user_query, model_mode)
@@ -631,12 +690,10 @@ class CentralOrchestrator:
 
         route = self._classify_route(user_query)
 
-        # ─── RESEARCH MODE ───
         if mode == "research":
             yield from self._run_research_stream(user_query, system_prompt, history, model_mode, custom_instructions, response_style)
             return
 
-        # ─── STREAMING ROUTES: standard + casual ───
         if route == "standard" or is_casual:
             config = self._get_model_config(model_mode)
 
@@ -680,7 +737,6 @@ class CentralOrchestrator:
                     yield ("error", "All AI models unavailable. Please try again later.")
                 return
 
-            # Post-process after stream completes
             reasoning, cleaned = self._extract_reasoning(full_text)
             if reasoning:
                 yield ("reasoning", reasoning)
@@ -690,8 +746,7 @@ class CentralOrchestrator:
             yield ("done", cleaned)
             return
 
-        # ─── NON-STREAMING ROUTES: math, flashcards, image, creative ───
-        # Fall back to complete-then-chunk for complex routes
+        # Non-streaming routes
         result = self.process_pipeline(
             user_query, mode, user_id, conversation_id, image_b64, model_mode, ai_model,
             custom_instructions, response_style

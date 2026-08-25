@@ -3643,3 +3643,77 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
   touch-action: manipulation;
   -webkit-touch-callout: none;
 }
+/* ─── MATH STYLING ─── */
+.msg-text .math-step {
+    display: block;
+    margin: 0.8em 0;
+    padding: 0.6em 1em;
+    background: var(--glass-bg);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.95em;
+    line-height: 1.6;
+}
+
+.msg-text .math-step-number {
+    display: inline-block;
+    min-width: 2.4em;
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 1.05em;
+}
+
+.msg-text .math-step-content {
+    display: inline;
+    color: var(--text-secondary);
+}
+
+.msg-text .math-step-content .katex-display {
+    margin: 0.4em 0;
+}
+
+.msg-text .math-boxed {
+    display: inline-block;
+    padding: 0.1em 0.8em;
+    border: 2px solid var(--accent);
+    border-radius: 6px;
+    background: rgba(167, 139, 250, 0.06);
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 1.1em;
+}
+
+.msg-text .math-solution {
+    margin-top: 1em;
+    padding: 0.8em 1.2em;
+    background: rgba(34, 197, 94, 0.06);
+    border: 1px solid rgba(34, 197, 94, 0.15);
+    border-radius: var(--radius-sm);
+    text-align: center;
+    font-size: 1.1em;
+}
+
+.msg-text .math-solution .math-boxed {
+    font-size: 1.2em;
+    border-width: 2px;
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .msg-text .math-step {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="veyronis"] .msg-text .math-step {
+    background: rgba(192, 132, 252, 0.05);
+    border-left-color: #c084fc;
+}
+
+[data-theme="veyronis"] .msg-text .math-step-number {
+    color: #c084fc;
+}
+
+[data-theme="veyronis"] .msg-text .math-boxed {
+    border-color: #c084fc;
+    color: #c084fc;
+}
