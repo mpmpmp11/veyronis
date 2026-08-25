@@ -429,6 +429,17 @@ function initApp() {
             checkServerHealth();
         }
     }, 100);
+
+    // ─── FORGOT PASSWORD BUTTON FIX ───
+    var btn = document.getElementById('forgot-password-btn');
+    if (btn) {
+        // Remove any inline onclick that might interfere
+        btn.removeAttribute('onclick');
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            showForgotPassword();
+        });
+    }
 }
 
 function refreshUserInfo() {
@@ -2247,5 +2258,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!loggedIn) {
         authScreen.classList.remove('hidden');
         appElement.classList.add('hidden');
+    }
+
+    // ─── EXTRA SAFETY: Forgot Password button listener ───
+    var btn = document.getElementById('forgot-password-btn');
+    if (btn) {
+        // Remove any existing inline onclick to avoid conflicts
+        btn.removeAttribute('onclick');
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var modal = document.getElementById('forgot-password-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                console.log('Forgot password modal opened via app.js');
+            } else {
+                console.warn('Modal not found');
+            }
+        });
     }
 });
