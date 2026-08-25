@@ -527,10 +527,9 @@ function closeMoreMenu() {
     if (btn) btn.classList.remove('active');
 }
 
-// ─── CLICK OUTSIDE (FIXED) ───
+// ─── CLICK OUTSIDE ───
 function initClickOutside() {
     document.addEventListener('click', e => {
-        // Model menu – check if click is inside toggle or menu
         const modelToggle = document.getElementById('model-toggle');
         const modelMenu = document.getElementById('model-menu');
         if (modelToggle && modelMenu) {
@@ -539,7 +538,6 @@ function initClickOutside() {
                 modelToggle.classList.remove('open');
             }
         }
-        // Attach popup
         const attachBtn = document.querySelector('.attach-btn');
         const attachPop = document.getElementById('attach-pop');
         if (attachBtn && attachPop) {
@@ -547,7 +545,6 @@ function initClickOutside() {
                 attachPop.classList.remove('open');
             }
         }
-        // More menu
         const moreWrap = document.querySelector('.more-wrap');
         if (moreWrap && !moreWrap.contains(e.target)) {
             closeMoreMenu();
@@ -989,8 +986,11 @@ function renderMarkdown(el, raw) {
     if (!el) return;
     if (!window.marked) { el.textContent = raw; return; }
     const mathPlaceholders = [];
+    // Handle $$...$$, $...$, \(...\), \[...\]
     let processed = raw.replace(/\$\$([\s\S]*?)\$\$/g, (match) => { mathPlaceholders.push(match); return `%%MATHBLOCK${mathPlaceholders.length-1}%%`; });
     processed = processed.replace(/\$([^\$\n]+?)\$/g, (match) => { mathPlaceholders.push(match); return `%%MATHINLINE${mathPlaceholders.length-1}%%`; });
+    processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match) => { mathPlaceholders.push(match); return `%%MATHINLINE${mathPlaceholders.length-1}%%`; });
+    processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match) => { mathPlaceholders.push(match); return `%%MATHBLOCK${mathPlaceholders.length-1}%%`; });
     el.innerHTML = marked.parse(processed, { breaks: true, gfm: true, headerIds: false });
     el.innerHTML = el.innerHTML.replace(/%%MATHBLOCK(\d+)%%/g, (_, i) => mathPlaceholders[i]);
     el.innerHTML = el.innerHTML.replace(/%%MATHINLINE(\d+)%%/g, (_, i) => mathPlaceholders[i]);
@@ -1017,7 +1017,12 @@ function renderMarkdown(el, raw) {
         }
     });
     if (window.renderMathInElement) renderMathInElement(el, {
-        delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }],
+        delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '\\[', right: '\\]', display: true}
+        ],
         ignoredTags: ['pre', 'code'], throwOnError: false, trust: false
     });
 }
