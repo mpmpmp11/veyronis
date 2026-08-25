@@ -429,17 +429,6 @@ function initApp() {
             checkServerHealth();
         }
     }, 100);
-
-    // ─── FORGOT PASSWORD BUTTON FIX ───
-    var btn = document.getElementById('forgot-password-btn');
-    if (btn) {
-        // Remove any inline onclick that might interfere
-        btn.removeAttribute('onclick');
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            showForgotPassword();
-        });
-    }
 }
 
 function refreshUserInfo() {
@@ -559,7 +548,7 @@ function shareCurrentConv() { if (!state.conversationId) { toast('No conversatio
 function openUpgrade() { toast('⭐ Upgrade to PRO — Coming soon with Google Play Billing!', 'info'); closeMoreMenu(); }
 function toggleSearch() { toast('🔍 Search coming soon!', 'info'); }
 
-// ─── CONVERSATIONS (FIXED) ───
+// ─── CONVERSATIONS ───
 
 function loadConversations() {
     if (!state.apiUrl) return;
@@ -2237,6 +2226,39 @@ function renderHindsightTimeline(container, jsonString) {
     scrollBottom();
 }
 
+// ─── 🗑️ DELETE ACCOUNT ───
+
+async function deleteAccount() {
+    if (!confirm('⚠️ Are you sure you want to delete your account? This cannot be undone.')) return;
+    if (!confirm('All your conversations and data will be permanently removed. Proceed?')) return;
+    
+    showLoading('Deleting account...');
+    try {
+        const res = await fetch(`${state.apiUrl}/account`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+        hideLoading();
+        if (res.ok) {
+            toast('Account deleted successfully.', 'success');
+            // Log out
+            localStorage.removeItem('veyronis_token');
+            localStorage.removeItem('veyronis_user');
+            state.token = null;
+            state.user = null;
+            state.isAuthenticated = false;
+            document.getElementById('app').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+        } else {
+            const data = await res.json();
+            toast(data.detail || 'Deletion failed', 'error');
+        }
+    } catch (err) {
+        hideLoading();
+        toast('Network error', 'error');
+    }
+}
+
 // ─── AUTO-LOGIN ON LOAD ───
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -2248,7 +2270,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const authScreen = document.getElementById('auth-screen');
     const appElement = document.getElementById('app');
     
-    // Safety check: if elements don't exist, don't proceed
     if (!authScreen || !appElement) {
         console.warn('Auth screen or app element missing');
         return;
@@ -2263,7 +2284,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // ─── EXTRA SAFETY: Forgot Password button listener ───
     var btn = document.getElementById('forgot-password-btn');
     if (btn) {
-        // Remove any existing inline onclick to avoid conflicts
         btn.removeAttribute('onclick');
         btn.addEventListener('click', function(e) {
             e.preventDefault();
