@@ -461,9 +461,14 @@ function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const backdrop = document.getElementById('sidebar-backdrop');
     if (!sidebar) return;
-    sidebar.classList.toggle('open');
-    if (backdrop) backdrop.classList.toggle('active');
-    document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+    const isOpen = sidebar.classList.contains('open');
+    if (isOpen) {
+        closeSidebar();
+    } else {
+        sidebar.classList.add('open');
+        if (backdrop) backdrop.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
 }
 
 function closeSidebar() {
@@ -477,16 +482,20 @@ function closeSidebar() {
 function initSwipeSidebar() {
     const app = document.getElementById('app');
     if (!app) return;
+    let startX = 0, startY = 0;
     app.addEventListener('touchstart', function(e) {
-        state.touchStartX = e.touches[0].clientX;
-        state.touchStartY = e.touches[0].clientY;
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
     }, { passive: true });
     app.addEventListener('touchend', function(e) {
-        const diffX = e.changedTouches[0].clientX - state.touchStartX;
-        const diffY = e.changedTouches[0].clientY - state.touchStartY;
+        const diffX = e.changedTouches[0].clientX - startX;
+        const diffY = e.changedTouches[0].clientY - startY;
         if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
-            if (diffX > 0) toggleSidebar();
-            else closeSidebar();
+            if (diffX > 0) {
+                toggleSidebar();
+            } else {
+                closeSidebar();
+            }
         }
     }, { passive: true });
 }
@@ -518,10 +527,33 @@ function closeMoreMenu() {
     if (btn) btn.classList.remove('active');
 }
 
-document.addEventListener('click', function(e) {
-    const wrap = document.querySelector('.more-wrap');
-    if (wrap && !wrap.contains(e.target)) closeMoreMenu();
-});
+// ─── CLICK OUTSIDE (FIXED) ───
+function initClickOutside() {
+    document.addEventListener('click', e => {
+        // Model menu – check if click is inside toggle or menu
+        const modelToggle = document.getElementById('model-toggle');
+        const modelMenu = document.getElementById('model-menu');
+        if (modelToggle && modelMenu) {
+            if (!modelToggle.contains(e.target) && !modelMenu.contains(e.target)) {
+                modelMenu.classList.remove('open');
+                modelToggle.classList.remove('open');
+            }
+        }
+        // Attach popup
+        const attachBtn = document.querySelector('.attach-btn');
+        const attachPop = document.getElementById('attach-pop');
+        if (attachBtn && attachPop) {
+            if (!attachBtn.contains(e.target) && !attachPop.contains(e.target)) {
+                attachPop.classList.remove('open');
+            }
+        }
+        // More menu
+        const moreWrap = document.querySelector('.more-wrap');
+        if (moreWrap && !moreWrap.contains(e.target)) {
+            closeMoreMenu();
+        }
+    });
+}
 
 function renameCurrentConv() {
     if (!state.conversationId) { toast('No conversation to rename', 'error'); return; }
@@ -688,24 +720,6 @@ function toggleAiModelMenu() {
 function toggleAttach() {
     const pop = document.getElementById('attach-pop');
     if (pop) pop.classList.toggle('open');
-}
-
-function initClickOutside() {
-    document.addEventListener('click', e => {
-        if (!e.target.closest('.model-bar')) {
-            document.getElementById('model-menu').classList.remove('open');
-            document.getElementById('model-toggle').classList.remove('open');
-            document.getElementById('ai-model-menu').classList.remove('open');
-            document.getElementById('ai-model-toggle').classList.remove('open');
-        }
-        if (!e.target.closest('.attach') && !e.target.closest('.attach-pop')) {
-            document.getElementById('attach-pop').classList.remove('open');
-        }
-        if (!e.target.closest('.export-wrap')) {
-            document.getElementById('export-pop').classList.remove('open');
-        }
-        if (!e.target.closest('.more-wrap')) closeMoreMenu();
-    });
 }
 
 function initTextarea() {
