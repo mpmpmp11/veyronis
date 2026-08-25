@@ -1220,43 +1220,54 @@ function renderCitations(aiId, citations) {
     msgBody.appendChild(sourcesBox);
 }
 
-// ─── RESEARCH PROGRESS ───
+// ─── RESEARCH PROGRESS (updated for thinking indicator) ───
 
 function updateResearchProgress(aiId, stepData) {
-    const thinkEl = document.getElementById('think-text-' + aiId);
-    const thinkBlock = document.getElementById('think-' + aiId);
-    if (!thinkEl || !thinkBlock) return;
-    thinkBlock.classList.add('expanded');
-    thinkBlock.classList.add('research-mode');
+    const thinkingEl = document.getElementById('thinking-' + aiId);
+    if (!thinkingEl) return;
+    // Add research mode class
+    thinkingEl.classList.add('research-mode');
+    
     const phases = {
-        planning: { icon: '📋', label: 'Planning', step: 1 },
-        planned: { icon: '✅', label: 'Planned', step: 1 },
-        searching: { icon: '🔍', label: 'Searching', step: 2 },
-        synthesizing: { icon: '🧠', label: 'Synthesizing', step: 3 },
+        planning: { icon: '📋', label: 'Planning' },
+        planned: { icon: '✅', label: 'Planned' },
+        searching: { icon: '🔍', label: 'Searching' },
+        synthesizing: { icon: '🧠', label: 'Synthesizing' },
     };
-    const cfg = phases[stepData.phase] || { icon: '⏳', label: 'Working', step: 0 };
+    const cfg = phases[stepData.phase] || { icon: '⏳', label: 'Working' };
+    
     let progressHtml = `<div class="research-progress">`;
-    progressHtml += `<div class="research-step ${stepData.phase === 'planning' || stepData.phase === 'planned' ? 'active' : 'done'}"><span class="rs-num">1</span><span class="rs-label">Plan</span></div>`;
-    progressHtml += `<div class="research-step ${stepData.phase === 'searching' ? 'active' : stepData.phase === 'synthesizing' ? 'done' : ''}"><span class="rs-num">2</span><span class="rs-label">Search</span></div>`;
-    progressHtml += `<div class="research-step ${stepData.phase === 'synthesizing' ? 'active' : ''}"><span class="rs-num">3</span><span class="rs-label">Synthesize</span></div>`;
+    progressHtml += `<div class="research-step ${stepData.phase === 'planning' || stepData.phase === 'planned' ? 'active' : 'done'}">1. Plan</div>`;
+    progressHtml += `<div class="research-step ${stepData.phase === 'searching' ? 'active' : stepData.phase === 'synthesizing' ? 'done' : ''}">2. Search</div>`;
+    progressHtml += `<div class="research-step ${stepData.phase === 'synthesizing' ? 'active' : ''}">3. Synthesize</div>`;
     progressHtml += `</div>`;
+    
     let msg = stepData.message || '';
     if (stepData.phase === 'searching' && stepData.current && stepData.total) {
         msg += ` (${stepData.current}/${stepData.total})`;
     }
-    thinkEl.innerHTML = `${progressHtml}<div class="research-status">${cfg.icon} ${msg}</div>`;
+    
+    thinkingEl.innerHTML = `
+        <div class="thinking-text">${cfg.icon} ${cfg.label}</div>
+        ${progressHtml}
+        <div class="research-status">${msg}</div>
+    `;
 }
 
 function hideResearchProgress(aiId) {
-    const thinkBlock = document.getElementById('think-' + aiId);
-    if (thinkBlock) {
-        thinkBlock.classList.remove('research-mode');
-        setTimeout(() => thinkBlock.classList.remove('expanded'), 1200);
+    // Remove research mode from thinking indicator
+    const thinkingEl = document.getElementById('thinking-' + aiId);
+    if (thinkingEl) {
+        thinkingEl.classList.remove('research-mode');
+        // Reset to default thinking text
+        thinkingEl.innerHTML = `
+            <span class="thinking-text">VEYRONIS is thinking</span>
+            <span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
+        `;
     }
 }
 
 // ─── MESSAGE FUNCTIONS ───
-// Updated: icon-only actions, speak/stop toggle
 
 function addUserMsg(text, id) {
     showEmpty(false);
@@ -1306,7 +1317,34 @@ function addAiShell() {
     const div = document.createElement('div');
     div.className = 'msg ai';
     div.id = id;
-    div.innerHTML = `<div class="msg-avatar">V</div><div class="msg-body"><div class="think-block expanded" id="think-${id}"><div class="think-header" onclick="toggleThink('think-${id}')"><div class="think-title"><span class="think-icon">💡</span><span>Think</span></div><svg class="think-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></div></div><div class="think-body"><div class="think-inner"><div class="think-content" id="think-text-${id}">Analyzing...</div></div></div></div><div class="msg-text" id="text-${id}"></div><div class="msg-actions bot-actions"><button class="msg-action-btn speak-btn" id="speak-${id}" onclick="toggleSpeak('${id}')" title="Read aloud"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button><button class="msg-action-btn" onclick="regenerateMsg('${id}')" title="Regenerate"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button><button class="msg-action-btn" onclick="copyAiMsg('${id}')" title="Copy"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="msg-action-btn" onclick="shareAiMsg('${id}')" title="Share"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button><button class="msg-action-btn thumb-up" id="up-${id}" onclick="thumbUp('${id}')" title="Helpful"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button><button class="msg-action-btn thumb-down" id="down-${id}" onclick="thumbDown('${id}')" title="Not helpful"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg></button></div></div>`;
+    // New thinking indicator (replaces think-block)
+    div.innerHTML = `<div class="msg-avatar">V</div><div class="msg-body">
+        <div class="thinking-indicator" id="thinking-${id}">
+            <span class="thinking-text">VEYRONIS is thinking</span>
+            <span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
+        </div>
+        <div class="msg-text" id="text-${id}"></div>
+        <div class="msg-actions bot-actions">
+            <button class="msg-action-btn speak-btn" id="speak-${id}" onclick="toggleSpeak('${id}')" title="Read aloud">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            </button>
+            <button class="msg-action-btn" onclick="regenerateMsg('${id}')" title="Regenerate">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+            </button>
+            <button class="msg-action-btn" onclick="copyAiMsg('${id}')" title="Copy">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+            <button class="msg-action-btn" onclick="shareAiMsg('${id}')" title="Share">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            </button>
+            <button class="msg-action-btn thumb-up" id="up-${id}" onclick="thumbUp('${id}')" title="Helpful">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+            </button>
+            <button class="msg-action-btn thumb-down" id="down-${id}" onclick="thumbDown('${id}')" title="Not helpful">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+            </button>
+        </div>
+    </div>`;
     const msgs = document.getElementById('messages');
     if (msgs) msgs.appendChild(div);
     scrollBottom();
@@ -1316,11 +1354,14 @@ function addAiShell() {
 function addAiText(id, text) {
     const el = document.getElementById('text-' + id);
     if (el) renderMarkdown(el, text);
+    // Hide thinking indicator once we have content
+    const thinkingEl = document.getElementById('thinking-' + id);
+    if (thinkingEl) {
+        thinkingEl.style.display = 'none';
+    }
 }
-function toggleThink(id) {
-    const block = document.getElementById(id);
-    if (block) block.classList.toggle('expanded');
-}
+
+// ─── EDIT, COPY, DELETE, SHARE ───
 
 function editMsg(id) {
     const bubble = document.querySelector('#' + id + ' .msg-bubble');
@@ -1377,7 +1418,6 @@ function stopSpeaking() {
     state.isSpeaking = false;
     state.speakingId = null;
     state.currentUtterance = null;
-    // Update all speak buttons
     document.querySelectorAll('.speak-btn').forEach(btn => {
         btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
         btn.classList.remove('speaking');
@@ -1387,29 +1427,21 @@ function stopSpeaking() {
 function toggleSpeak(id) {
     const btn = document.getElementById('speak-' + id);
     if (!btn) return;
-    
-    // If currently speaking this message, stop
     if (state.isSpeaking && state.speakingId === id) {
         stopSpeaking();
         return;
     }
-    
-    // If speaking something else, stop it first
     if (state.isSpeaking) {
         stopSpeaking();
     }
-    
-    // Start speaking this message
     const el = document.getElementById('text-' + id);
     if (!el) return;
     const text = el.textContent || el.innerText;
     if (!text) return;
-    
     state.speakingId = id;
     state.isSpeaking = true;
     btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`;
     btn.classList.add('speaking');
-    
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.1;
     utterance.pitch = 1;
@@ -1434,12 +1466,10 @@ function toggleSpeak(id) {
 }
 
 function speakMsg(id) {
-    // Legacy function – now uses toggleSpeak
     toggleSpeak(id);
 }
 
 function regenerateMsg(aiId) {
-    // Stop any ongoing speech
     stopSpeaking();
     
     const aiMsg = document.getElementById(aiId);
@@ -1452,11 +1482,17 @@ function regenerateMsg(aiId) {
     const bubble = userMsg.querySelector('.msg-bubble');
     const text = bubble ? bubble.textContent : '';
     const textEl = document.getElementById('text-' + aiId);
-    const thinkEl = document.getElementById('think-text-' + aiId);
+    const thinkingEl = document.getElementById('thinking-' + aiId);
     if (textEl) textEl.textContent = '';
-    if (thinkEl) thinkEl.textContent = 'Regenerating...';
-    const thinkBlock = document.getElementById('think-' + aiId);
-    if (thinkBlock) thinkBlock.classList.add('expanded');
+    if (thinkingEl) {
+        thinkingEl.style.display = 'flex';
+        // Reset to thinking state
+        thinkingEl.innerHTML = `
+            <span class="thinking-text">Regenerating...</span>
+            <span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
+        `;
+        thinkingEl.classList.remove('research-mode');
+    }
     state.isTyping = true;
     updateSendButton();
     const controller = new AbortController();
@@ -1483,13 +1519,14 @@ function regenerateMsg(aiId) {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '', fullResponse = '';
+        let firstToken = true;
         function read() {
             reader.read().then(({ done, value }) => {
                 if (done) {
                     state.isTyping = false;
                     state.abortController = null;
                     updateSendButton();
-                    if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
+                    if (thinkingEl) thinkingEl.style.display = 'none';
                     return;
                 }
                 buffer += decoder.decode(value, { stream: true });
@@ -1501,8 +1538,13 @@ function regenerateMsg(aiId) {
                     if (!jsonStr) continue;
                     try {
                         const data = JSON.parse(jsonStr);
-                        if (data.type === 'reasoning' && thinkEl && state.model !== 'research') thinkEl.textContent = data.content;
-                        else if (data.type === 'token') {
+                        if (data.type === 'reasoning') {
+                            // Ignore reasoning – we no longer show it
+                        } else if (data.type === 'token') {
+                            if (firstToken) {
+                                firstToken = false;
+                                if (thinkingEl) thinkingEl.style.display = 'none';
+                            }
                             if (textEl) textEl.textContent += data.content;
                             fullResponse += data.content;
                             scrollBottom();
@@ -1513,20 +1555,18 @@ function regenerateMsg(aiId) {
                         } else if (data.type === 'done') {
                             state.isTyping = false;
                             state.abortController = null;
-                            hideResearchProgress(aiId);
+                            if (thinkingEl) thinkingEl.style.display = 'none';
                             if (textEl) {
                                 renderMarkdown(textEl, fullResponse);
                                 renderCitations(aiId, state.citations[aiId]);
                             }
                             updateSendButton();
                             if (state.autoTts && state.ttsEnabled) {
-                                // Auto-read with stop capability
                                 setTimeout(() => {
                                     const speakBtn = document.getElementById('speak-' + aiId);
                                     if (speakBtn) toggleSpeak(aiId);
                                 }, 300);
                             }
-                            if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
                             refreshUserInfo();
                             hideLoading();
                         } else if (data.type === 'error') throw new Error(data.content);
@@ -1663,11 +1703,18 @@ async function sendMessage() {
     if (sendBtn) sendBtn.disabled = true;
     const aiId = addAiShell();
     const textEl = document.getElementById('text-' + aiId);
-    const thinkEl = document.getElementById('think-text-' + aiId);
-    const thinkBlock = document.getElementById('think-' + aiId);
-    if (state.model === 'research') {
-        if (thinkEl) thinkEl.innerHTML = '<div class="research-progress"><div class="research-step active"><span class="rs-num">1</span><span class="rs-label">Plan</span></div><div class="research-step"><span class="rs-num">2</span><span class="rs-label">Search</span></div><div class="research-step"><span class="rs-num">3</span><span class="rs-label">Synthesize</span></div></div><div class="research-status">🔬 Research mode active. Planning investigation...</div>';
-        if (thinkBlock) { thinkBlock.classList.add('expanded'); thinkBlock.classList.add('research-mode'); }
+    const thinkingEl = document.getElementById('thinking-' + aiId);
+    if (state.model === 'research' && thinkingEl) {
+        thinkingEl.innerHTML = `
+            <div class="thinking-text">🔬 Research mode active</div>
+            <div class="research-progress">
+                <div class="research-step active">1. Plan</div>
+                <div class="research-step">2. Search</div>
+                <div class="research-step">3. Synthesize</div>
+            </div>
+            <div class="research-status">Planning investigation...</div>
+        `;
+        thinkingEl.classList.add('research-mode');
     }
     if (textEl) textEl.textContent = '';
     state.isTyping = true;
@@ -1705,6 +1752,7 @@ async function sendMessage() {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '', fullResponse = '';
+        let firstToken = true;
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -1717,8 +1765,13 @@ async function sendMessage() {
                 if (!jsonStr) continue;
                 try {
                     const data = JSON.parse(jsonStr);
-                    if (data.type === 'reasoning' && state.model !== 'research' && thinkEl) thinkEl.textContent = data.content;
-                    else if (data.type === 'token') {
+                    if (data.type === 'reasoning') {
+                        // Ignore reasoning – we don't display it
+                    } else if (data.type === 'token') {
+                        if (firstToken) {
+                            firstToken = false;
+                            if (thinkingEl) thinkingEl.style.display = 'none';
+                        }
                         if (textEl) textEl.textContent += data.content;
                         fullResponse += data.content;
                         scrollBottom();
@@ -1730,16 +1783,14 @@ async function sendMessage() {
                         hideLoading();
                         state.isTyping = false;
                         if (sendBtn) sendBtn.disabled = false;
+                        if (thinkingEl) thinkingEl.style.display = 'none';
                         if (textEl) {
                             renderMarkdown(textEl, fullResponse);
                             renderCitations(aiId, state.citations[aiId]);
                         }
-                        hideResearchProgress(aiId);
                         if (data.conversation_id && !state.conversationId) { state.conversationId = data.conversation_id; loadConversations(); }
                         if (data.tier === 'pro') setProUi();
                         else { state.msgCount++; const disclaimer = document.getElementById('input-disclaimer'); if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`; }
-                        if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
-                        // Auto-read if enabled
                         if (state.autoTts && state.ttsEnabled) {
                             setTimeout(() => {
                                 const speakBtn = document.getElementById('speak-' + aiId);
@@ -1760,18 +1811,18 @@ async function sendMessage() {
             if (textEl) textEl.textContent = textEl.textContent || 'Generation stopped.';
         } else if (!navigator.onLine) {
             if (textEl) textEl.textContent = '💾 Message queued. Will send when you are back online.';
-            if (thinkBlock) thinkBlock.classList.remove('expanded');
+            if (thinkingEl) thinkingEl.style.display = 'none';
         } else if (err.message && err.message.includes('429')) {
             if (textEl) textEl.textContent = '⏳ Rate limited. Retrying...';
-            if (thinkBlock) thinkBlock.classList.remove('expanded');
+            if (thinkingEl) thinkingEl.style.display = 'none';
             setTimeout(() => sendMessage(), 3000);
         } else if (err.message && err.message.includes('502')) {
             if (textEl) textEl.textContent = '🔧 Server unavailable. Retrying...';
-            if (thinkBlock) thinkBlock.classList.remove('expanded');
+            if (thinkingEl) thinkingEl.style.display = 'none';
             setTimeout(() => sendMessage(), 5000);
         } else {
             if (textEl) textEl.textContent = 'Error: ' + err.message;
-            if (thinkBlock) thinkBlock.classList.remove('expanded');
+            if (thinkingEl) thinkingEl.style.display = 'none';
         }
     }
     updateSendButton();
@@ -1847,10 +1898,8 @@ function loadHistory() {
                         }
                     } else {
                         const id = addAiShell();
-                        const thinkBlock = document.getElementById('think-' + id);
-                        const thinkText = document.getElementById('think-text-' + id);
-                        if (thinkBlock) thinkBlock.classList.remove('expanded');
-                        if (thinkText) thinkText.textContent = 'Loaded from history';
+                        const thinkingEl = document.getElementById('thinking-' + id);
+                        if (thinkingEl) thinkingEl.style.display = 'none';
                         const textEl = document.getElementById('text-' + id);
                         if (textEl) renderMarkdown(textEl, m.content);
                     }
@@ -2276,10 +2325,13 @@ async function runHindsightSimulation(scenario) {
     addUserMsg('🔮 ' + scenario);
     const aiId = addAiShell();
     const textEl = document.getElementById('text-' + aiId);
-    const thinkEl = document.getElementById('think-text-' + aiId);
-    const thinkBlock = document.getElementById('think-' + aiId);
-    if (thinkEl) thinkEl.textContent = 'Simulating timeline...';
-    if (thinkBlock) thinkBlock.classList.add('expanded');
+    const thinkingEl = document.getElementById('thinking-' + aiId);
+    if (thinkingEl) {
+        thinkingEl.innerHTML = `
+            <span class="thinking-text">🔮 Simulating timeline...</span>
+            <span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
+        `;
+    }
     state.isTyping = true;
     updateSendButton();
 
@@ -2299,14 +2351,14 @@ async function runHindsightSimulation(scenario) {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Simulation failed');
+        if (thinkingEl) thinkingEl.style.display = 'none';
         if (textEl) renderHindsightTimeline(textEl, data.response);
         incrementSimCount();
         if (data.conversation_id && !state.conversationId) { state.conversationId = data.conversation_id; loadConversations(); }
-        if (thinkBlock) setTimeout(() => thinkBlock.classList.remove('expanded'), 600);
         refreshUserInfo();
     } catch (err) {
+        if (thinkingEl) thinkingEl.style.display = 'none';
         if (textEl) textEl.innerHTML = `<div class="sim-rate-limit"><span class="sim-rate-icon">⚠️</span>${escapeHtml(err.message)}</div>`;
-        if (thinkBlock) thinkBlock.classList.remove('expanded');
     }
     state.isTyping = false;
     updateSendButton();
@@ -2356,7 +2408,7 @@ function renderHindsightTimeline(container, jsonString) {
     scrollBottom();
 }
 
-// ─── 🗑️ DELETE ACCOUNT ───
+// ─── DELETE ACCOUNT ───
 
 async function deleteAccount() {
     if (!confirm('⚠️ Are you sure you want to delete your account? This cannot be undone.')) return;
@@ -2409,6 +2461,7 @@ document.addEventListener('DOMContentLoaded', () => {
         appElement.classList.add('hidden');
     }
 
+    // Forgot password button safety
     var btn = document.getElementById('forgot-password-btn');
     if (btn) {
         btn.removeAttribute('onclick');

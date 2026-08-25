@@ -3825,3 +3825,102 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
     background: rgba(239, 68, 68, 0.2);
     transform: scale(1.12);
 }
+/* ─── THINKING INDICATOR ─── */
+.thinking-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    font-size: 13px;
+    color: var(--text-secondary);
+    animation: thinkingFade 0.3s ease;
+    margin-bottom: 6px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.thinking-indicator .thinking-text {
+    font-weight: 500;
+}
+
+.thinking-indicator .thinking-dots {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.thinking-indicator .thinking-dots span {
+    display: inline-block;
+    animation: dotBounce 1.4s ease-in-out infinite;
+    font-size: 18px;
+    line-height: 1;
+    opacity: 0.3;
+}
+
+.thinking-indicator .thinking-dots span:nth-child(1) { animation-delay: 0s; }
+.thinking-indicator .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-indicator .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dotBounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.3; }
+    40% { transform: translateY(-6px); opacity: 1; }
+}
+
+@keyframes thinkingFade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Research progress inside thinking indicator */
+.thinking-indicator.research-mode {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 10px 14px;
+    background: rgba(167, 139, 250, 0.04);
+    border-color: rgba(167, 139, 250, 0.15);
+}
+
+.thinking-indicator.research-mode .research-progress {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 4px;
+}
+
+.thinking-indicator.research-mode .research-step {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    opacity: 0.4;
+    transition: all 0.3s ease;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--glass-bg);
+}
+
+.thinking-indicator.research-mode .research-step.active {
+    opacity: 1;
+    color: var(--accent);
+    background: rgba(167, 139, 250, 0.08);
+}
+
+.thinking-indicator.research-mode .research-step.done {
+    opacity: 0.7;
+    color: #22c55e;
+}
+
+.thinking-indicator.research-mode .research-status {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-align: center;
+    font-family: var(--font-mono);
+}
