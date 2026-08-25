@@ -43,7 +43,7 @@
                 </div>
                 <div id="login-error" class="auth-error"></div>
 
-                <!-- FORGOT PASSWORD LINK — FIXED -->
+                <!-- FORGOT PASSWORD BUTTON — now uses ID and event listener -->
                 <div style="text-align: right; margin-top: 4px; margin-bottom: 12px;">
                     <button id="forgot-password-btn" style="color: var(--accent); font-size: 12px; background: none; border: none; text-decoration: underline; cursor: pointer; font-family: inherit; padding: 0;">
                         Forgot Password?
@@ -454,7 +454,7 @@
                             <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                         </div>
                         <div class="settings-row-static" style="padding:8px 16px 16px;">
-                            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--text-secondary);">
+                            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--text-secondary);;">
                                 <input type="checkbox" id="auto-tts-toggle" style="width:16px;height:16px;accent-color:var(--accent);">
                                 Auto-read AI responses aloud
                             </label>
@@ -679,5 +679,22 @@
         }
     </script>
     <script src="/static/app.js?v=3"></script>
+
+    <!-- 🔥 EXTRA: Ensure Forgot Password button works -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var btn = document.getElementById('forgot-password-btn');
+            if (btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (typeof showForgotPassword === 'function') {
+                        showForgotPassword();
+                    } else {
+                        alert('showForgotPassword function not found. Please check app.js loading.');
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>
