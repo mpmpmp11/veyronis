@@ -10,7 +10,8 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b5cf6'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white' font-weight='bold'%3EV%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="/static/manifest.json">
     <link rel="stylesheet" href="/static/style.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+    <!-- Fixed highlight.js CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
     <base target="_blank">
 </head>
@@ -43,9 +44,9 @@
                 </div>
                 <div id="login-error" class="auth-error"></div>
 
-                <!-- FORGOT PASSWORD BUTTON — now uses ID and event listener -->
+                <!-- FORGOT PASSWORD BUTTON — DIRECT modal show -->
                 <div style="text-align: right; margin-top: 4px; margin-bottom: 12px;">
-                    <button id="forgot-password-btn" style="color: var(--accent); font-size: 12px; background: none; border: none; text-decoration: underline; cursor: pointer; font-family: inherit; padding: 0;">
+                    <button id="forgot-password-btn" style="color: var(--accent); font-size: 12px; background: none; border: none; text-decoration: underline; cursor: pointer; font-family: inherit; padding: 0;" onclick="document.getElementById('forgot-password-modal').classList.remove('hidden');">
                         Forgot Password?
                     </button>
                 </div>
@@ -454,7 +455,7 @@
                             <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                         </div>
                         <div class="settings-row-static" style="padding:8px 16px 16px;">
-                            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--text-secondary);;">
+                            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--text-secondary);">
                                 <input type="checkbox" id="auto-tts-toggle" style="width:16px;height:16px;accent-color:var(--accent);">
                                 Auto-read AI responses aloud
                             </label>
@@ -666,7 +667,8 @@
 
     <!-- ========== SCRIPTS ========== -->
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/dist/highlight.min.js"></script>
+    <!-- Fixed highlight.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
@@ -677,24 +679,9 @@
                 .then(reg => console.log('[VEYRONIS] SW registered'))
                 .catch(err => console.log('[VEYRONIS] SW failed', err));
         }
+        // Quick test: show an alert on load to confirm the page loaded
+        console.log('VEYRONIS page loaded successfully');
     </script>
     <script src="/static/app.js?v=3"></script>
-
-    <!-- 🔥 EXTRA: Ensure Forgot Password button works -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var btn = document.getElementById('forgot-password-btn');
-            if (btn) {
-                btn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (typeof showForgotPassword === 'function') {
-                        showForgotPassword();
-                    } else {
-                        alert('showForgotPassword function not found. Please check app.js loading.');
-                    }
-                });
-            }
-        });
-    </script>
 </body>
 </html>
