@@ -3924,3 +3924,61 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
     text-align: center;
     font-family: var(--font-mono);
 }
+/* ─── ATTACHMENTS SHEET ─── */
+.attachments-sheet {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 600 !important;
+    display: none !important;  /* hidden by default */
+    align-items: flex-end !important;
+    justify-content: center !important;
+    pointer-events: none !important;
+    background: rgba(0,0,0,0.3) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+}
+
+.attachments-sheet .sheet-backdrop {
+    position: absolute !important;
+    inset: 0 !important;
+    background: rgba(0,0,0,0.5) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+    cursor: pointer;
+}
+
+.attachments-sheet .sheet-content {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 600px !important;
+    max-height: 80vh !important;
+    background: var(--surface) !important;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
+    box-shadow: 0 -8px 40px rgba(0,0,0,0.4) !important;
+    transform: translateY(100%) !important;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    border: 1px solid var(--glass-border-strong) !important;
+    border-bottom: none !important;
+    pointer-events: auto !important;
+}
+
+/* Desktop: slide from right */
+@media (min-width: 768px) {
+    .attachments-sheet {
+        align-items: stretch !important;
+        justify-content: flex-end !important;
+    }
+    .attachments-sheet .sheet-content {
+        max-width: 480px !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+        transform: translateX(100%) !important;
+        border: none !important;
+        border-left: 1px solid var(--glass-border-strong) !important;
+    }
+}
+
+/* When showing, we use inline styles from JS, so no need for a show class. */
