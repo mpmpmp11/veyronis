@@ -595,7 +595,100 @@ function deleteCurrentConv() {
     deleteConv(state.conversationId);
 }
 
-function searchMessages() { toast('🔍 Search messages coming soon!', 'info'); closeMoreMenu(); }
+function searchMessages() { openSearchModal(); closeMoreMenu(); }
+
+// ─── SEARCH FUNCTIONS ───
+
+function openSearchModal() {
+    const modal = document.getElementById('search-modal');
+    const input = document.getElementById('search-input');
+    const results = document.getElementById('search-results');
+    if (!modal || !input || !results) return;
+
+    modal.classList.remove('hidden');
+    input.value = '';
+    results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">Enter a keyword to search</p>';
+    input.focus();
+
+    // Search on Enter key
+    input.onkeydown = function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            performSearch();
+        }
+    };
+}
+
+function closeSearchModal() {
+    const modal = document.getElementById('search-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function performSearch() {
+    const input = document.getElementById('search-input');
+    const results = document.getElementById('search-results');
+    if (!input || !results) return;
+
+    const query = input.value.trim();
+    if (query.length < 2) {
+        results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">Please enter at least 2 characters</p>';
+        return;
+    }
+
+    results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">Searching...</p>';
+
+    try {
+        const headers = {};
+        if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+        const res = await fetch(`${state.apiUrl}/search?q=${encodeURIComponent(query)}`, { headers });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.detail || 'Search failed');
+
+        const conversations = data.results || [];
+        if (conversations.length === 0) {
+            results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">No results found</p>';
+            return;
+        }
+
+        let html = '';
+        conversations.forEach(conv => {
+            html += `
+                <div class="search-result-group" style="margin-bottom: 12px;">
+                    <div class="search-result-title" style="font-weight: 700; font-size: 14px; color: var(--text); margin-bottom: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px;" 
+                         onclick="switchConversation(${conv.conversation_id})">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        ${escapeHtml(conv.title || 'New Chat')}
+                        <span style="font-weight: 400; font-size: 11px; color: var(--text-muted);">${conv.messages.length} result${conv.messages.length > 1 ? 's' : ''}</span>
+                    </div>
+                    <div style="padding-left: 12px; border-left: 2px solid var(--glass-border);">
+            `;
+            conv.messages.forEach(msg => {
+                const snippet = msg.snippet || msg.content.substring(0, 150) + '...';
+                const time = msg.created_at ? new Date(msg.created_at).toLocaleString() : '';
+                html += `
+                    <div class="search-result-item" style="padding: 8px 12px; margin-bottom: 4px; border-radius: var(--radius-sm); background: var(--glass-bg); border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease;"
+                         onclick="switchConversation(${conv.conversation_id})"
+                         onmouseover="this.style.borderColor='var(--glass-border-strong)'; this.style.background='var(--glass-hover)';"
+                         onmouseout="this.style.borderColor='transparent'; this.style.background='var(--glass-bg)';">
+                        <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">${snippet}</div>
+                        <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">${time}</div>
+                    </div>
+                `;
+            });
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+        results.innerHTML = html;
+
+    } catch (err) {
+        results.innerHTML = `<p style="color: #ef4444; text-align: center; padding: 40px 0;">Error: ${escapeHtml(err.message)}</p>`;
+    }
+}
 function shareCurrentConv() { if (!state.conversationId) { toast('No conversation to share', 'error'); return; } closeMoreMenu(); exportChat('json'); }
 function openUpgrade() { toast('⭐ Upgrade to PRO — Coming soon with Google Play Billing!', 'info'); closeMoreMenu(); }
 function toggleSearch() { toast('🔍 Search coming soon!', 'info'); }
@@ -697,6 +790,7 @@ function makeConvItem(c) {
 }
 
 function switchConversation(id) {
+    closeSearchModal();
     state.conversationId = id;
     document.getElementById('messages').innerHTML = '';
     loadHistory();

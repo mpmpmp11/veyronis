@@ -3982,3 +3982,29 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
 }
 
 /* When showing, we use inline styles from JS, so no need for a show class. */
+
+/* ─── SEARCH RESULTS ─── */
+#search-results mark {
+    background: rgba(167, 139, 250, 0.25);
+    color: var(--accent);
+    font-weight: 700;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+#search-results::-webkit-scrollbar {
+    width: 4px;
+}
+#search-results::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 4px;
+}
+
+.search-result-item {
+    transition: all 0.2s ease;
+}
+
+.search-result-item:hover {
+    border-color: var(--glass-border-strong) !important;
+    background: var(--glass-hover) !important;
+}

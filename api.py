@@ -540,6 +540,79 @@ async def export_conversation(
         print(f"[EXPORT ERROR] {e}")
         raise HTTPException(500, detail="Export failed")
 
+
+@app.get("/search")
+async def search_messages(
+    q: str,
+    current_user: dict = Depends(get_current_user_required)
+):
+    """
+    Search messages for a user by keyword.
+    Returns conversations with matching messages, grouped by conversation.
+    """
+    if not q or len(q.strip()) < 2:
+        return {"results": []}
+
+    search_term = f"%{q.strip()}%"
+    conn = get_db()
+
+    # Search messages and join with conversations to get titles
+    cursor = conn.execute("""
+        SELECT 
+            c.id as conversation_id,
+            c.title,
+            m.id as message_id,
+            m.content,
+            m.created_at,
+            m.role
+        FROM messages m
+        JOIN conversations c ON m.conversation_id = c.id
+        WHERE m.user_id = ? 
+        AND m.content LIKE ?
+        AND c.user_id = ?
+        AND m.role = 'assistant'
+        ORDER BY m.created_at DESC
+        LIMIT 50
+    """, (current_user["email"], search_term, current_user["email"]))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    if not rows:
+        return {"results": []}
+
+    # Group by conversation
+    conversations = {}
+    for row in rows:
+        cid = row["conversation_id"]
+        if cid not in conversations:
+            conversations[cid] = {
+                "conversation_id": cid,
+                "title": row["title"],
+                "messages": []
+            }
+        # Truncate content to 200 chars around the match
+        content = row["content"]
+        idx = content.lower().find(q.lower())
+        if idx != -1:
+            start = max(0, idx - 50)
+            end = min(len(content), idx + len(q) + 50)
+            snippet = content[start:end]
+            # Highlight the match (use HTML mark)
+            snippet = snippet.replace(q.strip(), f"<mark>{q.strip()}</mark>", 1)
+        else:
+            snippet = content[:200] + "..."
+
+        conversations[cid]["messages"].append({
+            "message_id": row["message_id"],
+            "content": content,
+            "snippet": snippet,
+            "created_at": row["created_at"],
+            "role": row["role"]
+        })
+
+    return {"results": list(conversations.values())}
+
 @app.get("/conversations")
 async def list_conversations(
     user_id: str,
