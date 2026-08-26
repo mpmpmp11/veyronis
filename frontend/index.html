@@ -133,13 +133,6 @@
                 <div id="conv-list-yesterday" class="conv-list"></div>
                 <div class="sidebar-section">Previous 7 Days</div>
                 <div id="conv-list-week" class="conv-list"></div>
-
-                <!-- Archived section -->
-                <div class="sidebar-section" onclick="toggleArchived()" style="cursor: pointer;">
-                    <span>📦 Archived</span>
-                    <span id="archived-chevron" style="font-size: 10px; transition: transform 0.3s;">▼</span>
-                </div>
-                <div id="archived-list" class="conv-list" style="display: none;"></div>
             </div>
             <div class="sidebar-footer">
                 <button class="sidebar-new-chat" onclick="newChat()">
@@ -663,19 +656,19 @@
         </div>
     </div>
 
-    <!-- ========== ATTACHMENTS MODAL ========== -->
-    <div id="attachments-modal" class="modal hidden">
-        <div class="modal-backdrop" onclick="closeAttachmentsModal()"></div>
-        <div class="modal-card glass-strong" style="max-width: 500px;">
-            <div class="modal-header">
-                <div class="modal-title">📎 Attached Files</div>
-                <button class="modal-close" onclick="closeAttachmentsModal()">✕</button>
+    <!-- ========== ATTACHMENTS SHEET ========== -->
+    <div id="attachments-sheet" class="attachments-sheet hidden">
+        <div class="sheet-backdrop" onclick="closeAttachmentsSheet()"></div>
+        <div class="sheet-content">
+            <div class="sheet-header">
+                <div class="sheet-title">📎 Attached Files</div>
+                <button class="sheet-close" onclick="closeAttachmentsSheet()">✕</button>
             </div>
-            <div class="modal-body" id="attachments-list" style="max-height: 400px; overflow-y: auto;">
-                <p style="color: var(--text-muted); font-size: 14px;">Loading attachments...</p>
+            <div class="sheet-body" id="attachments-list">
+                <!-- Files will be rendered here -->
             </div>
-            <div class="modal-footer">
-                <button class="modal-btn secondary" onclick="closeAttachmentsModal()">Close</button>
+            <div class="sheet-footer">
+                <button class="sheet-btn" onclick="closeAttachmentsSheet()">Close</button>
             </div>
         </div>
     </div>

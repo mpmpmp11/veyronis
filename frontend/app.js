@@ -1,5 +1,5 @@
 // ============================================================
-// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password + Fixed Sidebar)
+// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password + Fixed Sidebar + Attachments Sheet)
 // ============================================================
 
 const state = {
@@ -62,7 +62,7 @@ function updateUsageDisplay() {
 function showLoading(message = 'Loading...') {
     const existing = document.getElementById('loading-overlay');
     if (existing) existing.remove();
-    
+
     const overlay = document.createElement('div');
     overlay.id = 'loading-overlay';
     overlay.className = 'loading-overlay';
@@ -85,16 +85,16 @@ function initKeyboardHandler() {
     const input = document.getElementById('msg-input');
     const inputShell = document.querySelector('.input-shell');
     const chatScroll = document.getElementById('chat-scroll');
-    
+
     if (!input || !inputShell) return;
 
     if ('visualViewport' in window) {
         let lastHeight = window.visualViewport.height;
-        
+
         window.visualViewport.addEventListener('resize', () => {
             const currentHeight = window.visualViewport.height;
             const isKeyboardOpen = currentHeight < lastHeight - 150;
-            
+
             if (isKeyboardOpen) {
                 inputShell.classList.add('keyboard-open');
                 if (chatScroll) chatScroll.classList.add('keyboard-open');
@@ -103,7 +103,7 @@ function initKeyboardHandler() {
                 inputShell.classList.remove('keyboard-open');
                 if (chatScroll) chatScroll.classList.remove('keyboard-open');
             }
-            
+
             lastHeight = currentHeight;
         });
     }
@@ -248,17 +248,17 @@ function handleGoogleLogin() {
 function handleGoogleCallback() {
     const hash = window.location.hash;
     if (!hash || !hash.includes('auth=')) return;
-    
+
     const params = new URLSearchParams(hash.substring(1));
     const status = params.get('auth');
-    
+
     if (status === 'success') {
         const token = params.get('token');
         const email = params.get('user');
         const isPro = params.get('is_pro') === 'true';
         const name = params.get('name') || email?.split('@')[0] || 'User';
         const avatar = params.get('avatar') || null;
-        
+
         if (token && email) {
             state.token = token;
             state.user = {
@@ -270,12 +270,12 @@ function handleGoogleCallback() {
             };
             state.userId = email;
             state.isAuthenticated = true;
-            
+
             localStorage.setItem('veyronis_token', token);
             localStorage.setItem('veyronis_user', JSON.stringify(state.user));
-            
+
             window.history.replaceState({}, document.title, window.location.pathname);
-            
+
             document.getElementById('auth-screen').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             initApp();
@@ -594,15 +594,15 @@ function loadConversations() {
             return;
         }
     }
-    
+
     const url = `${state.apiUrl}/conversations?user_id=${encodeURIComponent(state.userId)}`;
     const headers = {};
     if (state.token) {
         headers['Authorization'] = `Bearer ${state.token}`;
     }
-    
+
     console.log('[Sidebar] Loading conversations for user:', state.userId);
-    
+
     fetch(url, { headers })
         .then(r => {
             if (!r.ok) {
@@ -616,10 +616,10 @@ function loadConversations() {
         .then(data => {
             const convs = data.conversations || [];
             console.log('[Sidebar] Loaded', convs.length, 'conversations');
-            
+
             const today = [], yesterday = [], week = [];
             const now = new Date();
-            
+
             convs.forEach(c => {
                 const d = new Date(c.updated_at);
                 const diffDays = (now - d) / (1000 * 60 * 60 * 24);
@@ -628,14 +628,14 @@ function loadConversations() {
                 else if (diffDays < 2) yesterday.push(html);
                 else if (diffDays < 8) week.push(html);
             });
-            
-            document.getElementById('conv-list-today').innerHTML = 
+
+            document.getElementById('conv-list-today').innerHTML =
                 today.join('') || '<div class="conv-empty">No chats today</div>';
-            document.getElementById('conv-list-yesterday').innerHTML = 
+            document.getElementById('conv-list-yesterday').innerHTML =
                 yesterday.join('') || '';
-            document.getElementById('conv-list-week').innerHTML = 
+            document.getElementById('conv-list-week').innerHTML =
                 week.join('') || '';
-            
+
             if (convs.length && !state.conversationId && !state.isNewChat) {
                 switchConversation(convs[0].id);
             } else if (!convs.length) {
@@ -645,7 +645,7 @@ function loadConversations() {
         })
         .catch(err => {
             console.error('[Sidebar] Error loading conversations:', err);
-            document.getElementById('conv-list-today').innerHTML = 
+            document.getElementById('conv-list-today').innerHTML =
                 '<div class="conv-error">⚠️ Could not load chats</div>';
         });
 }
@@ -930,7 +930,11 @@ function triggerDocumentUpload() {
             const data = await res.json();
             if (res.ok) {
                 toast(`Document ready: ${data.extracted_length} chars`, 'success');
-                if (!state.conversationId && data.conversation_id) { state.conversationId = data.conversation_id; loadConversations(); }
+                // ─── SIDEBAR FIX: set conversation ID and refresh ───
+                if (!state.conversationId && data.conversation_id) {
+                    state.conversationId = data.conversation_id;
+                    loadConversations();
+                }
                 state.pendingDocContent = data.content || data.preview || '';
                 state.pendingDocFilename = data.filename || file.name;
                 showDocPreview(state.pendingDocFilename);
@@ -989,7 +993,10 @@ async function handleDroppedFile(file) {
         const data = await res.json();
         if (res.ok) {
             toast(`Document ready: ${data.extracted_length} chars`, 'success');
-            if (!state.conversationId && data.conversation_id) { state.conversationId = data.conversation_id; loadConversations(); }
+            if (!state.conversationId && data.conversation_id) {
+                state.conversationId = data.conversation_id;
+                loadConversations();
+            }
             state.pendingDocContent = data.content || data.preview || '';
             state.pendingDocFilename = data.filename || file.name;
             showDocPreview(state.pendingDocFilename);
@@ -1225,9 +1232,8 @@ function renderCitations(aiId, citations) {
 function updateResearchProgress(aiId, stepData) {
     const thinkingEl = document.getElementById('thinking-' + aiId);
     if (!thinkingEl) return;
-    // Add research mode class
     thinkingEl.classList.add('research-mode');
-    
+
     const phases = {
         planning: { icon: '📋', label: 'Planning' },
         planned: { icon: '✅', label: 'Planned' },
@@ -1235,18 +1241,18 @@ function updateResearchProgress(aiId, stepData) {
         synthesizing: { icon: '🧠', label: 'Synthesizing' },
     };
     const cfg = phases[stepData.phase] || { icon: '⏳', label: 'Working' };
-    
+
     let progressHtml = `<div class="research-progress">`;
     progressHtml += `<div class="research-step ${stepData.phase === 'planning' || stepData.phase === 'planned' ? 'active' : 'done'}">1. Plan</div>`;
     progressHtml += `<div class="research-step ${stepData.phase === 'searching' ? 'active' : stepData.phase === 'synthesizing' ? 'done' : ''}">2. Search</div>`;
     progressHtml += `<div class="research-step ${stepData.phase === 'synthesizing' ? 'active' : ''}">3. Synthesize</div>`;
     progressHtml += `</div>`;
-    
+
     let msg = stepData.message || '';
     if (stepData.phase === 'searching' && stepData.current && stepData.total) {
         msg += ` (${stepData.current}/${stepData.total})`;
     }
-    
+
     thinkingEl.innerHTML = `
         <div class="thinking-text">${cfg.icon} ${cfg.label}</div>
         ${progressHtml}
@@ -1255,11 +1261,9 @@ function updateResearchProgress(aiId, stepData) {
 }
 
 function hideResearchProgress(aiId) {
-    // Remove research mode from thinking indicator
     const thinkingEl = document.getElementById('thinking-' + aiId);
     if (thinkingEl) {
         thinkingEl.classList.remove('research-mode');
-        // Reset to default thinking text
         thinkingEl.innerHTML = `
             <span class="thinking-text">VEYRONIS is thinking</span>
             <span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
@@ -1317,7 +1321,6 @@ function addAiShell() {
     const div = document.createElement('div');
     div.className = 'msg ai';
     div.id = id;
-    // New thinking indicator (replaces think-block)
     div.innerHTML = `<div class="msg-avatar">V</div><div class="msg-body">
         <div class="thinking-indicator" id="thinking-${id}">
             <span class="thinking-text">VEYRONIS is thinking</span>
@@ -1354,7 +1357,6 @@ function addAiShell() {
 function addAiText(id, text) {
     const el = document.getElementById('text-' + id);
     if (el) renderMarkdown(el, text);
-    // Hide thinking indicator once we have content
     const thinkingEl = document.getElementById('thinking-' + id);
     if (thinkingEl) {
         thinkingEl.style.display = 'none';
@@ -1471,7 +1473,7 @@ function speakMsg(id) {
 
 function regenerateMsg(aiId) {
     stopSpeaking();
-    
+
     const aiMsg = document.getElementById(aiId);
     if (!aiMsg) return;
     let userMsg = aiMsg.previousElementSibling;
@@ -1486,7 +1488,6 @@ function regenerateMsg(aiId) {
     if (textEl) textEl.textContent = '';
     if (thinkingEl) {
         thinkingEl.style.display = 'flex';
-        // Reset to thinking state
         thinkingEl.innerHTML = `
             <span class="thinking-text">Regenerating...</span>
             <span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
@@ -1539,7 +1540,7 @@ function regenerateMsg(aiId) {
                     try {
                         const data = JSON.parse(jsonStr);
                         if (data.type === 'reasoning') {
-                            // Ignore reasoning – we no longer show it
+                            // ignored
                         } else if (data.type === 'token') {
                             if (firstToken) {
                                 firstToken = false;
@@ -1722,7 +1723,7 @@ async function sendMessage() {
     const controller = state.abortController;
     const timeoutId = setTimeout(() => controller.abort(), 60000);
     updateSendButton();
-    
+
     showLoading('Thinking...');
 
     try {
@@ -1744,10 +1745,10 @@ async function sendMessage() {
             body: JSON.stringify(requestBody)
         });
         clearTimeout(timeoutId);
-        if (!response.ok) { 
+        if (!response.ok) {
             hideLoading();
-            const errData = await response.json().catch(() => ({})); 
-            throw new Error(errData.detail || 'Server error'); 
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.detail || 'Server error');
         }
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -1766,7 +1767,7 @@ async function sendMessage() {
                 try {
                     const data = JSON.parse(jsonStr);
                     if (data.type === 'reasoning') {
-                        // Ignore reasoning – we don't display it
+                        // ignored
                     } else if (data.type === 'token') {
                         if (firstToken) {
                             firstToken = false;
@@ -1788,9 +1789,17 @@ async function sendMessage() {
                             renderMarkdown(textEl, fullResponse);
                             renderCitations(aiId, state.citations[aiId]);
                         }
-                        if (data.conversation_id && !state.conversationId) { state.conversationId = data.conversation_id; loadConversations(); }
+                        // ─── SIDEBAR FIX: set conversation ID and refresh ───
+                        if (data.conversation_id && !state.conversationId) {
+                            state.conversationId = data.conversation_id;
+                            loadConversations();
+                        }
                         if (data.tier === 'pro') setProUi();
-                        else { state.msgCount++; const disclaimer = document.getElementById('input-disclaimer'); if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`; }
+                        else {
+                            state.msgCount++;
+                            const disclaimer = document.getElementById('input-disclaimer');
+                            if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`;
+                        }
                         if (state.autoTts && state.ttsEnabled) {
                             setTimeout(() => {
                                 const speakBtn = document.getElementById('speak-' + aiId);
@@ -1860,7 +1869,7 @@ function loadHistory() {
         headers['Authorization'] = `Bearer ${state.token}`;
     }
     console.log('Loading history for user:', state.userId);
-    
+
     const msgsContainer = document.getElementById('messages');
     if (msgsContainer && msgsContainer.children.length === 0) {
         msgsContainer.innerHTML = `
@@ -1875,7 +1884,7 @@ function loadHistory() {
             </div>
         `;
     }
-    
+
     fetch(url, { headers })
         .then(r => {
             if (!r.ok) throw new Error('Failed to load history');
@@ -1884,9 +1893,9 @@ function loadHistory() {
         .then(data => {
             const msgs = data.messages || [];
             msgsContainer.innerHTML = '';
-            if (!msgs.length) { 
-                showEmpty(true); 
-                if (state.user?.is_pro) setProUi(); 
+            if (!msgs.length) {
+                showEmpty(true);
+                if (state.user?.is_pro) setProUi();
             } else {
                 showEmpty(false);
                 msgs.forEach(m => {
@@ -2260,20 +2269,21 @@ function toast(msg, type) {
     }, 3000);
 }
 
-// ─── ATTACHMENTS ───
+// ─── ATTACHMENTS SHEET ───
 
 async function viewAttachments() {
     if (!state.conversationId) {
         toast('No conversation to view attachments', 'error');
         return;
     }
-    const modal = document.getElementById('attachments-modal');
+    const sheet = document.getElementById('attachments-sheet');
     const list = document.getElementById('attachments-list');
-    if (!modal || !list) return;
-    
-    modal.classList.remove('hidden');
-    list.innerHTML = '<p style="color: var(--text-muted); font-size: 14px;">Loading...</p>';
-    
+    if (!sheet || !list) return;
+
+    // Show sheet with loading state
+    sheet.classList.remove('hidden');
+    list.innerHTML = '<p style="color: var(--text-muted); font-size: 14px; text-align: center; padding: 20px 0;">Loading...</p>';
+
     try {
         const headers = {};
         if (state.token) {
@@ -2281,44 +2291,49 @@ async function viewAttachments() {
         }
         const res = await fetch(`${state.apiUrl}/attachments?conversation_id=${state.conversationId}`, { headers });
         const data = await res.json();
-        
+
         if (!res.ok) {
-            list.innerHTML = `<p style="color: #ef4444;">Error: ${data.detail || 'Could not load attachments'}</p>`;
+            list.innerHTML = `<p style="color: #ef4444; text-align: center; padding: 20px 0;">Error: ${data.detail || 'Could not load attachments'}</p>`;
             return;
         }
-        
+
         const attachments = data.attachments || [];
         if (attachments.length === 0) {
-            list.innerHTML = '<p style="color: var(--text-muted); font-size: 14px;">No files attached to this conversation.</p>';
+            list.innerHTML = '<p style="color: var(--text-muted); font-size: 14px; text-align: center; padding: 20px 0;">No files attached to this conversation.</p>';
             return;
         }
-        
-        let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+
+        let html = '';
         attachments.forEach(att => {
             const url = att.cloudinary_url || '#';
             const icon = att.file_type === 'image' ? '🖼️' : '📄';
             const size = att.size ? (att.size / 1024).toFixed(1) + ' KB' : '';
+
+            // For images, show thumbnail
+            const thumbHtml = (att.file_type === 'image' && url !== '#') ?
+                `<img src="${url}" class="attachment-thumb" onclick="event.stopPropagation(); openLightbox('${url}')" alt="${escapeHtml(att.filename)}">` :
+                `<span class="attachment-icon">${icon}</span>`;
+
             html += `
-                <div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--glass-bg); border-radius: var(--radius); border: 1px solid var(--glass-border);">
-                    <span style="font-size: 20px;">${icon}</span>
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="font-weight: 600; font-size: 14px; color: var(--text); word-break: break-word;">${escapeHtml(att.filename)}</div>
-                        <div style="font-size: 11px; color: var(--text-muted);">${att.file_type || 'document'} ${size ? '· ' + size : ''}</div>
+                <div class="attachment-item">
+                    ${thumbHtml}
+                    <div class="attachment-info">
+                        <div class="attachment-name">${escapeHtml(att.filename)}</div>
+                        <div class="attachment-meta">${att.file_type || 'document'} ${size ? '· ' + size : ''}</div>
                     </div>
-                    ${url !== '#' ? `<a href="${url}" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; padding: 4px 8px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm);">Open</a>` : ''}
+                    ${url !== '#' ? `<a href="${url}" target="_blank" rel="noopener" class="attachment-open">Open</a>` : ''}
                 </div>
             `;
         });
-        html += '</div>';
         list.innerHTML = html;
     } catch (err) {
-        list.innerHTML = `<p style="color: #ef4444;">Failed to load attachments: ${err.message}</p>`;
+        list.innerHTML = `<p style="color: #ef4444; text-align: center; padding: 20px 0;">Failed to load attachments: ${err.message}</p>`;
     }
 }
 
-function closeAttachmentsModal() {
-    const modal = document.getElementById('attachments-modal');
-    if (modal) modal.classList.add('hidden');
+function closeAttachmentsSheet() {
+    const sheet = document.getElementById('attachments-sheet');
+    if (sheet) sheet.classList.add('hidden');
 }
 
 // ─── HINDSIGHT SIMULATION ───
@@ -2474,7 +2489,7 @@ function renderHindsightTimeline(container, jsonString) {
 async function deleteAccount() {
     if (!confirm('⚠️ Are you sure you want to delete your account? This cannot be undone.')) return;
     if (!confirm('All your conversations and data will be permanently removed. Proceed?')) return;
-    
+
     showLoading('Deleting account...');
     try {
         const res = await fetch(`${state.apiUrl}/account`, {
@@ -2507,15 +2522,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.location.hash && window.location.hash.includes('auth=')) {
         handleGoogleCallback();
     }
-    
+
     const authScreen = document.getElementById('auth-screen');
     const appElement = document.getElementById('app');
-    
+
     if (!authScreen || !appElement) {
         console.warn('Auth screen or app element missing');
         return;
     }
-    
+
     const loggedIn = checkAuth();
     if (!loggedIn) {
         authScreen.classList.remove('hidden');
