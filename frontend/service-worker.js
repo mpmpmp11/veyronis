@@ -1,8 +1,8 @@
-const CACHE_NAME = 'veyronis-v1.3-hindsight';
+const CACHE_NAME = 'veyronis-v1.4';
 const STATIC_ASSETS = [
     '/',
-    '/static/style.css',
-    '/static/app.js',
+    '/static/style.css?v=1.4',
+    '/static/app.js?v=1.4',
     'https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js',
     'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js',
     'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css',

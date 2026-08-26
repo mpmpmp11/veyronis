@@ -981,6 +981,7 @@ function initTextarea() {
         ta.style.height = 'auto';
         ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
         updateSendButton();
+        updateChatPadding();
     });
     ta.addEventListener('keydown', e => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -1034,6 +1035,33 @@ function scrollBottom() {
     if (sc) sc.scrollTo({ top: 999999, behavior: 'smooth' });
 }
 
+// ─── DYNAMIC INPUT PADDING ───
+
+function updateChatPadding() {
+    const messages = document.getElementById('messages');
+    const inputShell = document.querySelector('.input-shell');
+    if (!messages || !inputShell) return;
+
+    const inputHeight = inputShell.offsetHeight;
+    const paddingBottom = Math.max(inputHeight + 20, 100);
+    messages.style.paddingBottom = paddingBottom + 'px';
+}
+
+let resizeTimeout;
+function debouncedUpdatePadding() {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(updateChatPadding, 100);
+}
+
+window.addEventListener('resize', debouncedUpdatePadding);
+if ('visualViewport' in window) {
+    window.visualViewport.addEventListener('resize', debouncedUpdatePadding);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(updateChatPadding, 200);
+});
+
 function escapeHtml(t) {
     const d = document.createElement('div');
     d.textContent = t;
@@ -1085,6 +1113,7 @@ function showImagePreview(filename, dataUrl) {
     preview.innerHTML = `<img src="${dataUrl}" alt="preview"><span>${escapeHtml(filename)}</span><button class="remove-img" onclick="removeImagePreview()">×</button>`;
     const glass = document.getElementById('input-glass');
     if (glass) glass.insertBefore(preview, glass.firstChild);
+    setTimeout(updateChatPadding, 50);
 }
 
 function removeImagePreview() {
@@ -1093,6 +1122,7 @@ function removeImagePreview() {
     state.pendingImageFilename = null;
     const existing = document.getElementById('img-preview');
     if (existing) existing.remove();
+    setTimeout(updateChatPadding, 50);
     updateSendButton();
 }
 
@@ -1107,6 +1137,7 @@ function showDocPreview(filename) {
     preview.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><span>${escapeHtml(filename)}</span><button class="remove-doc" onclick="removeDocPreview()">×</button>`;
     const glass = document.getElementById('input-glass');
     if (glass) glass.insertBefore(preview, glass.firstChild);
+    setTimeout(updateChatPadding, 50);
 }
 
 function removeDocPreview() {
@@ -1114,6 +1145,7 @@ function removeDocPreview() {
     state.pendingDocFilename = null;
     const existing = document.getElementById('doc-preview');
     if (existing) existing.remove();
+    setTimeout(updateChatPadding, 50);
     updateSendButton();
 }
 
@@ -1152,6 +1184,7 @@ function triggerDocumentUpload() {
                 state.pendingDocContent = data.content || data.preview || '';
                 state.pendingDocFilename = data.filename || file.name;
                 showDocPreview(state.pendingDocFilename);
+                setTimeout(updateChatPadding, 50);
                 updateSendButton();
             } else {
                 toast(data.detail || 'Upload failed', 'error');
@@ -1214,6 +1247,7 @@ async function handleDroppedFile(file) {
             state.pendingDocContent = data.content || data.preview || '';
             state.pendingDocFilename = data.filename || file.name;
             showDocPreview(state.pendingDocFilename);
+            setTimeout(updateChatPadding, 50);
             updateSendButton();
         } else toast(data.detail || 'Upload failed', 'error');
     } catch (err) { toast('Upload failed', 'error'); }
@@ -1497,6 +1531,7 @@ function addUserMsg(text, id) {
     const msgs = document.getElementById('messages');
     if (msgs) msgs.appendChild(div);
     scrollBottom();
+    setTimeout(updateChatPadding, 50);
     return mid;
 }
 
@@ -1511,6 +1546,7 @@ function addUserImageMsg(text, dataUrl, filename, id) {
     const msgs = document.getElementById('messages');
     if (msgs) msgs.appendChild(div);
     scrollBottom();
+    setTimeout(updateChatPadding, 50);
     return mid;
 }
 
@@ -1526,6 +1562,7 @@ function addHistoricalImageMsg(text, dataUrl, id) {
     const msgs = document.getElementById('messages');
     if (msgs) msgs.appendChild(div);
     scrollBottom();
+    setTimeout(updateChatPadding, 50);
     return mid;
 }
 
@@ -1565,6 +1602,7 @@ function addAiShell() {
     const msgs = document.getElementById('messages');
     if (msgs) msgs.appendChild(div);
     scrollBottom();
+    setTimeout(updateChatPadding, 50);
     return id;
 }
 
@@ -1914,9 +1952,11 @@ async function sendMessage() {
     }
     input.value = '';
     input.style.height = 'auto';
+    updateChatPadding();
     const sendBtn = document.getElementById('send-btn');
     if (sendBtn) sendBtn.disabled = true;
     const aiId = addAiShell();
+    setTimeout(updateChatPadding, 50);
     const textEl = document.getElementById('text-' + aiId);
     const thinkingEl = document.getElementById('thinking-' + aiId);
     if (state.model === 'research' && thinkingEl) {
@@ -2003,6 +2043,7 @@ async function sendMessage() {
                             renderMarkdown(textEl, fullResponse);
                             renderCitations(aiId, state.citations[aiId]);
                         }
+                        setTimeout(updateChatPadding, 100);
                         // ─── SIDEBAR FIX: set conversation ID and refresh ───
                         if (data.conversation_id && !state.conversationId) {
                             state.conversationId = data.conversation_id;
@@ -2134,6 +2175,7 @@ function loadHistory() {
                 }
             }
             scrollBottom();
+            setTimeout(updateChatPadding, 100);
             refreshUserInfo();
         })
         .catch(err => {
@@ -2609,6 +2651,7 @@ async function runHindsightSimulation(scenario) {
     }
     addUserMsg('🔮 ' + scenario);
     const aiId = addAiShell();
+    setTimeout(updateChatPadding, 50);
     const textEl = document.getElementById('text-' + aiId);
     const thinkingEl = document.getElementById('thinking-' + aiId);
     if (thinkingEl) {
