@@ -34,18 +34,18 @@ def ensure_google_columns():
     conn = get_db()
     cursor = conn.execute("PRAGMA table_info(users)")
     columns = [row["name"] for row in cursor.fetchall()]
-    
+
     if "google_id" not in columns:
         conn.execute("ALTER TABLE users ADD COLUMN google_id TEXT")
         print("[VEYRONIS] Added google_id column to users")
-    
+
     if "avatar_url" not in columns:
         conn.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
         print("[VEYRONIS] Added avatar_url column to users")
-    
+
     conn.commit()
     conn.close()
-    
+
     try:
         conn = get_db()
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL")
@@ -61,7 +61,7 @@ def ensure_auth_columns():
     conn = get_db()
     cursor = conn.execute("PRAGMA table_info(users)")
     columns = [row["name"] for row in cursor.fetchall()]
-    
+
     if "verification_token" not in columns:
         conn.execute("ALTER TABLE users ADD COLUMN verification_token TEXT")
         print("[VEYRONIS] Added verification_token column")
@@ -77,7 +77,7 @@ def ensure_auth_columns():
     if "reset_token_expires" not in columns:
         conn.execute("ALTER TABLE users ADD COLUMN reset_token_expires TIMESTAMP")
         print("[VEYRONIS] Added reset_token_expires column")
-    
+
     conn.commit()
     conn.close()
 
@@ -117,6 +117,17 @@ def ensure_usage_table():
     conn.close()
     print("[VEYRONIS] Usage logs table ready")
 
+def ensure_archive_column():
+    """Migrate conversations table to add is_archived column."""
+    conn = get_db()
+    cursor = conn.execute("PRAGMA table_info(conversations)")
+    columns = [row["name"] for row in cursor.fetchall()]
+    if "is_archived" not in columns:
+        conn.execute("ALTER TABLE conversations ADD COLUMN is_archived BOOLEAN DEFAULT 0")
+        conn.commit()
+        print("[VEYRONIS] Added is_archived column to conversations")
+    conn.close()
+
 def init_db():
     conn = get_db()
     conn.execute("""
@@ -125,7 +136,8 @@ def init_db():
             user_id TEXT NOT NULL,
             title TEXT NOT NULL DEFAULT 'New Chat',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_archived BOOLEAN DEFAULT 0
         )
     """)
     conn.execute("""
@@ -201,19 +213,57 @@ def create_conversation(user_id: str, title: str = "New Chat") -> int:
     conn.close()
     return cid
 
-def get_conversations(user_id: str) -> List[Dict[str, Any]]:
+def get_conversations(user_id: str, include_archived: bool = False) -> List[Dict[str, Any]]:
+    conn = get_db()
+    if include_archived:
+        cursor = conn.execute(
+            "SELECT id, title, created_at, updated_at, is_archived FROM conversations WHERE user_id = ? ORDER BY updated_at DESC",
+            (user_id,)
+        )
+    else:
+        cursor = conn.execute(
+            "SELECT id, title, created_at, updated_at, is_archived FROM conversations WHERE user_id = ? AND is_archived = 0 ORDER BY updated_at DESC",
+            (user_id,)
+        )
+    rows = cursor.fetchall()
+    conn.close()
+    return [{"id": r["id"], "title": r["title"], "created_at": r["created_at"], "updated_at": r["updated_at"], "is_archived": bool(r["is_archived"])} for r in rows]
+
+def get_archived_conversations(user_id: str) -> List[Dict[str, Any]]:
     conn = get_db()
     cursor = conn.execute(
-        "SELECT id, title, created_at, updated_at FROM conversations WHERE user_id = ? ORDER BY updated_at DESC",
+        "SELECT id, title, created_at, updated_at, is_archived FROM conversations WHERE user_id = ? AND is_archived = 1 ORDER BY updated_at DESC",
         (user_id,)
     )
     rows = cursor.fetchall()
     conn.close()
-    return [{"id": r["id"], "title": r["title"], "created_at": r["created_at"], "updated_at": r["updated_at"]} for r in rows]
+    return [{"id": r["id"], "title": r["title"], "created_at": r["created_at"], "updated_at": r["updated_at"], "is_archived": bool(r["is_archived"])} for r in rows]
 
 def rename_conversation(conversation_id: int, title: str) -> bool:
     conn = get_db()
     cursor = conn.execute("UPDATE conversations SET title = ? WHERE id = ?", (title, conversation_id))
+    conn.commit()
+    changed = cursor.rowcount > 0
+    conn.close()
+    return changed
+
+def archive_conversation(conversation_id: int, user_id: str) -> bool:
+    conn = get_db()
+    cursor = conn.execute(
+        "UPDATE conversations SET is_archived = 1 WHERE id = ? AND user_id = ?",
+        (conversation_id, user_id)
+    )
+    conn.commit()
+    changed = cursor.rowcount > 0
+    conn.close()
+    return changed
+
+def unarchive_conversation(conversation_id: int, user_id: str) -> bool:
+    conn = get_db()
+    cursor = conn.execute(
+        "UPDATE conversations SET is_archived = 0 WHERE id = ? AND user_id = ?",
+        (conversation_id, user_id)
+    )
     conn.commit()
     changed = cursor.rowcount > 0
     conn.close()
@@ -266,13 +316,13 @@ def delete_attachment(attachment_id: int, user_id: str) -> bool:
 
 def create_user(email: str, hashed_password: str = None, google_id: str = None, avatar_url: str = None) -> int:
     conn = get_db()
-    
+
     if google_id:
         existing = conn.execute("SELECT id FROM users WHERE google_id = ?", (google_id,)).fetchone()
         if existing:
             conn.close()
             return existing["id"]
-        
+
         existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
         if existing:
             conn.execute(
@@ -282,7 +332,7 @@ def create_user(email: str, hashed_password: str = None, google_id: str = None, 
             conn.commit()
             conn.close()
             return existing["id"]
-        
+
         cursor = conn.execute(
             "INSERT INTO users (email, google_id, avatar_url, is_pro) VALUES (?, ?, ?, 0)",
             (email, google_id, avatar_url)
@@ -294,7 +344,7 @@ def create_user(email: str, hashed_password: str = None, google_id: str = None, 
             "INSERT INTO users (email, hashed_password) VALUES (?, ?)",
             (email, hashed_password)
         )
-    
+
     conn.commit()
     user_id = cursor.lastrowid
     conn.close()
@@ -352,8 +402,8 @@ def delete_user(user_id: int) -> bool:
         if not user:
             return False
         email = user["email"]
-        
-        # Delete attachments, messages, conversations
+
+        # Delete attachments, messages, conversations (covers archived too)
         conn.execute("""
             DELETE FROM attachments WHERE conversation_id IN 
             (SELECT id FROM conversations WHERE user_id = ?)
@@ -466,3 +516,4 @@ ensure_google_columns()
 ensure_auth_columns()
 ensure_attachments_table()
 ensure_usage_table()
+ensure_archive_column()

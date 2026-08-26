@@ -26,7 +26,8 @@ from database import (
     delete_user, get_user_by_verification_token, verify_user,
     set_verification_token, set_reset_token, get_user_by_reset_token,
     clear_reset_token, get_db,
-    save_attachment, get_attachments,  # <-- NEW
+    save_attachment, get_attachments,
+    get_archived_conversations, archive_conversation, unarchive_conversation,  # <-- ARCHIVE
 )
 from settings import Config
 import base64
@@ -126,13 +127,13 @@ app = FastAPI(title="VEYRONIS API")
 async def https_redirect_middleware(request: Request, call_next):
     forwarded_proto = request.headers.get("x-forwarded-proto")
     host = request.headers.get("host", "")
-    
+
     if forwarded_proto == "http" and ("onrender.com" in host or "railway.app" in host):
         https_url = f"https://{host}{request.url.path}"
         if request.url.query:
             https_url += f"?{request.url.query}"
         return RedirectResponse(https_url, status_code=301)
-    
+
     return await call_next(request)
 
 # ─── CORS — Restricted ───
@@ -258,7 +259,7 @@ async def register(req: RegisterRequest, request: Request):
     client_ip = request.client.host
     if not _check_rate_limit(client_ip, max_requests=3, window_seconds=300):
         raise HTTPException(429, detail="Too many registration attempts. Try again later.")
-    
+
     try:
         if "@" not in req.email or "." not in req.email:
             raise HTTPException(400, detail="Invalid email address")
@@ -270,7 +271,7 @@ async def register(req: RegisterRequest, request: Request):
         hashed = get_password_hash(req.password)
         user_id = create_user(req.email, hashed)
         token = create_access_token({"sub": str(user_id)})
-        
+
         # Send verification email
         if Config.email_ready():
             verification_token = secrets.token_urlsafe(32)
@@ -280,7 +281,7 @@ async def register(req: RegisterRequest, request: Request):
             success = send_verification_email(req.email, verification_token, base_url)
             if not success:
                 print(f"[VEYRONIS] Verification email failed to send for {req.email}")
-        
+
         return TokenResponse(
             access_token=token,
             token_type="bearer",
@@ -298,7 +299,7 @@ async def login(req: LoginRequest, request: Request):
     client_ip = request.client.host
     if not _check_rate_limit(client_ip, max_requests=5, window_seconds=60):
         raise HTTPException(429, detail="Too many login attempts. Try again later.")
-    
+
     try:
         user = get_user_by_email(req.email)
         if not user:
@@ -365,22 +366,22 @@ async def forgot_password(request: Request):
     if not Config.email_ready():
         # Return a friendly message even if email not configured
         return {"message": "If this email exists, a reset link has been sent."}
-    
+
     try:
         data = await request.json()
         email = data.get("email", "").strip()
         if not email:
             raise HTTPException(400, detail="Email is required")
-        
+
         user = get_user_by_email(email)
         if not user:
             # Always return success to avoid user enumeration
             return {"message": "If this email exists, a reset link has been sent."}
-        
+
         token = secrets.token_urlsafe(32)
         expires = datetime.utcnow() + timedelta(hours=1)
         set_reset_token(email, token, expires)
-        
+
         base_url = Config.APP_BASE_URL
         success = send_reset_email(email, token, base_url)
         if not success:
@@ -396,23 +397,23 @@ async def reset_password(request: Request):
         data = await request.json()
         token = data.get("token", "").strip()
         new_password = data.get("new_password", "").strip()
-        
+
         if not token or not new_password:
             raise HTTPException(400, detail="Token and new password required")
         if len(new_password) < 6:
             raise HTTPException(400, detail="Password must be at least 6 characters")
-        
+
         user = get_user_by_reset_token(token)
         if not user:
             raise HTTPException(400, detail="Invalid or expired token")
-        
+
         hashed = get_password_hash(new_password)
         conn = get_db()
         conn.execute("UPDATE users SET hashed_password = ? WHERE id = ?", (hashed, user["id"]))
         conn.execute("UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?", (user["id"],))
         conn.commit()
         conn.close()
-        
+
         return {"message": "Password reset successfully"}
     except HTTPException:
         raise
@@ -442,15 +443,15 @@ async def verify_email(token: str):
 async def google_login(request: Request):
     if not Config.google_oauth_ready():
         raise HTTPException(503, detail="Google OAuth not configured")
-    
+
     forwarded_host = request.headers.get("x-forwarded-host")
     forwarded_proto = request.headers.get("x-forwarded-proto", "http")
-    
+
     if forwarded_host:
         base_url = f"{forwarded_proto}://{forwarded_host}"
     else:
         base_url = str(request.base_url).rstrip("/")
-    
+
     redirect_uri = f"{base_url}/auth/google/callback"
     auth_url = get_google_auth_url(redirect_uri)
     return RedirectResponse(auth_url)
@@ -459,17 +460,17 @@ async def google_login(request: Request):
 async def google_callback(code: str, request: Request):
     if not Config.google_oauth_ready():
         raise HTTPException(503, detail="Google OAuth not configured")
-    
+
     forwarded_host = request.headers.get("x-forwarded-host")
     forwarded_proto = request.headers.get("x-forwarded-proto", "http")
-    
+
     if forwarded_host:
         base_url = f"{forwarded_proto}://{forwarded_host}"
     else:
         base_url = str(request.base_url).rstrip("/")
-    
+
     redirect_uri = f"{base_url}/auth/google/callback"
-    
+
     try:
         result = await handle_google_callback(code, redirect_uri)
         frontend_url = (
@@ -527,10 +528,10 @@ async def export_conversation(
             return {"conversation_id": conversation_id, "exported_at": datetime.now().isoformat(), "messages": msgs}
         else:
             lines = [
-                f"VEYRONIS Chat Export\n{'='*50}\n",
+                f"VEYRONIS Chat Export\n{"="*50}\n",
                 f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n",
                 f"Conversation ID: {conversation_id}\n",
-                f"{'='*50}\n\n"
+                f"{"="*50}\n\n"
             ]
             for m in msgs:
                 lines.append(f"[{'You' if m['role'] == 'user' else 'VEYRONIS'}] {m.get('time', '')}\n{m['content']}\n\n")
@@ -572,7 +573,7 @@ async def patch_conversation(
     req: RenameRequest,
     current_user: dict = Depends(get_current_user_required)
 ):
-    convs = get_conversations(current_user["email"])
+    convs = get_conversations(current_user["email"], include_archived=True)
     if not any(c["id"] == conversation_id for c in convs):
         raise HTTPException(403, detail="Access denied")
     if not req.title.strip():
@@ -593,7 +594,7 @@ async def remove_conversation(
     conversation_id: int,
     current_user: dict = Depends(get_current_user_required)
 ):
-    convs = get_conversations(current_user["email"])
+    convs = get_conversations(current_user["email"], include_archived=True)
     if not any(c["id"] == conversation_id for c in convs):
         raise HTTPException(403, detail="Access denied")
     try:
@@ -602,6 +603,44 @@ async def remove_conversation(
     except Exception as e:
         print(f"[DELETE CONV ERROR] {e}")
         raise HTTPException(500, detail="Delete failed")
+
+# ─── ARCHIVE ENDPOINTS ───
+
+@app.patch("/conversations/{conversation_id}/archive")
+async def archive_conv_endpoint(
+    conversation_id: int,
+    current_user: dict = Depends(get_current_user_required)
+):
+    convs = get_conversations(current_user["email"], include_archived=True)
+    if not any(c["id"] == conversation_id for c in convs):
+        raise HTTPException(403, detail="Access denied")
+    ok = archive_conversation(conversation_id, current_user["email"])
+    if not ok:
+        raise HTTPException(404, detail="Conversation not found")
+    return {"status": "archived"}
+
+@app.patch("/conversations/{conversation_id}/unarchive")
+async def unarchive_conv_endpoint(
+    conversation_id: int,
+    current_user: dict = Depends(get_current_user_required)
+):
+    convs = get_conversations(current_user["email"], include_archived=True)
+    if not any(c["id"] == conversation_id for c in convs):
+        raise HTTPException(403, detail="Access denied")
+    ok = unarchive_conversation(conversation_id, current_user["email"])
+    if not ok:
+        raise HTTPException(404, detail="Conversation not found")
+    return {"status": "unarchived"}
+
+@app.get("/conversations/archived")
+async def list_archived_conversations(
+    current_user: dict = Depends(get_current_user_required)
+):
+    try:
+        return {"conversations": get_archived_conversations(current_user["email"])}
+    except Exception as e:
+        print(f"[ARCHIVED CONV ERROR] {e}")
+        raise HTTPException(500, detail="Could not load archived conversations")
 
 @app.post("/clear")
 async def clear_chat(
@@ -629,10 +668,10 @@ async def list_attachments(
 ):
     """Return all attachments for the given conversation (user must own it)."""
     # Verify the conversation belongs to the user
-    convs = get_conversations(current_user["email"])
+    convs = get_conversations(current_user["email"], include_archived=True)
     if not any(c["id"] == conversation_id for c in convs):
         raise HTTPException(403, detail="Access denied")
-    
+
     attachments = get_attachments(current_user["email"], conversation_id)
     return {"attachments": attachments}
 
@@ -648,14 +687,14 @@ async def upload_document(
     client_ip = request.client.host if request else "unknown"
     if not _check_rate_limit(client_ip, max_requests=10, window_seconds=60):
         raise HTTPException(429, detail="Too many uploads. Slow down.")
-    
+
     if not user_id:
         user_id = "u_auto_" + str(int(time.time()))
-    
+
     try:
         content = await file.read()
         cloudinary_url = None
-        
+
         if Config.cloudinary_ready():
             try:
                 upload_result = cloudinary.uploader.upload(
@@ -672,9 +711,9 @@ async def upload_document(
             except Exception as e:
                 print(f"[CLOUDINARY ERROR] {e}")
                 cloudinary_url = None
-        
+
         text = DocumentParser.extract_text(content, file.filename)
-        
+
         gemini_analysis = None
         try:
             if Config.gemini_ready() and orchestrator.gemini_agent:
@@ -684,10 +723,10 @@ async def upload_document(
                 )
         except Exception as e:
             print(f"[VEYRONIS] Gemini doc analysis failed: {e}")
-        
+
         if not conversation_id:
             conversation_id = create_conversation(user_id, title=file.filename)
-        
+
         # ─── SAVE ATTACHMENT RECORD ───
         # Determine file type
         file_type = "image" if file.content_type and file.content_type.startswith("image/") else "document"
@@ -701,7 +740,7 @@ async def upload_document(
             size=len(content),
             mime_type=file.content_type
         )
-        
+
         response = {
             "filename": file.filename,
             "extracted_length": len(text),
@@ -730,11 +769,11 @@ async def chat(
         msg = request.message.strip()
         user_id = request.user_id.strip()
         conversation_id = request.conversation_id
-        
+
         client_ip = req.client.host
         if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
             raise HTTPException(429, detail="Rate limit exceeded. Please slow down.")
-        
+
         # ─── Determine user and pro status ───
         if current_user:
             user_id = current_user["email"]
@@ -784,14 +823,14 @@ async def chat(
             raise HTTPException(403, detail="Canvas is a Pro feature")
         if not is_pro and not check_free_limit(client_ip):
             raise HTTPException(429, detail="FREE LIMIT reached (IP-based)")
-        
+
         if not conversation_id:
             title = msg[:40] + ("..." if len(msg) > 40 else "") if msg else "Image upload"
             conversation_id = create_conversation(user_id, title=title)
         image_data_url = _b64_to_data_url(request.image) if request.image else None
         user_content = msg or "[Image uploaded for analysis]"
         save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
-        
+
         result = orchestrator.process_pipeline(
             msg, mode=request.mode, user_id=user_id, conversation_id=conversation_id,
             image_b64=request.image, model_mode=request.model_mode, ai_model=request.ai_model,
@@ -825,13 +864,13 @@ async def chat_stream(
         msg = request.message.strip()
         user_id = request.user_id.strip()
         conversation_id = request.conversation_id
-        
+
         client_ip = req.client.host
         if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
             async def rate_limit_error():
                 yield f"data: {json.dumps({'type': 'error', 'content': 'Rate limit exceeded. Please slow down.'})}\n\n"
             return StreamingResponse(rate_limit_error(), media_type="text/event-stream")
-        
+
         # ─── Determine user and pro status ───
         if current_user:
             user_id = current_user["email"]
@@ -840,7 +879,7 @@ async def chat_stream(
             is_pro = False
             if not user_id:
                 user_id = "u_" + str(int(time.time()))
-        
+
         today = str(date.today())
         if not is_pro:
             usage = get_usage_count(user_id, today)
@@ -853,7 +892,7 @@ async def chat_stream(
             async def err_gen():
                 yield f"data: {json.dumps({'type': 'error', 'content': 'Canvas is Pro feature'})}\n\n"
             return StreamingResponse(err_gen(), media_type="text/event-stream")
-        
+
         has_image = request.image is not None and len(request.image) > 0
         has_text = len(msg) > 0
         if has_text and not check_input(msg)[0]:
@@ -868,7 +907,7 @@ async def chat_stream(
             async def err_gen():
                 yield f"data: {json.dumps({'type': 'error', 'content': 'Free limit reached'})}\n\n"
             return StreamingResponse(err_gen(), media_type="text/event-stream")
-        
+
         if not conversation_id:
             title = msg[:40] + ("..." if len(msg) > 40 else "") if has_text else "Image upload"
             conversation_id = create_conversation(user_id, title=title)
@@ -944,7 +983,7 @@ async def execute_code(request: Request):
     client_ip = request.client.host
     if not _check_rate_limit(client_ip, max_requests=10, window_seconds=60):
         raise HTTPException(429, detail="Too many code executions. Slow down.")
-    
+
     try:
         data = await request.json()
         code = data.get("code", "").strip()

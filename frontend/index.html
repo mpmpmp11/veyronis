@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
     <base target="_blank">
+<base target="_blank">
 </head>
 <body>
 
@@ -133,6 +134,12 @@
                 <div id="conv-list-yesterday" class="conv-list"></div>
                 <div class="sidebar-section">Previous 7 Days</div>
                 <div id="conv-list-week" class="conv-list"></div>
+                <!-- Archived section -->
+                <div class="sidebar-section" onclick="toggleArchived()" style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between;">
+                    <span>📦 Archived</span>
+                    <span id="archived-chevron" style="font-size: 10px; transition: transform 0.3s;">▼</span>
+                </div>
+                <div id="archived-list" class="conv-list" style="display: none;"></div>
             </div>
             <div class="sidebar-footer">
                 <button class="sidebar-new-chat" onclick="newChat()">

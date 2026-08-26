@@ -564,8 +564,29 @@ function renameCurrentConv() {
 
 function archiveCurrentConv() {
     if (!state.conversationId) { toast('No conversation to archive', 'error'); return; }
-    toast('📦 Archive coming soon!', 'info');
     closeMoreMenu();
+    const headers = {};
+    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+    fetch(`${state.apiUrl}/conversations/${state.conversationId}/archive`, {
+        method: 'PATCH',
+        headers
+    })
+    .then(r => {
+        if (r.ok) {
+            toast('Conversation archived', 'success');
+            state.conversationId = null;
+            document.getElementById('messages').innerHTML = '';
+            showEmpty(true);
+            loadConversations();
+            const archivedList = document.getElementById('archived-list');
+            if (archivedList && archivedList.style.display !== 'none') {
+                loadArchivedConversations();
+            }
+        } else {
+            r.json().then(d => toast(d.detail || 'Failed to archive', 'error')).catch(() => toast('Failed to archive', 'error'));
+        }
+    })
+    .catch(() => toast('Failed to archive', 'error'));
 }
 
 function deleteCurrentConv() {
@@ -718,6 +739,98 @@ function deleteConv(id) {
             } else toast('Failed to delete', 'error');
         })
         .catch(() => toast('Failed to delete', 'error'));
+}
+
+function toggleArchived() {
+    const list = document.getElementById('archived-list');
+    const chevron = document.getElementById('archived-chevron');
+    if (!list) return;
+    const isHidden = list.style.display === 'none';
+    list.style.display = isHidden ? 'block' : 'none';
+    if (chevron) chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+    if (isHidden) loadArchivedConversations();
+}
+
+function loadArchivedConversations() {
+    if (!state.apiUrl) {
+        console.warn('[Archived] No API URL');
+        return;
+    }
+    if (!state.userId) {
+        console.warn('[Archived] No userId set');
+        if (state.user?.email) state.userId = state.user.email;
+        else return;
+    }
+    const url = `${state.apiUrl}/conversations/archived`;
+    const headers = {};
+    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+    fetch(url, { headers })
+        .then(r => {
+            if (!r.ok) {
+                if (r.status === 401) console.warn('[Archived] Auth failed');
+                throw new Error(`HTTP ${r.status}`);
+            }
+            return r.json();
+        })
+        .then(data => {
+            const convs = data.conversations || [];
+            const list = document.getElementById('archived-list');
+            if (!list) return;
+            if (convs.length === 0) {
+                list.innerHTML = '<div class="conv-empty">No archived chats</div>';
+                return;
+            }
+            list.innerHTML = convs.map(c => makeArchivedConvItem(c)).join('');
+        })
+        .catch(err => {
+            console.error('[Archived] Error loading archived conversations:', err);
+            const list = document.getElementById('archived-list');
+            if (list) list.innerHTML = '<div class="conv-error">⚠️ Could not load archived chats</div>';
+        });
+}
+
+function makeArchivedConvItem(c) {
+    const safeTitle = escapeHtml(c.title || 'New Chat').replace(/'/g, "\'");
+    return `<div class="conv-item archived" data-id="${c.id}" style="opacity: 0.7;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span class="conv-title">${safeTitle}</span>
+        <div class="conv-actions">
+            <button class="conv-action" onclick="event.stopPropagation(); unarchiveConv(${c.id})" title="Unarchive">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <polyline points="23 20 23 14 17 14"/>
+                    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                </svg>
+            </button>
+            <button class="conv-action" onclick="event.stopPropagation(); deleteConv(${c.id})" title="Delete">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+            </button>
+        </div>
+    </div>`;
+}
+
+function unarchiveConv(id) {
+    const headers = {};
+    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+    fetch(`${state.apiUrl}/conversations/${id}/unarchive`, {
+        method: 'PATCH',
+        headers
+    })
+    .then(r => {
+        if (r.ok) {
+            toast('Conversation restored', 'success');
+            loadConversations();
+            loadArchivedConversations();
+        } else {
+            r.json().then(d => toast(d.detail || 'Failed to unarchive', 'error')).catch(() => toast('Failed to unarchive', 'error'));
+        }
+    })
+    .catch(() => toast('Failed to unarchive', 'error'));
 }
 
 // ─── MODEL MENUS ───
