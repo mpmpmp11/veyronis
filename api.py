@@ -25,7 +25,8 @@ from database import (
     get_usage_count, increment_usage,
     delete_user, get_user_by_verification_token, verify_user,
     set_verification_token, set_reset_token, get_user_by_reset_token,
-    clear_reset_token, get_db
+    clear_reset_token, get_db,
+    save_attachment, get_attachments,  # <-- NEW
 )
 from settings import Config
 import base64
@@ -157,7 +158,6 @@ orchestrator = CentralOrchestrator()
 hindsight_engine = HindsightEngine()
 
 limits_file = BASE_DIR / "daily_limits.json"
-# PRO_CODES removed – no more bypass
 
 def _b64_to_data_url(b64_string: str) -> str:
     try:
@@ -620,7 +620,23 @@ async def clear_chat(
         print(f"[CLEAR ERROR] {e}")
         raise HTTPException(500, detail="Clear failed")
 
-# ─── UPLOAD ENDPOINT (With Cloudinary) ───
+# ─── ATTACHMENTS ENDPOINT ───
+
+@app.get("/attachments")
+async def list_attachments(
+    conversation_id: int,
+    current_user: dict = Depends(get_current_user_required)
+):
+    """Return all attachments for the given conversation (user must own it)."""
+    # Verify the conversation belongs to the user
+    convs = get_conversations(current_user["email"])
+    if not any(c["id"] == conversation_id for c in convs):
+        raise HTTPException(403, detail="Access denied")
+    
+    attachments = get_attachments(current_user["email"], conversation_id)
+    return {"attachments": attachments}
+
+# ─── UPLOAD ENDPOINT (With Cloudinary + attachment saving) ───
 
 @app.post("/upload")
 async def upload_document(
@@ -672,13 +688,28 @@ async def upload_document(
         if not conversation_id:
             conversation_id = create_conversation(user_id, title=file.filename)
         
+        # ─── SAVE ATTACHMENT RECORD ───
+        # Determine file type
+        file_type = "image" if file.content_type and file.content_type.startswith("image/") else "document"
+        # Save to attachments table
+        attach_id = save_attachment(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            filename=file.filename,
+            cloudinary_url=cloudinary_url,
+            file_type=file_type,
+            size=len(content),
+            mime_type=file.content_type
+        )
+        
         response = {
             "filename": file.filename,
             "extracted_length": len(text),
             "preview": text[:500],
             "content": text[:3000],
             "conversation_id": conversation_id,
-            "cloudinary_url": cloudinary_url
+            "cloudinary_url": cloudinary_url,
+            "attachment_id": attach_id
         }
         if gemini_analysis:
             response["gemini_analysis"] = gemini_analysis

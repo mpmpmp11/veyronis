@@ -658,6 +658,23 @@
         </div>
     </div>
 
+    <!-- ========== ATTACHMENTS MODAL ========== -->
+    <div id="attachments-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="closeAttachmentsModal()"></div>
+        <div class="modal-card glass-strong" style="max-width: 500px;">
+            <div class="modal-header">
+                <div class="modal-title">📎 Attached Files</div>
+                <button class="modal-close" onclick="closeAttachmentsModal()">✕</button>
+            </div>
+            <div class="modal-body" id="attachments-list" style="max-height: 400px; overflow-y: auto;">
+                <p style="color: var(--text-muted); font-size: 14px;">Loading attachments...</p>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="closeAttachmentsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ========== FORGOT PASSWORD MODAL ========== -->
     <div id="forgot-password-modal" class="modal hidden">
         <div class="modal-backdrop" onclick="closeForgotPassword()"></div>

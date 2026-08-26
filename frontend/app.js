@@ -2260,6 +2260,67 @@ function toast(msg, type) {
     }, 3000);
 }
 
+// ─── ATTACHMENTS ───
+
+async function viewAttachments() {
+    if (!state.conversationId) {
+        toast('No conversation to view attachments', 'error');
+        return;
+    }
+    const modal = document.getElementById('attachments-modal');
+    const list = document.getElementById('attachments-list');
+    if (!modal || !list) return;
+    
+    modal.classList.remove('hidden');
+    list.innerHTML = '<p style="color: var(--text-muted); font-size: 14px;">Loading...</p>';
+    
+    try {
+        const headers = {};
+        if (state.token) {
+            headers['Authorization'] = `Bearer ${state.token}`;
+        }
+        const res = await fetch(`${state.apiUrl}/attachments?conversation_id=${state.conversationId}`, { headers });
+        const data = await res.json();
+        
+        if (!res.ok) {
+            list.innerHTML = `<p style="color: #ef4444;">Error: ${data.detail || 'Could not load attachments'}</p>`;
+            return;
+        }
+        
+        const attachments = data.attachments || [];
+        if (attachments.length === 0) {
+            list.innerHTML = '<p style="color: var(--text-muted); font-size: 14px;">No files attached to this conversation.</p>';
+            return;
+        }
+        
+        let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+        attachments.forEach(att => {
+            const url = att.cloudinary_url || '#';
+            const icon = att.file_type === 'image' ? '🖼️' : '📄';
+            const size = att.size ? (att.size / 1024).toFixed(1) + ' KB' : '';
+            html += `
+                <div style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--glass-bg); border-radius: var(--radius); border: 1px solid var(--glass-border);">
+                    <span style="font-size: 20px;">${icon}</span>
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 600; font-size: 14px; color: var(--text); word-break: break-word;">${escapeHtml(att.filename)}</div>
+                        <div style="font-size: 11px; color: var(--text-muted);">${att.file_type || 'document'} ${size ? '· ' + size : ''}</div>
+                    </div>
+                    ${url !== '#' ? `<a href="${url}" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; padding: 4px 8px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm);">Open</a>` : ''}
+                </div>
+            `;
+        });
+        html += '</div>';
+        list.innerHTML = html;
+    } catch (err) {
+        list.innerHTML = `<p style="color: #ef4444;">Failed to load attachments: ${err.message}</p>`;
+    }
+}
+
+function closeAttachmentsModal() {
+    const modal = document.getElementById('attachments-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
 // ─── HINDSIGHT SIMULATION ───
 
 function initSimulationToggle() {

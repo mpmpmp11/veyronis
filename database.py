@@ -81,6 +81,27 @@ def ensure_auth_columns():
     conn.commit()
     conn.close()
 
+def ensure_attachments_table():
+    """Create attachments table for file references per conversation."""
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS attachments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            conversation_id INTEGER,
+            filename TEXT NOT NULL,
+            cloudinary_url TEXT,
+            file_type TEXT,       -- 'image' or 'document'
+            size INTEGER,
+            mime_type TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+        )
+    """)
+    conn.commit()
+    conn.close()
+    print("[VEYRONIS] Attachments table ready")
+
 def ensure_usage_table():
     conn = get_db()
     conn.execute("""
@@ -205,6 +226,42 @@ def delete_conversation(conversation_id: int):
     conn.commit()
     conn.close()
 
+# ─── ATTACHMENTS ───
+
+def save_attachment(user_id: str, conversation_id: int, filename: str, cloudinary_url: str = None,
+                    file_type: str = None, size: int = None, mime_type: str = None) -> int:
+    conn = get_db()
+    cursor = conn.execute("""
+        INSERT INTO attachments (user_id, conversation_id, filename, cloudinary_url, file_type, size, mime_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (user_id, conversation_id, filename, cloudinary_url, file_type, size, mime_type))
+    conn.commit()
+    aid = cursor.lastrowid
+    conn.close()
+    return aid
+
+def get_attachments(user_id: str, conversation_id: int) -> List[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.execute(
+        "SELECT id, filename, cloudinary_url, file_type, size, mime_type, created_at FROM attachments "
+        "WHERE user_id = ? AND conversation_id = ? ORDER BY created_at DESC",
+        (user_id, conversation_id)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def delete_attachment(attachment_id: int, user_id: str) -> bool:
+    conn = get_db()
+    cursor = conn.execute(
+        "DELETE FROM attachments WHERE id = ? AND user_id = ?",
+        (attachment_id, user_id)
+    )
+    conn.commit()
+    deleted = cursor.rowcount > 0
+    conn.close()
+    return deleted
+
 # ─── USERS ───
 
 def create_user(email: str, hashed_password: str = None, google_id: str = None, avatar_url: str = None) -> int:
@@ -296,6 +353,11 @@ def delete_user(user_id: int) -> bool:
             return False
         email = user["email"]
         
+        # Delete attachments, messages, conversations
+        conn.execute("""
+            DELETE FROM attachments WHERE conversation_id IN 
+            (SELECT id FROM conversations WHERE user_id = ?)
+        """, (email,))
         conn.execute("""
             DELETE FROM messages WHERE conversation_id IN 
             (SELECT id FROM conversations WHERE user_id = ?)
@@ -402,4 +464,5 @@ _migrate()
 ensure_users_table()
 ensure_google_columns()
 ensure_auth_columns()
+ensure_attachments_table()
 ensure_usage_table()
