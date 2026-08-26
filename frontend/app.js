@@ -2385,66 +2385,19 @@ function toast(msg, type) {
 // ─── ATTACHMENTS SHEET ───
 
 // Ensure sheet exists; if not, create it.
-function ensureAttachmentsSheet() {
-    let sheet = document.getElementById('attachments-sheet');
-    if (!sheet) {
-        console.warn('[ATTACH] Sheet missing, creating...');
-        sheet = document.createElement('div');
-        sheet.id = 'attachments-sheet';
-        sheet.className = 'attachments-sheet';
-        sheet.style.display = 'none';
-        sheet.style.position = 'fixed';
-        sheet.style.inset = '0';
-        sheet.style.zIndex = '600';
-        sheet.style.pointerEvents = 'none';
-        sheet.innerHTML = `
-            <div class="sheet-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);"></div>
-            <div class="sheet-content" style="position:relative;width:100%;max-width:600px;max-height:80vh;margin:auto auto 0 auto;background:var(--surface);border-radius:var(--radius-xl) var(--radius-xl) 0 0;box-shadow:0 -8px 40px rgba(0,0,0,0.4);transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.16,1,0.3,1);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--glass-border-strong);border-bottom:none;">
-                <div class="sheet-header" style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--glass-border);flex-shrink:0;">
-                    <div class="sheet-title" style="font-size:18px;font-weight:700;color:var(--text);">📎 Attached Files</div>
-                    <button class="sheet-close" onclick="closeAttachmentsSheet()" style="width:32px;height:32px;border-radius:50%;border:none;background:var(--glass-bg);color:var(--text-muted);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
-                </div>
-                <div class="sheet-body" id="attachments-list" style="flex:1;overflow-y:auto;padding:16px 20px;">
-                    <p style="text-align:center;padding:20px;color:var(--text-muted);">Loading...</p>
-                </div>
-                <div class="sheet-footer" style="padding:12px 20px 20px;border-top:1px solid var(--glass-border);flex-shrink:0;display:flex;justify-content:flex-end;">
-                    <button class="sheet-btn" onclick="closeAttachmentsSheet()" style="padding:8px 20px;border-radius:var(--radius);border:1px solid var(--glass-border);background:var(--glass-bg);color:var(--text-secondary);font-size:14px;font-weight:600;cursor:pointer;">Close</button>
-                </div>
-            </div>
-        `;
-        // Append to body
-        document.body.appendChild(sheet);
-        // Add backdrop click handler
-        const backdrop = sheet.querySelector('.sheet-backdrop');
-        if (backdrop) {
-            backdrop.addEventListener('click', closeAttachmentsSheet);
-        }
-        console.log('[ATTACH] Sheet created dynamically.');
-    }
-    return sheet;
-}
-
 async function viewAttachments() {
     console.log('[ATTACH] viewAttachments called');
     if (!state.conversationId) {
         toast('No conversation to view attachments', 'error');
         return;
     }
-    const sheet = ensureAttachmentsSheet();
+    const modal = document.getElementById('attachments-modal');
     const list = document.getElementById('attachments-list');
-    if (!list) {
+    if (!modal || !list) {
         toast('UI error', 'error');
         return;
     }
-
-    // Show sheet with inline style
-    sheet.style.display = 'flex';
-    sheet.style.pointerEvents = 'auto';
-    const content = sheet.querySelector('.sheet-content');
-    if (content) {
-        content.style.transform = 'translateY(0)';
-    }
-
+    modal.classList.remove('hidden');
     list.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-muted);">Loading...</p>';
 
     try {
@@ -2463,11 +2416,11 @@ async function viewAttachments() {
         let html = '';
         attachments.forEach(att => {
             const url = att.cloudinary_url || '#';
-            const icon = att.file_type === 'image' ? '🖼️' : '📄';
-            const size = att.size ? (att.size/1024).toFixed(1)+' KB' : '';
-            const thumb = (att.file_type === 'image' && url !== '#') ?
-                `<img src="${url}" class="attachment-thumb" onclick="event.stopPropagation(); openLightbox('${url}')" alt="${escapeHtml(att.filename)}" style="cursor:zoom-in;width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--glass-border);">` :
-                `<span class="attachment-icon" style="font-size:24px;">${icon}</span>`;
+            const isImage = att.file_type === 'image';
+            const size = att.size ? (att.size > 1024*1024 ? (att.size/1024/1024).toFixed(1)+' MB' : (att.size/1024).toFixed(1)+' KB') : '';
+            const thumb = (isImage && url !== '#') ?
+                `<img src="${url}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--glass-border);cursor:zoom-in;" onclick="event.stopPropagation(); openLightbox('${url}')" alt="${escapeHtml(att.filename)}">` :
+                `<span style="font-size:24px;">📄</span>`;
             html += `
                 <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:8px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius);">
                     ${thumb}
@@ -2486,19 +2439,9 @@ async function viewAttachments() {
     }
 }
 
-function closeAttachmentsSheet() {
-    const sheet = document.getElementById('attachments-sheet');
-    if (sheet) {
-        const content = sheet.querySelector('.sheet-content');
-        if (content) {
-            content.style.transform = 'translateY(100%)';
-        }
-        setTimeout(() => {
-            sheet.style.display = 'none';
-            sheet.style.pointerEvents = 'none';
-        }, 350);
-        console.log('[ATTACH] Sheet closed.');
-    }
+function closeAttachmentsModal() {
+    const modal = document.getElementById('attachments-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
 // ─── HINDSIGHT SIMULATION ───

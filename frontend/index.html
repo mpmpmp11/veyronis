@@ -663,21 +663,22 @@
         </div>
     </div>
 
-    <!-- ========== ATTACHMENTS SHEET ========== -->
-    <div id="attachments-sheet" class="attachments-sheet hidden">
-        <div class="sheet-backdrop" onclick="closeAttachmentsSheet()"></div>
-        <div class="sheet-content">
-            <div class="sheet-header">
-                <div class="sheet-title">📎 Attached Files</div>
-                <button class="sheet-close" onclick="closeAttachmentsSheet()">✕</button>
+    <!-- ========== ATTACHMENTS MODAL ========== -->
+    <div id="attachments-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="closeAttachmentsModal()"></div>
+        <div class="modal-card glass-strong" style="max-width: 500px;">
+            <div class="modal-header">
+                <div class="modal-title">📎 Attached Files</div>
+                <button class="modal-close" onclick="closeAttachmentsModal()">✕</button>
             </div>
-            <div class="sheet-body" id="attachments-list">
-                <!-- Files will be rendered here -->
+            <div class="modal-body" id="attachments-list" style="max-height: 400px; overflow-y: auto;">
+                <!-- Rendered by JS -->
             </div>
-            <div class="sheet-footer">
-                <button class="sheet-btn" onclick="closeAttachmentsSheet()">Close</button>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="closeAttachmentsModal()">Close</button>
             </div>
         </div>
+    </div>
     </div>
 
     <!-- ========== FORGOT PASSWORD MODAL ========== -->
