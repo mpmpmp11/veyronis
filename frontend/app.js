@@ -690,7 +690,14 @@ async function performSearch() {
     }
 }
 function shareCurrentConv() { if (!state.conversationId) { toast('No conversation to share', 'error'); return; } closeMoreMenu(); exportChat('json'); }
-function openUpgrade() { toast('⭐ Upgrade to PRO — Coming soon with Google Play Billing!', 'info'); closeMoreMenu(); }
+function openUpgrade() {
+    closeMoreMenu();
+    closeSearchModal();
+    closeAttachmentsModal();
+    closeForgotPassword();
+    const modal = document.getElementById('upgrade-modal');
+    if (modal) modal.classList.remove('hidden');
+}
 function toggleSearch() { toast('🔍 Search coming soon!', 'info'); }
 
 // ─── CONVERSATIONS ───
@@ -2717,6 +2724,24 @@ async function deleteAccount() {
         toast('Network error', 'error');
     }
 }
+
+
+function closeUpgrade() {
+    const modal = document.getElementById('upgrade-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+// ─── GLOBAL ESCAPE KEY ───
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeSearchModal();
+        closeAttachmentsModal();
+        closeUpgrade();
+        closeForgotPassword();
+        closeSettingsPanel();
+        closeMoreMenu();
+    }
+});
 
 // ─── AUTO-LOGIN ON LOAD ───
 
