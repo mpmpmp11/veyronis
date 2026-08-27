@@ -1036,14 +1036,12 @@ function scrollBottom() {
 }
 
 // ─── DYNAMIC INPUT PADDING ───
-
 function updateChatPadding() {
     const messages = document.getElementById('messages');
     const inputShell = document.querySelector('.input-shell');
     if (!messages || !inputShell) return;
-
     const inputHeight = inputShell.offsetHeight;
-    const paddingBottom = Math.max(inputHeight + 20, 100);
+    const paddingBottom = Math.max(inputHeight + 24, 120);
     messages.style.paddingBottom = paddingBottom + 'px';
 }
 
@@ -1059,7 +1057,7 @@ if ('visualViewport' in window) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(updateChatPadding, 200);
+    setTimeout(updateChatPadding, 300);
 });
 
 function escapeHtml(t) {
