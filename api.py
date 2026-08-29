@@ -502,12 +502,17 @@ async def service_worker():
     return FileResponse(str(FRONTEND_DIR / "service-worker.js"), media_type="application/javascript")
 @app.get("/privacy")
 async def privacy_policy():
-    return FileResponse(str(FRONTEND_DIR / "privacy.html"))
+    file_path = FRONTEND_DIR / "privacy.html"
+    if not file_path.exists():
+        raise HTTPException(404, detail="Privacy Policy page not found")
+    return FileResponse(str(file_path), media_type="text/html")
 
 @app.get("/terms")
 async def terms_of_service():
-    return FileResponse(str(FRONTEND_DIR / "terms.html"))
-@app.get("/history")
+    file_path = FRONTEND_DIR / "terms.html"
+    if not file_path.exists():
+        raise HTTPException(404, detail="Terms of Service page not found")
+    return FileResponse(str(file_path), media_type="text/html")
 async def history(
     user_id: str,
     conversation_id: Optional[int] = None,
