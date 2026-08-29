@@ -1,4 +1,4 @@
-const CACHE_NAME = 'veyronis-v1.5';
+const CACHE_NAME = 'veyronis-v1.6';
 const STATIC_ASSETS = [
     '/',
     '/static/style.css?v=1.5',

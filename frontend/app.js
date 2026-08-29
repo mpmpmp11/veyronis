@@ -1,5 +1,5 @@
 // ============================================================
-// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password + Reset Password + Fixed Sidebar + Attachments Sheet)
+// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password + Reset Password + Fixed Sidebar + Attachments)
 // ============================================================
 
 const state = {
@@ -1247,6 +1247,7 @@ function triggerDocumentUpload() {
                 if (!state.conversationId && data.conversation_id) {
                     state.conversationId = data.conversation_id;
                     loadConversations();
+                    console.log('[SIDEBAR] Conversation ID saved from upload:', data.conversation_id);
                 }
                 state.pendingDocContent = data.content || data.preview || '';
                 state.pendingDocFilename = data.filename || file.name;
@@ -1310,6 +1311,7 @@ async function handleDroppedFile(file) {
             if (!state.conversationId && data.conversation_id) {
                 state.conversationId = data.conversation_id;
                 loadConversations();
+                console.log('[SIDEBAR] Conversation ID saved from dropped file:', data.conversation_id);
             }
             state.pendingDocContent = data.content || data.preview || '';
             state.pendingDocFilename = data.filename || file.name;
@@ -2115,6 +2117,7 @@ async function sendMessage() {
                         if (data.conversation_id && !state.conversationId) {
                             state.conversationId = data.conversation_id;
                             loadConversations();
+                            console.log('[SIDEBAR] Conversation ID saved from stream:', data.conversation_id);
                         }
                         if (data.tier === 'pro') setProUi();
                         else {
@@ -2592,11 +2595,10 @@ function toast(msg, type) {
     }, 3000);
 }
 
-// ─── ATTACHMENTS SHEET ───
+// ─── ATTACHMENTS MODAL ───
 
-// Ensure sheet exists; if not, create it.
 async function viewAttachments() {
-    console.log('[ATTACH] viewAttachments called');
+    console.log('[ATTACH] viewAttachments called, conversationId:', state.conversationId);
     if (!state.conversationId) {
         toast('No conversation to view attachments', 'error');
         return;
@@ -2604,18 +2606,20 @@ async function viewAttachments() {
     const modal = document.getElementById('attachments-modal');
     const list = document.getElementById('attachments-list');
     if (!modal || !list) {
-        toast('UI error', 'error');
+        toast('UI error: modal not found', 'error');
         return;
     }
     modal.classList.remove('hidden');
     list.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-muted);">Loading...</p>';
 
+    const headers = {};
+    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+
     try {
-        const headers = {};
-        if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
         const res = await fetch(`${state.apiUrl}/attachments?conversation_id=${state.conversationId}`, { headers });
         const data = await res.json();
         console.log('[ATTACH] API data:', data);
+        if (!res.ok) throw new Error(data.detail || 'Failed to load attachments');
 
         const attachments = data.attachments || [];
         if (attachments.length === 0) {
@@ -2834,7 +2838,6 @@ async function deleteAccount() {
         toast('Network error', 'error');
     }
 }
-
 
 function closeUpgrade() {
     const modal = document.getElementById('upgrade-modal');
