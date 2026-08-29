@@ -500,7 +500,13 @@ async def root():
 @app.get("/service-worker.js")
 async def service_worker():
     return FileResponse(str(FRONTEND_DIR / "service-worker.js"), media_type="application/javascript")
+@app.get("/privacy")
+async def privacy_policy():
+    return FileResponse(str(FRONTEND_DIR / "privacy.html"))
 
+@app.get("/terms")
+async def terms_of_service():
+    return FileResponse(str(FRONTEND_DIR / "terms.html"))
 @app.get("/history")
 async def history(
     user_id: str,
