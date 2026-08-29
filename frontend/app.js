@@ -839,16 +839,61 @@ async function performSearch() {
         results.innerHTML = `<p style="color: #ef4444; text-align: center; padding: 40px 0;">😕 Search failed: ${escapeHtml(err.message)}</p>`;
     }
 }
-function shareCurrentConv() { if (!state.conversationId) { toast('📝 No conversation to share', 'error'); return; } closeMoreMenu(); exportChat('json'); }
-function openUpgrade() {
+function shareCurrentConv() {
+    if (!state.conversationId) {
+        toast('📝 No conversation to share', 'error');
+        return;
+    }
     closeMoreMenu();
-    closeSearchModal();
-    closeAttachmentsModal();
-    closeForgotPassword();
-    const modal = document.getElementById('upgrade-modal');
+    openExportModal();
+}
+
+function openExportModal() {
+    const modal = document.getElementById('export-modal');
     if (modal) modal.classList.remove('hidden');
 }
-function toggleSearch() { toast('🔍 Search coming soon!', 'info'); }
+
+function closeExportModal() {
+    const modal = document.getElementById('export-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function exportWithFormat(format) {
+    closeExportModal();
+    if (!state.conversationId) {
+        toast('📝 No conversation to export', 'error');
+        return;
+    }
+    const headers = {};
+    if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+    }
+    fetch(`${state.apiUrl}/export/${state.conversationId}?format=${format}&user_id=${state.userId || state.user?.email || ''}`, { headers })
+        .then(r => { if (!r.ok) throw new Error('Export failed'); return r.json(); })
+        .then(data => {
+            if (format === 'json') {
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `veyronis_chat_${state.conversationId}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast('📥 Chat exported as JSON', 'success');
+            } else {
+                const blob = new Blob([data.content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = data.filename;
+                a.click();
+                URL.revokeObjectURL(url);
+                toast('📥 Chat exported as TXT', 'success');
+            }
+        })
+        .catch(err => handleError(err, 'Export'));
+    document.getElementById('export-pop')?.classList.remove('open');
+}
 
 // ─── CONVERSATIONS ───
 
