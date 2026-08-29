@@ -62,7 +62,6 @@ function updateUsageDisplay() {
 function showLoading(message = 'Loading...') {
     const existing = document.getElementById('loading-overlay');
     if (existing) existing.remove();
-
     const overlay = document.createElement('div');
     overlay.id = 'loading-overlay';
     overlay.className = 'loading-overlay';
@@ -85,16 +84,12 @@ function initKeyboardHandler() {
     const input = document.getElementById('msg-input');
     const inputShell = document.querySelector('.input-shell');
     const chatScroll = document.getElementById('chat-scroll');
-
     if (!input || !inputShell) return;
-
     if ('visualViewport' in window) {
         let lastHeight = window.visualViewport.height;
-
         window.visualViewport.addEventListener('resize', () => {
             const currentHeight = window.visualViewport.height;
             const isKeyboardOpen = currentHeight < lastHeight - 150;
-
             if (isKeyboardOpen) {
                 inputShell.classList.add('keyboard-open');
                 if (chatScroll) chatScroll.classList.add('keyboard-open');
@@ -103,7 +98,6 @@ function initKeyboardHandler() {
                 inputShell.classList.remove('keyboard-open');
                 if (chatScroll) chatScroll.classList.remove('keyboard-open');
             }
-
             lastHeight = currentHeight;
         });
     }
@@ -158,10 +152,11 @@ async function handleLogin() {
 }
 
 async function handleRegister() {
+    console.log('[REGISTER] handleRegister called');
     const email = document.getElementById('register-email').value.trim();
     let password = document.getElementById('register-password').value.trim();
     const errorEl = document.getElementById('register-error');
-
+    console.log('[REGISTER] Email:', email);
     if (!email || !password) {
         errorEl.textContent = 'Please enter email and password';
         return;
@@ -174,7 +169,6 @@ async function handleRegister() {
         errorEl.textContent = 'Please enter a valid email address';
         return;
     }
-
     showLoading('Creating account...');
     try {
         const res = await fetch(`${state.apiUrl}/register`, {
@@ -184,13 +178,12 @@ async function handleRegister() {
         });
         const data = await res.json();
         hideLoading();
-
+        console.log('[REGISTER] Response:', data);
         if (!res.ok) {
             errorEl.textContent = data.detail || 'Registration failed';
-            console.error('Register error:', data);
+            console.error('[REGISTER] Error:', data);
             return;
         }
-
         state.token = data.access_token;
         state.user = data.user;
         state.userId = data.user.email;
@@ -204,7 +197,7 @@ async function handleRegister() {
     } catch (err) {
         hideLoading();
         errorEl.textContent = 'Network error. Is the server running?';
-        console.error('Network error:', err);
+        console.error('[REGISTER] Network error:', err);
     }
 }
 
@@ -248,17 +241,14 @@ function handleGoogleLogin() {
 function handleGoogleCallback() {
     const hash = window.location.hash;
     if (!hash || !hash.includes('auth=')) return;
-
     const params = new URLSearchParams(hash.substring(1));
     const status = params.get('auth');
-
     if (status === 'success') {
         const token = params.get('token');
         const email = params.get('user');
         const isPro = params.get('is_pro') === 'true';
         const name = params.get('name') || email?.split('@')[0] || 'User';
         const avatar = params.get('avatar') || null;
-
         if (token && email) {
             state.token = token;
             state.user = {
@@ -270,12 +260,9 @@ function handleGoogleCallback() {
             };
             state.userId = email;
             state.isAuthenticated = true;
-
             localStorage.setItem('veyronis_token', token);
             localStorage.setItem('veyronis_user', JSON.stringify(state.user));
-
             window.history.replaceState({}, document.title, window.location.pathname);
-
             document.getElementById('auth-screen').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             initApp();
@@ -343,7 +330,6 @@ async function submitResetPassword() {
     const newPass = document.getElementById('new-password').value.trim();
     const confirmPass = document.getElementById('confirm-password').value.trim();
     const errorEl = document.getElementById('reset-error');
-
     if (!token) {
         errorEl.textContent = 'Invalid reset link';
         return;
@@ -356,7 +342,6 @@ async function submitResetPassword() {
         errorEl.textContent = 'Passwords do not match';
         return;
     }
-
     showLoading('Resetting password...');
     try {
         const res = await fetch(`${state.apiUrl}/reset-password`, {
@@ -673,13 +658,10 @@ function openSearchModal() {
     const input = document.getElementById('search-input');
     const results = document.getElementById('search-results');
     if (!modal || !input || !results) return;
-
     modal.classList.remove('hidden');
     input.value = '';
     results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">Enter a keyword to search</p>';
     input.focus();
-
-    // Search on Enter key
     input.onkeydown = function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -697,29 +679,23 @@ async function performSearch() {
     const input = document.getElementById('search-input');
     const results = document.getElementById('search-results');
     if (!input || !results) return;
-
     const query = input.value.trim();
     if (query.length < 2) {
         results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">Please enter at least 2 characters</p>';
         return;
     }
-
     results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">Searching...</p>';
-
     try {
         const headers = {};
         if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
         const res = await fetch(`${state.apiUrl}/search?q=${encodeURIComponent(query)}`, { headers });
         const data = await res.json();
-
         if (!res.ok) throw new Error(data.detail || 'Search failed');
-
         const conversations = data.results || [];
         if (conversations.length === 0) {
             results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">No results found</p>';
             return;
         }
-
         let html = '';
         conversations.forEach(conv => {
             html += `
@@ -753,7 +729,6 @@ async function performSearch() {
             `;
         });
         results.innerHTML = html;
-
     } catch (err) {
         results.innerHTML = `<p style="color: #ef4444; text-align: center; padding: 40px 0;">Error: ${escapeHtml(err.message)}</p>`;
     }
@@ -784,15 +759,12 @@ function loadConversations() {
             return;
         }
     }
-
     const url = `${state.apiUrl}/conversations?user_id=${encodeURIComponent(state.userId)}`;
     const headers = {};
     if (state.token) {
         headers['Authorization'] = `Bearer ${state.token}`;
     }
-
     console.log('[Sidebar] Loading conversations for user:', state.userId);
-
     fetch(url, { headers })
         .then(r => {
             if (!r.ok) {
@@ -806,10 +778,8 @@ function loadConversations() {
         .then(data => {
             const convs = data.conversations || [];
             console.log('[Sidebar] Loaded', convs.length, 'conversations');
-
             const today = [], yesterday = [], week = [];
             const now = new Date();
-
             convs.forEach(c => {
                 const d = new Date(c.updated_at);
                 const diffDays = (now - d) / (1000 * 60 * 60 * 24);
@@ -818,14 +788,12 @@ function loadConversations() {
                 else if (diffDays < 2) yesterday.push(html);
                 else if (diffDays < 8) week.push(html);
             });
-
             document.getElementById('conv-list-today').innerHTML =
                 today.join('') || '<div class="conv-empty">No chats today</div>';
             document.getElementById('conv-list-yesterday').innerHTML =
                 yesterday.join('') || '';
             document.getElementById('conv-list-week').innerHTML =
                 week.join('') || '';
-
             if (convs.length && !state.conversationId && !state.isNewChat) {
                 switchConversation(convs[0].id);
             } else if (!convs.length) {
@@ -1243,7 +1211,6 @@ function triggerDocumentUpload() {
             const data = await res.json();
             if (res.ok) {
                 toast(`Document ready: ${data.extracted_length} chars`, 'success');
-                // ─── SIDEBAR FIX: set conversation ID and refresh ───
                 if (!state.conversationId && data.conversation_id) {
                     state.conversationId = data.conversation_id;
                     loadConversations();
@@ -2047,7 +2014,7 @@ async function sendMessage() {
     const timeoutId = setTimeout(() => controller.abort(), 60000);
     updateSendButton();
 
-    // ─── NO OVERLAY – just use the in-message thinking indicator ───
+    // NO OVERLAY – just use the in-message thinking indicator
 
     try {
         const requestBody = {
@@ -2157,120 +2124,6 @@ async function sendMessage() {
     }
     updateSendButton();
 }
-
-    showLoading('Thinking...');
-
-    try {
-        const requestBody = {
-            message: text || '',
-            pro_code: '',
-            user_id: state.userId || state.user?.email || '',
-            conversation_id: state.conversationId,
-            image: imageBase64 || null,
-            model_mode: state.model,
-            ai_model: state.aiModel,
-            custom_instructions: state.customInstructions,
-            response_style: state.responseStyle
-        };
-        const response = await fetch(`${state.apiUrl}/chat/stream`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            signal: controller.signal,
-            body: JSON.stringify(requestBody)
-        });
-        clearTimeout(timeoutId);
-        if (!response.ok) {
-            hideLoading();
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.detail || 'Server error');
-        }
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '', fullResponse = '';
-        let firstToken = true;
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            for (const line of lines) {
-                if (!line.startsWith('data: ')) continue;
-                const jsonStr = line.slice(6).trim();
-                if (!jsonStr) continue;
-                try {
-                    const data = JSON.parse(jsonStr);
-                    if (data.type === 'reasoning') {
-                        // ignored
-                    } else if (data.type === 'token') {
-                        if (firstToken) {
-                            firstToken = false;
-                            if (thinkingEl) thinkingEl.style.display = 'none';
-                        }
-                        if (textEl) textEl.textContent += data.content;
-                        fullResponse += data.content;
-                        scrollBottom();
-                    } else if (data.type === 'citations') {
-                        state.citations[aiId] = data.content;
-                    } else if (data.type === 'research_step') {
-                        updateResearchProgress(aiId, data.content);
-                    } else if (data.type === 'done') {
-                        hideLoading();
-                        state.isTyping = false;
-                        if (sendBtn) sendBtn.disabled = false;
-                        if (thinkingEl) thinkingEl.style.display = 'none';
-                        if (textEl) {
-                            renderMarkdown(textEl, fullResponse);
-                            renderCitations(aiId, state.citations[aiId]);
-                        }
-                        setTimeout(updateChatPadding, 100);
-                        // ─── SIDEBAR FIX: set conversation ID and refresh ───
-                        if (data.conversation_id && !state.conversationId) {
-                            state.conversationId = data.conversation_id;
-                            loadConversations();
-                            console.log('[SIDEBAR] Conversation ID saved from stream:', data.conversation_id);
-                        }
-                        if (data.tier === 'pro') setProUi();
-                        else {
-                            state.msgCount++;
-                            const disclaimer = document.getElementById('input-disclaimer');
-                            if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`;
-                        }
-                        if (state.autoTts && state.ttsEnabled) {
-                            setTimeout(() => {
-                                const speakBtn = document.getElementById('speak-' + aiId);
-                                if (speakBtn) toggleSpeak(aiId);
-                            }, 400);
-                        }
-                        refreshUserInfo();
-                    } else if (data.type === 'error') throw new Error(data.content);
-                } catch (e) { if (e instanceof SyntaxError) continue; throw e; }
-            }
-        }
-    } catch (err) {
-        hideLoading();
-        state.isTyping = false;
-        state.abortController = null;
-        if (sendBtn) sendBtn.disabled = false;
-        if (err.name === 'AbortError') {
-            if (textEl) textEl.textContent = textEl.textContent || 'Generation stopped.';
-        } else if (!navigator.onLine) {
-            if (textEl) textEl.textContent = '💾 Message queued. Will send when you are back online.';
-            if (thinkingEl) thinkingEl.style.display = 'none';
-        } else if (err.message && err.message.includes('429')) {
-            if (textEl) textEl.textContent = '⏳ Rate limited. Retrying...';
-            if (thinkingEl) thinkingEl.style.display = 'none';
-            setTimeout(() => sendMessage(), 3000);
-        } else if (err.message && err.message.includes('502')) {
-            if (textEl) textEl.textContent = '🔧 Server unavailable. Retrying...';
-            if (thinkingEl) thinkingEl.style.display = 'none';
-            setTimeout(() => sendMessage(), 5000);
-        } else {
-            if (textEl) textEl.textContent = 'Error: ' + err.message;
-            if (thinkingEl) thinkingEl.style.display = 'none';
-        }
-    }
-    updateSendButton();
 
 function clearChat() {
     if (!confirm('Clear all messages?')) return;
