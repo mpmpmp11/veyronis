@@ -1,5 +1,5 @@
 // ============================================================
-// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password + Reset Password + Fixed Sidebar + Attachments + Error Handling)
+// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password + Reset Password + Fixed Sidebar + Attachments + Error Handling + Empty State Fix)
 // ============================================================
 
 const state = {
@@ -50,25 +50,21 @@ document.documentElement.setAttribute('data-theme', currentTheme);
 function handleError(error, context = '') {
     console.error(`[ERROR] ${context}:`, error);
 
-    // Network errors
     if (!navigator.onLine || error.message === 'Failed to fetch' || error.name === 'TypeError') {
         toast('📡 You\'re offline. Please check your internet connection and try again.', 'error');
         return;
     }
 
-    // Server errors (500, 502, 503, 504)
     if (error.status === 500 || error.status === 502 || error.status === 503 || error.status === 504) {
         toast('🔧 Something went wrong on our end. Please try again in a few minutes.', 'error');
         return;
     }
 
-    // Rate limiting (429)
     if (error.status === 429) {
         toast('⏳ You\'re moving too fast! Please wait a moment before trying again.', 'error');
         return;
     }
 
-    // Auth errors (401, 403)
     if (error.status === 401) {
         toast('🔒 Please log in again to continue.', 'error');
         setTimeout(() => handleLogout(), 1500);
@@ -79,19 +75,16 @@ function handleError(error, context = '') {
         return;
     }
 
-    // Not found (404)
     if (error.status === 404) {
         toast('🔍 We couldn\'t find what you\'re looking for.', 'error');
         return;
     }
 
-    // Validation errors (400)
     if (error.status === 400) {
         toast('📝 Please check your input and try again.', 'error');
         return;
     }
 
-    // AI specific errors
     if (error.message && error.message.includes('limit')) {
         toast('📊 You\'ve reached your daily limit. Upgrade to PRO for unlimited!', 'error');
         return;
@@ -101,7 +94,6 @@ function handleError(error, context = '') {
         return;
     }
 
-    // Registration specific
     if (error.message && error.message.includes('already registered')) {
         toast('📧 This email is already registered. Please log in instead.', 'error');
         return;
@@ -115,7 +107,6 @@ function handleError(error, context = '') {
         return;
     }
 
-    // File upload specific
     if (error.message && error.message.includes('too large')) {
         toast('📎 This file is too large. Maximum size is 10MB.', 'error');
         return;
@@ -125,7 +116,6 @@ function handleError(error, context = '') {
         return;
     }
 
-    // Fallback
     toast('😕 Something unexpected happened. Please try again.', 'error');
 }
 
@@ -160,6 +150,49 @@ function showLoading(message = 'Loading...') {
 function hideLoading() {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.remove();
+}
+
+// ─── EMPTY STATE FUNCTIONS (Option B – remove after first message) ───
+
+function getEmptyStateHTML() {
+    return `
+        <div class="empty-brand">VEYRONIS</div>
+        <div class="empty-hint">How can I help you today?</div>
+        <div class="chips">
+            <button class="chip glass-chip" onclick="quickSend('Explain quantum physics like I am 15')">🔬 Quantum Physics</button>
+            <button class="chip glass-chip" onclick="quickSend('Help me outline an essay about climate change')">📝 Essay Outline</button>
+            <button class="chip glass-chip" onclick="quickSend('Solve step by step: 2x² + 5x - 3 = 0')">🧮 Math Solver</button>
+            <button class="chip glass-chip" onclick="quickSend('Write a Python script that fetches weather data')">💻 Python Code</button>
+            <button class="chip glass-chip" onclick="quickSend('Create flashcards about the French Revolution')">📇 Flashcards</button>
+            <button class="chip glass-chip" onclick="quickSend('Draw me a majestic dragon')">🎨 Image Gen</button>
+            <button class="chip glass-chip" id="hindsight-chip" onclick="quickSend('What happens if I procrastinate on my final project until the last week?')">🔮 Hindsight</button>
+        </div>
+    `;
+}
+
+function showEmpty(show) {
+    const container = document.getElementById('chat-scroll');
+    let emptyState = document.getElementById('empty-state');
+
+    if (show) {
+        // If empty state doesn't exist, create it
+        if (!emptyState) {
+            const el = document.createElement('div');
+            el.id = 'empty-state';
+            el.className = 'empty-state';
+            el.innerHTML = getEmptyStateHTML();
+            // Insert at the beginning of chat-scroll
+            container.insertBefore(el, container.firstChild);
+        } else {
+            emptyState.style.display = 'flex';
+            emptyState.classList.remove('hidden');
+        }
+    } else {
+        // Remove from DOM completely (Option B)
+        if (emptyState) {
+            emptyState.remove();
+        }
+    }
 }
 
 // ─── MOBILE KEYBOARD HANDLER ───
@@ -839,14 +872,25 @@ async function performSearch() {
         results.innerHTML = `<p style="color: #ef4444; text-align: center; padding: 40px 0;">😕 Search failed: ${escapeHtml(err.message)}</p>`;
     }
 }
-function shareCurrentConv() {
-    if (!state.conversationId) {
-        toast('📝 No conversation to share', 'error');
-        return;
+function shareCurrentConv() { 
+    if (!state.conversationId) { 
+        toast('📝 No conversation to share', 'error'); 
+        return; 
     }
     closeMoreMenu();
     openExportModal();
 }
+function openUpgrade() {
+    closeMoreMenu();
+    closeSearchModal();
+    closeAttachmentsModal();
+    closeForgotPassword();
+    const modal = document.getElementById('upgrade-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+function toggleSearch() { toast('🔍 Search coming soon!', 'info'); }
+
+// ─── EXPORT FUNCTIONS ───
 
 function openExportModal() {
     const modal = document.getElementById('export-modal');
@@ -1211,11 +1255,6 @@ function initScrollHeader() {
     const tb = document.querySelector('.top-bar');
     if (!sc || !tb) return;
     sc.addEventListener('scroll', () => tb.classList.toggle('scrolled', sc.scrollTop > 10));
-}
-
-function showEmpty(show) {
-    const el = document.getElementById('empty-state');
-    if (el) el.classList.toggle('hidden', !show);
 }
 
 function scrollBottom() {
@@ -2178,8 +2217,6 @@ async function sendMessage() {
     const controller = state.abortController;
     const timeoutId = setTimeout(() => controller.abort(), 60000);
     updateSendButton();
-
-    // NO OVERLAY – just use the in-message thinking indicator
 
     try {
         const requestBody = {
