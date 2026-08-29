@@ -14,9 +14,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
     <base target="_blank">
 <base target="_blank">
-<base target="_blank">
-<base target="_blank">
-<base target="_blank">
 </head>
 <body>
 
@@ -684,7 +681,6 @@
             </div>
         </div>
     </div>
-    </div>
 
     <!-- ========== SEARCH MODAL ========== -->
     <div id="search-modal" class="modal hidden">
@@ -726,6 +722,31 @@
                     <input type="email" id="reset-email" placeholder="you@example.com" autocomplete="email">
                 </div>
                 <button class="auth-action" onclick="sendResetLink()" style="width:100%;">Send Reset Link</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== RESET PASSWORD MODAL ========== -->
+    <div id="reset-password-modal" class="modal hidden">
+        <div class="modal-backdrop" onclick="closeResetPassword()"></div>
+        <div class="modal-card glass-strong" style="max-width: 400px;">
+            <div class="modal-header">
+                <div class="modal-title">Set New Password</div>
+                <button class="modal-close" onclick="closeResetPassword()">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">Enter your new password below.</p>
+                <input type="hidden" id="reset-token-input">
+                <div class="auth-field">
+                    <label>New Password</label>
+                    <input type="password" id="new-password" placeholder="Min 6 characters" autocomplete="new-password">
+                </div>
+                <div class="auth-field">
+                    <label>Confirm Password</label>
+                    <input type="password" id="confirm-password" placeholder="Repeat password" autocomplete="new-password">
+                </div>
+                <div id="reset-error" class="auth-error"></div>
+                <button class="auth-action" onclick="submitResetPassword()" style="width:100%;">Reset Password</button>
             </div>
         </div>
     </div>

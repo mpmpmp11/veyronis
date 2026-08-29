@@ -44,6 +44,7 @@ class Config:
 
     # Email (Resend)
     RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "").strip()
+    RESEND_FROM_EMAIL: str = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev").strip()
     APP_BASE_URL: str = os.getenv("APP_BASE_URL", "https://veyronis.onrender.com").strip()
 
     # Official 2026 Model IDs

@@ -7,8 +7,11 @@ if Config.RESEND_API_KEY:
 else:
     print("[VEYRONIS] WARNING: RESEND_API_KEY not set. Email disabled.")
 
+FROM_EMAIL = getattr(Config, "RESEND_FROM_EMAIL", "onboarding@resend.dev")
+
 def send_reset_email(email: str, token: str, base_url: str) -> bool:
-    reset_link = f"{base_url}/reset-password?token={token}"
+    """Send a password reset email via Resend."""
+    reset_link = f"{base_url}/#reset-password?token={token}"
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -30,18 +33,20 @@ def send_reset_email(email: str, token: str, base_url: str) -> bool:
     """
     try:
         resend.Emails.send({
-            "from": "onboarding@resend.dev",
+            "from": FROM_EMAIL,
             "to": [email],
             "subject": "Reset Your VEYRONIS Password",
             "html": html_content
         })
-        print(f"[EMAIL] Reset email sent to {email}")
+        print(f"[EMAIL] Reset email sent to {email} (from {FROM_EMAIL})")
         return True
     except Exception as e:
         print(f"[EMAIL ERROR] Failed to send reset to {email}: {e}")
+        print(f"[EMAIL ERROR] Hint: If using onboarding@resend.dev, Resend test mode only allows sending to your own account email.")
         return False
 
 def send_verification_email(email: str, token: str, base_url: str) -> bool:
+    """Send an email verification email via Resend."""
     verify_link = f"{base_url}/verify-email?token={token}"
     html_content = f"""
     <!DOCTYPE html>
@@ -63,13 +68,14 @@ def send_verification_email(email: str, token: str, base_url: str) -> bool:
     """
     try:
         resend.Emails.send({
-            "from": "onboarding@resend.dev",
+            "from": FROM_EMAIL,
             "to": [email],
             "subject": "Verify Your VEYRONIS Email",
             "html": html_content
         })
-        print(f"[EMAIL] Verification email sent to {email}")
+        print(f"[EMAIL] Verification email sent to {email} (from {FROM_EMAIL})")
         return True
     except Exception as e:
         print(f"[EMAIL ERROR] Failed to send verification to {email}: {e}")
+        print(f"[EMAIL ERROR] Hint: If using onboarding@resend.dev, Resend test mode only allows sending to your own account email.")
         return False

@@ -91,7 +91,7 @@ def ensure_attachments_table():
             conversation_id INTEGER,
             filename TEXT NOT NULL,
             cloudinary_url TEXT,
-            file_type TEXT,       -- 'image' or 'document'
+            file_type TEXT,
             size INTEGER,
             mime_type TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -359,7 +359,7 @@ def get_user_by_email(email: str):
 
 def get_user_by_id(user_id: int):
     conn = get_db()
-    cursor = conn.execute("SELECT id, email, is_pro, avatar_url FROM users WHERE id = ?", (user_id,))
+    cursor = conn.execute("SELECT id, email, is_pro, avatar_url, is_verified FROM users WHERE id = ?", (user_id,))
     row = cursor.fetchone()
     conn.close()
     return row_to_dict(row)
@@ -395,6 +395,18 @@ def set_user_pro(user_id: int, is_pro: bool = True):
     conn.commit()
     conn.close()
 
+def update_user_password(user_id: int, hashed_password: str) -> bool:
+    """Update a user's password."""
+    conn = get_db()
+    cursor = conn.execute(
+        "UPDATE users SET hashed_password = ? WHERE id = ?",
+        (hashed_password, user_id)
+    )
+    conn.commit()
+    changed = cursor.rowcount > 0
+    conn.close()
+    return changed
+
 def delete_user(user_id: int) -> bool:
     conn = get_db()
     try:
@@ -403,7 +415,6 @@ def delete_user(user_id: int) -> bool:
             return False
         email = user["email"]
 
-        # Delete attachments, messages, conversations (covers archived too)
         conn.execute("""
             DELETE FROM attachments WHERE conversation_id IN 
             (SELECT id FROM conversations WHERE user_id = ?)

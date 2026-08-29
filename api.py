@@ -25,9 +25,9 @@ from database import (
     get_usage_count, increment_usage,
     delete_user, get_user_by_verification_token, verify_user,
     set_verification_token, set_reset_token, get_user_by_reset_token,
-    clear_reset_token, get_db,
+    clear_reset_token, update_user_password, get_db,
     save_attachment, get_attachments,
-    get_archived_conversations, archive_conversation, unarchive_conversation,  # <-- ARCHIVE
+    get_archived_conversations, archive_conversation, unarchive_conversation,
 )
 from settings import Config
 import base64
@@ -215,7 +215,7 @@ def add_free_request(client_ip: str):
 # ─── REQUEST MODELS ───
 class ChatRequest(BaseModel):
     message: str = ""
-    pro_code: str = ""  # kept for backward compatibility but ignored
+    pro_code: str = ""
     user_id: str = ""
     mode: str = "chat"
     model_mode: str = "instant"
@@ -272,7 +272,6 @@ async def register(req: RegisterRequest, request: Request):
         user_id = create_user(req.email, hashed)
         token = create_access_token({"sub": str(user_id)})
 
-        # Send verification email
         if Config.email_ready():
             verification_token = secrets.token_urlsafe(32)
             expires = datetime.utcnow() + timedelta(hours=24)
@@ -364,31 +363,37 @@ async def delete_account(current_user: dict = Depends(get_current_user_required)
 @app.post("/forgot-password")
 async def forgot_password(request: Request):
     if not Config.email_ready():
-        # Return a friendly message even if email not configured
+        print("[FORGOT PASSWORD] Email not configured — cannot send reset email")
         return {"message": "If this email exists, a reset link has been sent."}
 
     try:
         data = await request.json()
-        email = data.get("email", "").strip()
+        email = data.get("email", "").strip().lower()
         if not email:
             raise HTTPException(400, detail="Email is required")
 
         user = get_user_by_email(email)
         if not user:
-            # Always return success to avoid user enumeration
+            print(f"[FORGOT PASSWORD] No user found for {email} — returning generic success")
             return {"message": "If this email exists, a reset link has been sent."}
 
         token = secrets.token_urlsafe(32)
         expires = datetime.utcnow() + timedelta(hours=1)
         set_reset_token(email, token, expires)
+        print(f"[FORGOT PASSWORD] Token generated for {email}, expires {expires.isoformat()}")
 
         base_url = Config.APP_BASE_URL
         success = send_reset_email(email, token, base_url)
         if not success:
             print(f"[FORGOT PASSWORD] Failed to send email to {email}")
+        else:
+            print(f"[FORGOT PASSWORD] Reset email sent successfully to {email}")
         return {"message": "If this email exists, a reset link has been sent."}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[FORGOT PASSWORD ERROR] {e}")
+        traceback.print_exc()
         return {"message": "If this email exists, a reset link has been sent."}
 
 @app.post("/reset-password")
@@ -405,20 +410,23 @@ async def reset_password(request: Request):
 
         user = get_user_by_reset_token(token)
         if not user:
+            print(f"[RESET PASSWORD] Invalid or expired token attempted: {token[:8]}...")
             raise HTTPException(400, detail="Invalid or expired token")
 
         hashed = get_password_hash(new_password)
-        conn = get_db()
-        conn.execute("UPDATE users SET hashed_password = ? WHERE id = ?", (hashed, user["id"]))
-        conn.execute("UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?", (user["id"],))
-        conn.commit()
-        conn.close()
+        updated = update_user_password(user["id"], hashed)
+        if not updated:
+            raise HTTPException(500, detail="Failed to update password")
+
+        clear_reset_token(user["email"])
+        print(f"[RESET PASSWORD] Password reset successful for user {user['id']} ({user['email']})")
 
         return {"message": "Password reset successfully"}
     except HTTPException:
         raise
     except Exception as e:
         print(f"[RESET PASSWORD ERROR] {e}")
+        traceback.print_exc()
         raise HTTPException(500, detail="Password reset failed")
 
 # ─── EMAIL VERIFICATION ───
@@ -528,10 +536,10 @@ async def export_conversation(
             return {"conversation_id": conversation_id, "exported_at": datetime.now().isoformat(), "messages": msgs}
         else:
             lines = [
-                f"VEYRONIS Chat Export\n{"="*50}\n",
+                f"VEYRONIS Chat Export\n{'='*50}\n",
                 f"Exported: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n",
                 f"Conversation ID: {conversation_id}\n",
-                f"{"="*50}\n\n"
+                f"{'='*50}\n\n"
             ]
             for m in msgs:
                 lines.append(f"[{'You' if m['role'] == 'user' else 'VEYRONIS'}] {m.get('time', '')}\n{m['content']}\n\n")
@@ -546,17 +554,12 @@ async def search_messages(
     q: str,
     current_user: dict = Depends(get_current_user_required)
 ):
-    """
-    Search messages for a user by keyword.
-    Returns conversations with matching messages, grouped by conversation.
-    """
     if not q or len(q.strip()) < 2:
         return {"results": []}
 
     search_term = f"%{q.strip()}%"
     conn = get_db()
 
-    # Search messages and join with conversations to get titles
     cursor = conn.execute("""
         SELECT 
             c.id as conversation_id,
@@ -581,7 +584,6 @@ async def search_messages(
     if not rows:
         return {"results": []}
 
-    # Group by conversation
     conversations = {}
     for row in rows:
         cid = row["conversation_id"]
@@ -591,14 +593,12 @@ async def search_messages(
                 "title": row["title"],
                 "messages": []
             }
-        # Truncate content to 200 chars around the match
         content = row["content"]
         idx = content.lower().find(q.lower())
         if idx != -1:
             start = max(0, idx - 50)
             end = min(len(content), idx + len(q) + 50)
             snippet = content[start:end]
-            # Highlight the match (use HTML mark)
             snippet = snippet.replace(q.strip(), f"<mark>{q.strip()}</mark>", 1)
         else:
             snippet = content[:200] + "..."
@@ -739,8 +739,6 @@ async def list_attachments(
     conversation_id: int,
     current_user: dict = Depends(get_current_user_required)
 ):
-    """Return all attachments for the given conversation (user must own it)."""
-    # Verify the conversation belongs to the user
     convs = get_conversations(current_user["email"], include_archived=True)
     if not any(c["id"] == conversation_id for c in convs):
         raise HTTPException(403, detail="Access denied")
@@ -748,7 +746,7 @@ async def list_attachments(
     attachments = get_attachments(current_user["email"], conversation_id)
     return {"attachments": attachments}
 
-# ─── UPLOAD ENDPOINT (With Cloudinary + attachment saving) ───
+# ─── UPLOAD ENDPOINT ───
 
 @app.post("/upload")
 async def upload_document(
@@ -800,10 +798,7 @@ async def upload_document(
         if not conversation_id:
             conversation_id = create_conversation(user_id, title=file.filename)
 
-        # ─── SAVE ATTACHMENT RECORD ───
-        # Determine file type
         file_type = "image" if file.content_type and file.content_type.startswith("image/") else "document"
-        # Save to attachments table
         attach_id = save_attachment(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -847,12 +842,10 @@ async def chat(
         if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
             raise HTTPException(429, detail="Rate limit exceeded. Please slow down.")
 
-        # ─── Determine user and pro status ───
         if current_user:
             user_id = current_user["email"]
             is_pro = current_user["is_pro"]
         else:
-            # Anonymous users are always free; ignore pro_code
             is_pro = False
             if not user_id:
                 user_id = "u_" + str(int(time.time()))
@@ -944,7 +937,6 @@ async def chat_stream(
                 yield f"data: {json.dumps({'type': 'error', 'content': 'Rate limit exceeded. Please slow down.'})}\n\n"
             return StreamingResponse(rate_limit_error(), media_type="text/event-stream")
 
-        # ─── Determine user and pro status ───
         if current_user:
             user_id = current_user["email"]
             is_pro = current_user["is_pro"]

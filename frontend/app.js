@@ -1,5 +1,5 @@
 // ============================================================
-// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password + Fixed Sidebar + Attachments Sheet)
+// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password + Reset Password + Fixed Sidebar + Attachments Sheet)
 // ============================================================
 
 const state = {
@@ -327,6 +327,75 @@ async function sendResetLink() {
         hideLoading();
         toast('Network error', 'error');
         console.error(err);
+    }
+}
+
+// ─── RESET PASSWORD (from email link) ───
+
+function closeResetPassword() {
+    const modal = document.getElementById('reset-password-modal');
+    if (modal) modal.classList.add('hidden');
+    window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+}
+
+async function submitResetPassword() {
+    const token = document.getElementById('reset-token-input').value;
+    const newPass = document.getElementById('new-password').value.trim();
+    const confirmPass = document.getElementById('confirm-password').value.trim();
+    const errorEl = document.getElementById('reset-error');
+
+    if (!token) {
+        errorEl.textContent = 'Invalid reset link';
+        return;
+    }
+    if (!newPass || newPass.length < 6) {
+        errorEl.textContent = 'Password must be at least 6 characters';
+        return;
+    }
+    if (newPass !== confirmPass) {
+        errorEl.textContent = 'Passwords do not match';
+        return;
+    }
+
+    showLoading('Resetting password...');
+    try {
+        const res = await fetch(`${state.apiUrl}/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, new_password: newPass })
+        });
+        const data = await res.json();
+        hideLoading();
+        if (res.ok) {
+            toast('Password reset successfully! Please log in.', 'success');
+            closeResetPassword();
+            document.getElementById('new-password').value = '';
+            document.getElementById('confirm-password').value = '';
+            document.getElementById('app').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+            switchAuthTab('login');
+        } else {
+            errorEl.textContent = data.detail || 'Failed to reset password';
+        }
+    } catch (err) {
+        hideLoading();
+        errorEl.textContent = 'Network error';
+    }
+}
+
+function handleResetPasswordHash() {
+    const hash = window.location.hash;
+    if (hash && hash.includes('reset-password')) {
+        const params = new URLSearchParams(hash.replace('#reset-password?', ''));
+        const token = params.get('token');
+        if (token) {
+            const modal = document.getElementById('reset-password-modal');
+            const tokenInput = document.getElementById('reset-token-input');
+            if (modal && tokenInput) {
+                tokenInput.value = token;
+                modal.classList.remove('hidden');
+            }
+        }
     }
 }
 
@@ -2779,6 +2848,7 @@ document.addEventListener('keydown', (e) => {
         closeAttachmentsModal();
         closeUpgrade();
         closeForgotPassword();
+        closeResetPassword();
         closeSettingsPanel();
         closeMoreMenu();
     }
@@ -2805,19 +2875,16 @@ document.addEventListener('DOMContentLoaded', () => {
         appElement.classList.add('hidden');
     }
 
-    // Forgot password button safety
-    var btn = document.getElementById('forgot-password-btn');
-    if (btn) {
-        btn.removeAttribute('onclick');
-        btn.addEventListener('click', function(e) {
+    // Handle reset password link from email
+    handleResetPasswordHash();
+
+    // Forgot password button wiring
+    const forgotBtn = document.getElementById('forgot-password-btn');
+    if (forgotBtn) {
+        forgotBtn.removeAttribute('onclick');
+        forgotBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            var modal = document.getElementById('forgot-password-modal');
-            if (modal) {
-                modal.classList.remove('hidden');
-                console.log('Forgot password modal opened via app.js');
-            } else {
-                console.warn('Modal not found');
-            }
+            showForgotPassword();
         });
     }
 });
