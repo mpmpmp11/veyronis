@@ -1882,9 +1882,10 @@ body::before {
     line-height: 1.5;
     padding: 6px 4px;
     resize: none;
-    max-height: 120px;
+    max-height: 200px;
     min-height: 24px;
     font-family: inherit;
+    overflow-y: auto;
 }
 
 #msg-input::placeholder {
@@ -4836,4 +4837,31 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
         padding: 1px 6px;
         height: 20px;
     }
+}
+/* ─── EXPORT MODAL ─── */
+.export-option-btn {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border-radius: var(--radius);
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    color: var(--text);
+}
+
+.export-option-btn:hover {
+    border-color: var(--accent);
+    background: var(--glass-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px var(--accent-glow);
+}
+
+.export-option-btn:active {
+    transform: scale(0.98);
 }

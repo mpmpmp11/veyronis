@@ -1209,14 +1209,22 @@ function toggleAttach() {
 function initTextarea() {
     const ta = document.getElementById('msg-input');
     if (!ta) return;
-    ta.addEventListener('input', () => {
-        ta.style.height = 'auto';
-        ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+
+    // Auto-expand on input
+    ta.addEventListener('input', function() {
+        // Reset height to auto to shrink if text is deleted
+        this.style.height = 'auto';
+        // Set to scrollHeight (the actual content height)
+        this.style.height = Math.min(this.scrollHeight, 200) + 'px';
         updateSendButton();
         updateChatPadding();
     });
+
     ta.addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
     });
 }
 
