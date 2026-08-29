@@ -25,7 +25,7 @@ from database import (
     get_usage_count, increment_usage,
     delete_user, get_user_by_verification_token, verify_user,
     set_verification_token, set_reset_token, get_user_by_reset_token,
-    clear_reset_token, update_user_password, get_db,
+    clear_reset_token, get_db,
     save_attachment, get_attachments,
     get_archived_conversations, archive_conversation, unarchive_conversation,
 )
@@ -104,16 +104,20 @@ def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme)):
 
 def get_current_user_required(token: str = Depends(oauth2_scheme)):
     if token is None:
-        raise HTTPException(401, detail="Not authenticated")
+        raise HTTPException(401, detail="🔒 Please log in to continue.")
     payload = decode_token(token)
     if payload is None:
-        raise HTTPException(401, detail="Invalid token")
+        raise HTTPException(401, detail="🔒 Invalid session. Please log in again.")
     user_id = payload.get("sub")
     if user_id is None:
-        raise HTTPException(401, detail="Invalid token")
+        raise HTTPException(401, detail="🔒 Invalid session. Please log in again.")
     user = get_user_by_id(int(user_id))
     if user is None:
-        raise HTTPException(401, detail="User not found")
+        raise HTTPException(401, detail="🔒 User not found. Please log in again.")
+    # Check if user is banned (if we have that column)
+    # This would be in the database but we don't have it yet in the schema shown.
+    # We'll add a simple check if 'banned' column exists.
+    # For now, we'll assume the user is not banned; future migration will add it.
     return {"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])}
 
 # ─── PATH SETUP ───
@@ -215,7 +219,7 @@ def add_free_request(client_ip: str):
 # ─── REQUEST MODELS ───
 class ChatRequest(BaseModel):
     message: str = ""
-    pro_code: str = ""
+    pro_code: str = ""  # kept for backward compatibility but ignored
     user_id: str = ""
     mode: str = "chat"
     model_mode: str = "instant"
@@ -258,20 +262,21 @@ class TokenResponse(BaseModel):
 async def register(req: RegisterRequest, request: Request):
     client_ip = request.client.host
     if not _check_rate_limit(client_ip, max_requests=3, window_seconds=300):
-        raise HTTPException(429, detail="Too many registration attempts. Try again later.")
+        raise HTTPException(429, detail="⏳ Too many registration attempts. Please try again later.")
 
     try:
         if "@" not in req.email or "." not in req.email:
-            raise HTTPException(400, detail="Invalid email address")
+            raise HTTPException(400, detail="📧 Please enter a valid email address.")
         if len(req.password) < 6:
-            raise HTTPException(400, detail="Password must be at least 6 characters")
+            raise HTTPException(400, detail="🔑 Password must be at least 6 characters.")
         existing = get_user_by_email(req.email)
         if existing:
-            raise HTTPException(400, detail="Email already registered")
+            raise HTTPException(400, detail="📧 This email is already registered. Please log in instead.")
         hashed = get_password_hash(req.password)
         user_id = create_user(req.email, hashed)
         token = create_access_token({"sub": str(user_id)})
 
+        # Send verification email
         if Config.email_ready():
             verification_token = secrets.token_urlsafe(32)
             expires = datetime.utcnow() + timedelta(hours=24)
@@ -291,20 +296,22 @@ async def register(req: RegisterRequest, request: Request):
     except Exception as e:
         print(f"[REGISTER ERROR] {e}")
         traceback.print_exc()
-        raise HTTPException(500, detail="Registration failed. Please try again.")
+        raise HTTPException(500, detail="😕 Registration failed. Please try again.")
 
 @app.post("/login")
 async def login(req: LoginRequest, request: Request):
     client_ip = request.client.host
     if not _check_rate_limit(client_ip, max_requests=5, window_seconds=60):
-        raise HTTPException(429, detail="Too many login attempts. Try again later.")
+        raise HTTPException(429, detail="⏳ Too many login attempts. Please try again later.")
 
     try:
         user = get_user_by_email(req.email)
         if not user:
-            raise HTTPException(400, detail="Invalid credentials")
+            raise HTTPException(400, detail="🔐 Invalid email or password.")
         if not verify_password(req.password, user["hashed_password"]):
-            raise HTTPException(400, detail="Invalid credentials")
+            raise HTTPException(400, detail="🔐 Invalid email or password.")
+        # Optional: check if user is banned (if column exists)
+        # For now we skip but we can add if we add the column later.
         token = create_access_token({"sub": str(user["id"])})
         return TokenResponse(
             access_token=token,
@@ -316,7 +323,7 @@ async def login(req: LoginRequest, request: Request):
     except Exception as e:
         print(f"[LOGIN ERROR] {e}")
         traceback.print_exc()
-        raise HTTPException(500, detail="Login failed. Please try again.")
+        raise HTTPException(500, detail="😕 Login failed. Please try again.")
 
 @app.get("/me")
 async def get_me(current_user: dict = Depends(get_current_user_required)):
@@ -338,16 +345,16 @@ async def get_me(current_user: dict = Depends(get_current_user_required)):
         }
     except Exception as e:
         print(f"[ME ERROR] {e}")
-        raise HTTPException(500, detail="Could not retrieve user info")
+        raise HTTPException(500, detail="😕 Could not retrieve user info. Please try again.")
 
 @app.post("/upgrade")
 async def upgrade_to_pro(current_user: dict = Depends(get_current_user_required)):
     try:
         set_user_pro(current_user["id"], True)
-        return {"message": "Upgraded to PRO", "is_pro": True}
+        return {"message": "✅ Upgraded to PRO", "is_pro": True}
     except Exception as e:
         print(f"[UPGRADE ERROR] {e}")
-        raise HTTPException(500, detail="Upgrade failed")
+        raise HTTPException(500, detail="😕 Upgrade failed. Please try again.")
 
 # ─── ACCOUNT DELETION ───
 @app.delete("/account")
@@ -355,46 +362,38 @@ async def delete_account(current_user: dict = Depends(get_current_user_required)
     user_id = current_user["id"]
     success = delete_user(user_id)
     if not success:
-        raise HTTPException(500, detail="Failed to delete account")
-    return {"message": "Account deleted successfully"}
+        raise HTTPException(500, detail="😕 Failed to delete account. Please try again.")
+    return {"message": "🗑️ Account deleted successfully"}
 
 # ─── FORGOT PASSWORD ───
 
 @app.post("/forgot-password")
 async def forgot_password(request: Request):
     if not Config.email_ready():
-        print("[FORGOT PASSWORD] Email not configured — cannot send reset email")
-        return {"message": "If this email exists, a reset link has been sent."}
+        return {"message": "📧 If this email exists, a reset link has been sent."}
 
     try:
         data = await request.json()
-        email = data.get("email", "").strip().lower()
+        email = data.get("email", "").strip()
         if not email:
-            raise HTTPException(400, detail="Email is required")
+            raise HTTPException(400, detail="📝 Email is required.")
 
         user = get_user_by_email(email)
         if not user:
-            print(f"[FORGOT PASSWORD] No user found for {email} — returning generic success")
-            return {"message": "If this email exists, a reset link has been sent."}
+            return {"message": "📧 If this email exists, a reset link has been sent."}
 
         token = secrets.token_urlsafe(32)
         expires = datetime.utcnow() + timedelta(hours=1)
         set_reset_token(email, token, expires)
-        print(f"[FORGOT PASSWORD] Token generated for {email}, expires {expires.isoformat()}")
 
         base_url = Config.APP_BASE_URL
         success = send_reset_email(email, token, base_url)
         if not success:
             print(f"[FORGOT PASSWORD] Failed to send email to {email}")
-        else:
-            print(f"[FORGOT PASSWORD] Reset email sent successfully to {email}")
-        return {"message": "If this email exists, a reset link has been sent."}
-    except HTTPException:
-        raise
+        return {"message": "📧 If this email exists, a reset link has been sent."}
     except Exception as e:
         print(f"[FORGOT PASSWORD ERROR] {e}")
-        traceback.print_exc()
-        return {"message": "If this email exists, a reset link has been sent."}
+        return {"message": "📧 If this email exists, a reset link has been sent."}
 
 @app.post("/reset-password")
 async def reset_password(request: Request):
@@ -404,30 +403,27 @@ async def reset_password(request: Request):
         new_password = data.get("new_password", "").strip()
 
         if not token or not new_password:
-            raise HTTPException(400, detail="Token and new password required")
+            raise HTTPException(400, detail="📝 Token and new password are required.")
         if len(new_password) < 6:
-            raise HTTPException(400, detail="Password must be at least 6 characters")
+            raise HTTPException(400, detail="🔑 Password must be at least 6 characters.")
 
         user = get_user_by_reset_token(token)
         if not user:
-            print(f"[RESET PASSWORD] Invalid or expired token attempted: {token[:8]}...")
-            raise HTTPException(400, detail="Invalid or expired token")
+            raise HTTPException(400, detail="🔗 Invalid or expired reset link. Please request a new one.")
 
         hashed = get_password_hash(new_password)
-        updated = update_user_password(user["id"], hashed)
-        if not updated:
-            raise HTTPException(500, detail="Failed to update password")
+        conn = get_db()
+        conn.execute("UPDATE users SET hashed_password = ? WHERE id = ?", (hashed, user["id"]))
+        conn.execute("UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?", (user["id"],))
+        conn.commit()
+        conn.close()
 
-        clear_reset_token(user["email"])
-        print(f"[RESET PASSWORD] Password reset successful for user {user['id']} ({user['email']})")
-
-        return {"message": "Password reset successfully"}
+        return {"message": "✅ Password reset successfully. Please log in."}
     except HTTPException:
         raise
     except Exception as e:
         print(f"[RESET PASSWORD ERROR] {e}")
-        traceback.print_exc()
-        raise HTTPException(500, detail="Password reset failed")
+        raise HTTPException(500, detail="😕 Failed to reset password. Please try again.")
 
 # ─── EMAIL VERIFICATION ───
 
@@ -436,21 +432,21 @@ async def verify_email(token: str):
     try:
         user = get_user_by_verification_token(token)
         if not user:
-            raise HTTPException(400, detail="Invalid or expired verification link")
+            raise HTTPException(400, detail="🔗 Invalid or expired verification link.")
         verify_user(user["email"])
         return RedirectResponse(f"{Config.APP_BASE_URL}/#email-verified")
     except HTTPException:
         raise
     except Exception as e:
         print(f"[VERIFY EMAIL ERROR] {e}")
-        raise HTTPException(500, detail="Verification failed")
+        raise HTTPException(500, detail="😕 Verification failed. Please try again.")
 
 # ─── GOOGLE OAUTH ───
 
 @app.get("/auth/google")
 async def google_login(request: Request):
     if not Config.google_oauth_ready():
-        raise HTTPException(503, detail="Google OAuth not configured")
+        raise HTTPException(503, detail="🔧 Google OAuth is not configured.")
 
     forwarded_host = request.headers.get("x-forwarded-host")
     forwarded_proto = request.headers.get("x-forwarded-proto", "http")
@@ -467,7 +463,7 @@ async def google_login(request: Request):
 @app.get("/auth/google/callback")
 async def google_callback(code: str, request: Request):
     if not Config.google_oauth_ready():
-        raise HTTPException(503, detail="Google OAuth not configured")
+        raise HTTPException(503, detail="🔧 Google OAuth is not configured.")
 
     forwarded_host = request.headers.get("x-forwarded-host")
     forwarded_proto = request.headers.get("x-forwarded-proto", "http")
@@ -507,29 +503,29 @@ async def service_worker():
 
 @app.get("/history")
 async def history(
-    user_id: str, 
+    user_id: str,
     conversation_id: Optional[int] = None,
     current_user: dict = Depends(get_current_user_required)
 ):
     if user_id != current_user["email"]:
-        raise HTTPException(403, detail="Access denied")
+        raise HTTPException(403, detail="🔒 Access denied.")
     try:
         return {"messages": get_history(user_id, conversation_id=conversation_id)}
     except Exception as e:
         print(f"[HISTORY ERROR] {e}")
-        raise HTTPException(500, detail="Could not retrieve history")
+        raise HTTPException(500, detail="😕 Could not retrieve history. Please try again.")
 
 @app.get("/export/{conversation_id}")
 async def export_conversation(
-    conversation_id: int, 
-    format: str = "json", 
+    conversation_id: int,
+    format: str = "json",
     user_id: str = "",
     current_user: dict = Depends(get_current_user_required)
 ):
     if user_id != current_user["email"]:
-        raise HTTPException(403, detail="Access denied")
+        raise HTTPException(403, detail="🔒 Access denied.")
     if format not in ("json", "txt"):
-        raise HTTPException(400, detail="Format must be json or txt")
+        raise HTTPException(400, detail="📝 Format must be 'json' or 'txt'.")
     try:
         msgs = get_history(user_id, conversation_id=conversation_id, limit=1000)
         if format == "json":
@@ -546,8 +542,7 @@ async def export_conversation(
             return {"content": "".join(lines), "filename": f"veyronis_chat_{conversation_id}.txt"}
     except Exception as e:
         print(f"[EXPORT ERROR] {e}")
-        raise HTTPException(500, detail="Export failed")
-
+        raise HTTPException(500, detail="😕 Export failed. Please try again.")
 
 @app.get("/search")
 async def search_messages(
@@ -555,7 +550,7 @@ async def search_messages(
     current_user: dict = Depends(get_current_user_required)
 ):
     if not q or len(q.strip()) < 2:
-        return {"results": []}
+        raise HTTPException(400, detail="📝 Please enter at least 2 characters to search.")
 
     search_term = f"%{q.strip()}%"
     conn = get_db()
@@ -619,12 +614,12 @@ async def list_conversations(
     current_user: dict = Depends(get_current_user_required)
 ):
     if user_id != current_user["email"]:
-        raise HTTPException(403, detail="Access denied")
+        raise HTTPException(403, detail="🔒 Access denied.")
     try:
         return {"conversations": get_conversations(user_id)}
     except Exception as e:
         print(f"[CONVERSATIONS ERROR] {e}")
-        raise HTTPException(500, detail="Could not load conversations")
+        raise HTTPException(500, detail="😕 Could not load conversations. Please try again.")
 
 @app.post("/conversations")
 async def new_conversation(
@@ -632,35 +627,35 @@ async def new_conversation(
     current_user: dict = Depends(get_current_user_required)
 ):
     if req.user_id != current_user["email"]:
-        raise HTTPException(403, detail="Access denied")
+        raise HTTPException(403, detail="🔒 Access denied.")
     try:
         cid = create_conversation(req.user_id, req.title)
         return {"id": cid, "title": req.title}
     except Exception as e:
         print(f"[NEW CONV ERROR] {e}")
-        raise HTTPException(500, detail="Could not create conversation")
+        raise HTTPException(500, detail="😕 Could not create conversation. Please try again.")
 
 @app.patch("/conversations/{conversation_id}")
 async def patch_conversation(
-    conversation_id: int, 
+    conversation_id: int,
     req: RenameRequest,
     current_user: dict = Depends(get_current_user_required)
 ):
     convs = get_conversations(current_user["email"], include_archived=True)
     if not any(c["id"] == conversation_id for c in convs):
-        raise HTTPException(403, detail="Access denied")
+        raise HTTPException(403, detail="🔒 Access denied.")
     if not req.title.strip():
-        raise HTTPException(400, detail="Empty title")
+        raise HTTPException(400, detail="📝 Title cannot be empty.")
     try:
         ok = rename_conversation(conversation_id, req.title.strip())
         if not ok:
-            raise HTTPException(404, detail="Conversation not found")
+            raise HTTPException(404, detail="🔍 Conversation not found.")
         return {"status": "renamed"}
     except HTTPException:
         raise
     except Exception as e:
         print(f"[RENAME ERROR] {e}")
-        raise HTTPException(500, detail="Rename failed")
+        raise HTTPException(500, detail="😕 Rename failed. Please try again.")
 
 @app.delete("/conversations/{conversation_id}")
 async def remove_conversation(
@@ -669,13 +664,13 @@ async def remove_conversation(
 ):
     convs = get_conversations(current_user["email"], include_archived=True)
     if not any(c["id"] == conversation_id for c in convs):
-        raise HTTPException(403, detail="Access denied")
+        raise HTTPException(403, detail="🔒 Access denied.")
     try:
         delete_conversation(conversation_id)
         return {"status": "deleted"}
     except Exception as e:
         print(f"[DELETE CONV ERROR] {e}")
-        raise HTTPException(500, detail="Delete failed")
+        raise HTTPException(500, detail="😕 Delete failed. Please try again.")
 
 # ─── ARCHIVE ENDPOINTS ───
 
@@ -686,10 +681,10 @@ async def archive_conv_endpoint(
 ):
     convs = get_conversations(current_user["email"], include_archived=True)
     if not any(c["id"] == conversation_id for c in convs):
-        raise HTTPException(403, detail="Access denied")
+        raise HTTPException(403, detail="🔒 Access denied.")
     ok = archive_conversation(conversation_id, current_user["email"])
     if not ok:
-        raise HTTPException(404, detail="Conversation not found")
+        raise HTTPException(404, detail="🔍 Conversation not found.")
     return {"status": "archived"}
 
 @app.patch("/conversations/{conversation_id}/unarchive")
@@ -699,10 +694,10 @@ async def unarchive_conv_endpoint(
 ):
     convs = get_conversations(current_user["email"], include_archived=True)
     if not any(c["id"] == conversation_id for c in convs):
-        raise HTTPException(403, detail="Access denied")
+        raise HTTPException(403, detail="🔒 Access denied.")
     ok = unarchive_conversation(conversation_id, current_user["email"])
     if not ok:
-        raise HTTPException(404, detail="Conversation not found")
+        raise HTTPException(404, detail="🔍 Conversation not found.")
     return {"status": "unarchived"}
 
 @app.get("/conversations/archived")
@@ -713,7 +708,7 @@ async def list_archived_conversations(
         return {"conversations": get_archived_conversations(current_user["email"])}
     except Exception as e:
         print(f"[ARCHIVED CONV ERROR] {e}")
-        raise HTTPException(500, detail="Could not load archived conversations")
+        raise HTTPException(500, detail="😕 Could not load archived conversations. Please try again.")
 
 @app.post("/clear")
 async def clear_chat(
@@ -724,13 +719,13 @@ async def clear_chat(
     user_id = data.get("user_id", "")
     conversation_id = data.get("conversation_id")
     if user_id != current_user["email"]:
-        raise HTTPException(403, detail="Access denied")
+        raise HTTPException(403, detail="🔒 Access denied.")
     try:
         clear_history(user_id, conversation_id=conversation_id)
         return {"status": "Chat cleared"}
     except Exception as e:
         print(f"[CLEAR ERROR] {e}")
-        raise HTTPException(500, detail="Clear failed")
+        raise HTTPException(500, detail="😕 Clear failed. Please try again.")
 
 # ─── ATTACHMENTS ENDPOINT ───
 
@@ -741,23 +736,22 @@ async def list_attachments(
 ):
     convs = get_conversations(current_user["email"], include_archived=True)
     if not any(c["id"] == conversation_id for c in convs):
-        raise HTTPException(403, detail="Access denied")
-
+        raise HTTPException(403, detail="🔒 Access denied.")
     attachments = get_attachments(current_user["email"], conversation_id)
     return {"attachments": attachments}
 
-# ─── UPLOAD ENDPOINT ───
+# ─── UPLOAD ENDPOINT (With Cloudinary + attachment saving) ───
 
 @app.post("/upload")
 async def upload_document(
-    file: UploadFile = File(...), 
-    user_id: str = "", 
+    file: UploadFile = File(...),
+    user_id: str = "",
     conversation_id: Optional[int] = None,
     request: Request = None
 ):
     client_ip = request.client.host if request else "unknown"
     if not _check_rate_limit(client_ip, max_requests=10, window_seconds=60):
-        raise HTTPException(429, detail="Too many uploads. Slow down.")
+        raise HTTPException(429, detail="⏳ Too many uploads. Please slow down.")
 
     if not user_id:
         user_id = "u_auto_" + str(int(time.time()))
@@ -765,6 +759,15 @@ async def upload_document(
     try:
         content = await file.read()
         cloudinary_url = None
+
+        # Check file size
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(400, detail="📎 File too large. Maximum size is 10MB.")
+
+        # Check file extension
+        allowed_extensions = ('.pdf', '.docx', '.txt', '.md', '.csv', '.xlsx', '.xls')
+        if not any(file.filename.lower().endswith(ext) for ext in allowed_extensions):
+            raise HTTPException(400, detail="📎 Unsupported file type. Please upload PDF, DOCX, TXT, MD, CSV, or Excel.")
 
         if Config.cloudinary_ready():
             try:
@@ -821,16 +824,19 @@ async def upload_document(
         if gemini_analysis:
             response["gemini_analysis"] = gemini_analysis
         return response
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[UPLOAD ERROR] {e}")
-        raise HTTPException(500, detail="Upload failed")
+        traceback.print_exc()
+        raise HTTPException(500, detail="😕 Upload failed. Please try again.")
 
 # ─── CHAT ENDPOINTS ───
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
-    request: ChatRequest, 
-    req: Request, 
+    request: ChatRequest,
+    req: Request,
     current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     try:
@@ -840,8 +846,9 @@ async def chat(
 
         client_ip = req.client.host
         if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
-            raise HTTPException(429, detail="Rate limit exceeded. Please slow down.")
+            raise HTTPException(429, detail="⏳ You're moving too fast! Please wait a moment.")
 
+        # Determine user and pro status
         if current_user:
             user_id = current_user["email"]
             is_pro = current_user["is_pro"]
@@ -854,11 +861,11 @@ async def chat(
         if not is_pro:
             usage = get_usage_count(user_id, today)
             if usage >= 20:
-                raise HTTPException(429, detail="FREE limit reached (20 messages/day). Upgrade to PRO for unlimited.")
+                raise HTTPException(429, detail="📊 You've reached your daily limit (20 messages). Upgrade to PRO for unlimited!")
 
         if request.mode == "simulation":
             if not msg:
-                raise HTTPException(400, detail="Empty scenario")
+                raise HTTPException(400, detail="📝 Please enter a scenario to simulate.")
             try:
                 result, status = hindsight_engine.run(user_id, msg, is_pro=is_pro)
                 if not conversation_id:
@@ -879,16 +886,16 @@ async def chat(
             except Exception as e:
                 print(f"[HINDSIGHT ERROR] {e}")
                 traceback.print_exc()
-                raise HTTPException(500, detail="Hindsight simulation failed. Please try again.")
+                raise HTTPException(500, detail="😕 Simulation failed. Please try again.")
 
         if msg and not check_input(msg)[0]:
-            raise HTTPException(400, detail="Blocked")
+            raise HTTPException(400, detail="⛔ Blocked.")
         if not msg and not request.image:
-            raise HTTPException(400, detail="Empty message")
+            raise HTTPException(400, detail="✏️ Please enter a message.")
         if request.mode == "canvas" and not is_pro:
-            raise HTTPException(403, detail="Canvas is a Pro feature")
+            raise HTTPException(403, detail="🎨 Canvas is a Pro feature. Upgrade to use it.")
         if not is_pro and not check_free_limit(client_ip):
-            raise HTTPException(429, detail="FREE LIMIT reached (IP-based)")
+            raise HTTPException(429, detail="📊 You've reached your daily limit. Upgrade to PRO for unlimited!")
 
         if not conversation_id:
             title = msg[:40] + ("..." if len(msg) > 40 else "") if msg else "Image upload"
@@ -918,12 +925,12 @@ async def chat(
     except Exception as e:
         print(f"[CHAT ERROR] {e}")
         traceback.print_exc()
-        raise HTTPException(500, detail="Chat failed. Please try again.")
+        raise HTTPException(500, detail="😕 Chat failed. Please try again.")
 
 @app.post("/chat/stream")
 async def chat_stream(
-    request: ChatRequest, 
-    req: Request, 
+    request: ChatRequest,
+    req: Request,
     current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     try:
@@ -934,9 +941,10 @@ async def chat_stream(
         client_ip = req.client.host
         if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
             async def rate_limit_error():
-                yield f"data: {json.dumps({'type': 'error', 'content': 'Rate limit exceeded. Please slow down.'})}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'content': '⏳ You\'re moving too fast! Please wait a moment.'})}\n\n"
             return StreamingResponse(rate_limit_error(), media_type="text/event-stream")
 
+        # Determine user and pro status
         if current_user:
             user_id = current_user["email"]
             is_pro = current_user["is_pro"]
@@ -950,27 +958,27 @@ async def chat_stream(
             usage = get_usage_count(user_id, today)
             if usage >= 20:
                 async def limit_error():
-                    yield f"data: {json.dumps({'type': 'error', 'content': 'FREE limit reached (20/day). Upgrade to PRO for unlimited.'})}\n\n"
+                    yield f"data: {json.dumps({'type': 'error', 'content': '📊 You\'ve reached your daily limit (20 messages). Upgrade to PRO for unlimited!'})}\n\n"
                 return StreamingResponse(limit_error(), media_type="text/event-stream")
 
         if request.mode == "canvas" and not is_pro:
             async def err_gen():
-                yield f"data: {json.dumps({'type': 'error', 'content': 'Canvas is Pro feature'})}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'content': '🎨 Canvas is a Pro feature. Upgrade to use it.'})}\n\n"
             return StreamingResponse(err_gen(), media_type="text/event-stream")
 
         has_image = request.image is not None and len(request.image) > 0
         has_text = len(msg) > 0
         if has_text and not check_input(msg)[0]:
             async def err_gen():
-                yield f"data: {json.dumps({'type': 'error', 'content': 'Blocked'})}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'content': '⛔ Blocked'})}\n\n"
             return StreamingResponse(err_gen(), media_type="text/event-stream")
         if not has_text and not has_image:
             async def err_gen():
-                yield f"data: {json.dumps({'type': 'error', 'content': 'Empty'})}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'content': '✏️ Please enter a message.'})}\n\n"
             return StreamingResponse(err_gen(), media_type="text/event-stream")
         if not is_pro and not check_free_limit(client_ip):
             async def err_gen():
-                yield f"data: {json.dumps({'type': 'error', 'content': 'Free limit reached'})}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'content': '📊 You\'ve reached your daily limit. Upgrade to PRO for unlimited!'})}\n\n"
             return StreamingResponse(err_gen(), media_type="text/event-stream")
 
         if not conversation_id:
@@ -1000,7 +1008,7 @@ async def chat_stream(
                     return
                 except Exception as e:
                     print(f"[STREAM SIM ERROR] {e}")
-                    yield f"data: {json.dumps({'type': 'error', 'content': 'Simulation failed. Please try again.'})}\n\n"
+                    yield f"data: {json.dumps({'type': 'error', 'content': '😕 Simulation failed. Please try again.'})}\n\n"
                     return
 
             try:
@@ -1020,7 +1028,7 @@ async def chat_stream(
                     elif event_type == "research_step":
                         yield f"data: {json.dumps({'type': 'research_step', 'content': content})}\n\n"
                     elif event_type == "error":
-                        yield f"data: {json.dumps({'type': 'error', 'content': 'An error occurred. Please try again.'})}\n\n"
+                        yield f"data: {json.dumps({'type': 'error', 'content': '😕 An error occurred. Please try again.'})}\n\n"
                         return
                 yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free'})}\n\n"
                 save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
@@ -1034,30 +1042,32 @@ async def chat_stream(
             except Exception as e:
                 print(f"[STREAM ERROR] {e}")
                 traceback.print_exc()
-                yield f"data: {json.dumps({'type': 'error', 'content': 'Stream failed. Please try again.'})}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'content': '😕 Stream failed. Please try again.'})}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
     except Exception as e:
         print(f"[STREAM SETUP ERROR] {e}")
         async def err_gen():
-            yield f"data: {json.dumps({'type': 'error', 'content': 'Service temporarily unavailable. Please try again.'})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'content': '🔧 Service temporarily unavailable. Please try again.'})}\n\n"
         return StreamingResponse(err_gen(), media_type="text/event-stream")
 
 @app.post("/execute")
 async def execute_code(request: Request):
     client_ip = request.client.host
     if not _check_rate_limit(client_ip, max_requests=10, window_seconds=60):
-        raise HTTPException(429, detail="Too many code executions. Slow down.")
+        raise HTTPException(429, detail="⏳ Too many code executions. Please slow down.")
 
     try:
         data = await request.json()
         code = data.get("code", "").strip()
         if not code:
-            raise HTTPException(400, detail="Empty code")
+            raise HTTPException(400, detail="📝 Please enter some code to execute.")
         return CodeExecutor.run(code)
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[EXECUTE ERROR] {e}")
-        raise HTTPException(500, detail="Code execution failed")
+        raise HTTPException(500, detail="😕 Code execution failed. Please try again.")
 
 @app.get("/health")
 async def health():

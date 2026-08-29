@@ -1,5 +1,5 @@
 // ============================================================
-// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password + Reset Password + Fixed Sidebar + Attachments)
+// VEYRONIS — Full App (with JWT + Google OAuth + PRO + Forgot Password + Reset Password + Fixed Sidebar + Attachments + Error Handling)
 // ============================================================
 
 const state = {
@@ -45,6 +45,89 @@ const state = {
 const THEMES = ['dark', 'light', 'veyronis'];
 let currentTheme = localStorage.getItem('veyronis_theme') || 'dark';
 document.documentElement.setAttribute('data-theme', currentTheme);
+
+// ─── USER-FRIENDLY ERROR HANDLER ───
+function handleError(error, context = '') {
+    console.error(`[ERROR] ${context}:`, error);
+
+    // Network errors
+    if (!navigator.onLine || error.message === 'Failed to fetch' || error.name === 'TypeError') {
+        toast('📡 You\'re offline. Please check your internet connection and try again.', 'error');
+        return;
+    }
+
+    // Server errors (500, 502, 503, 504)
+    if (error.status === 500 || error.status === 502 || error.status === 503 || error.status === 504) {
+        toast('🔧 Something went wrong on our end. Please try again in a few minutes.', 'error');
+        return;
+    }
+
+    // Rate limiting (429)
+    if (error.status === 429) {
+        toast('⏳ You\'re moving too fast! Please wait a moment before trying again.', 'error');
+        return;
+    }
+
+    // Auth errors (401, 403)
+    if (error.status === 401) {
+        toast('🔒 Please log in again to continue.', 'error');
+        setTimeout(() => handleLogout(), 1500);
+        return;
+    }
+    if (error.status === 403) {
+        toast('🔒 You don\'t have permission to do that.', 'error');
+        return;
+    }
+
+    // Not found (404)
+    if (error.status === 404) {
+        toast('🔍 We couldn\'t find what you\'re looking for.', 'error');
+        return;
+    }
+
+    // Validation errors (400)
+    if (error.status === 400) {
+        toast('📝 Please check your input and try again.', 'error');
+        return;
+    }
+
+    // AI specific errors
+    if (error.message && error.message.includes('limit')) {
+        toast('📊 You\'ve reached your daily limit. Upgrade to PRO for unlimited!', 'error');
+        return;
+    }
+    if (error.message && (error.message.includes('quota') || error.message.includes('rate limit'))) {
+        toast('🤖 Our AI is busy right now. Please wait a moment and try again.', 'error');
+        return;
+    }
+
+    // Registration specific
+    if (error.message && error.message.includes('already registered')) {
+        toast('📧 This email is already registered. Please log in instead.', 'error');
+        return;
+    }
+    if (error.message && error.message.includes('Invalid credentials')) {
+        toast('🔐 Invalid email or password. Please try again.', 'error');
+        return;
+    }
+    if (error.message && error.message.includes('banned')) {
+        toast('🚫 Your account has been banned. Please contact support.', 'error');
+        return;
+    }
+
+    // File upload specific
+    if (error.message && error.message.includes('too large')) {
+        toast('📎 This file is too large. Maximum size is 10MB.', 'error');
+        return;
+    }
+    if (error.message && error.message.includes('Unsupported')) {
+        toast('📎 This file type is not supported. Please upload PDF, DOCX, TXT, MD, CSV, or Excel.', 'error');
+        return;
+    }
+
+    // Fallback
+    toast('😕 Something unexpected happened. Please try again.', 'error');
+}
 
 // ─── UPDATE USAGE DISPLAY ───
 function updateUsageDisplay() {
@@ -119,7 +202,7 @@ async function handleLogin() {
     const password = document.getElementById('login-password').value.trim();
     const errorEl = document.getElementById('login-error');
     if (!email || !password) {
-        errorEl.textContent = 'Please enter email and password';
+        errorEl.textContent = '📝 Please enter email and password';
         return;
     }
     showLoading('Logging in...');
@@ -132,8 +215,9 @@ async function handleLogin() {
         const data = await res.json();
         hideLoading();
         if (!res.ok) {
-            errorEl.textContent = data.detail || 'Login failed';
-            return;
+            const err = new Error(data.detail || 'Login failed');
+            err.status = res.status;
+            throw err;
         }
         state.token = data.access_token;
         state.user = data.user;
@@ -144,10 +228,17 @@ async function handleLogin() {
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
         initApp();
-        toast('Welcome back, ' + data.user.email + '! 🎉', 'success');
+        toast('🎉 Welcome back, ' + data.user.email + '!', 'success');
     } catch (err) {
         hideLoading();
-        errorEl.textContent = 'Network error. Is the server running?';
+        handleError(err, 'Login');
+        if (err.message && err.message.includes('banned')) {
+            errorEl.textContent = '🚫 Your account has been banned. Contact support.';
+        } else if (err.message && err.message.includes('Invalid credentials')) {
+            errorEl.textContent = '🔐 Invalid email or password. Please try again.';
+        } else {
+            errorEl.textContent = '😕 Login failed. Please try again.';
+        }
     }
 }
 
@@ -158,15 +249,15 @@ async function handleRegister() {
     const errorEl = document.getElementById('register-error');
     console.log('[REGISTER] Email:', email);
     if (!email || !password) {
-        errorEl.textContent = 'Please enter email and password';
+        errorEl.textContent = '📝 Please enter email and password';
         return;
     }
     if (password.length < 6) {
-        errorEl.textContent = 'Password must be at least 6 characters';
+        errorEl.textContent = '🔑 Password must be at least 6 characters';
         return;
     }
     if (!email.includes('@') || !email.includes('.')) {
-        errorEl.textContent = 'Please enter a valid email address';
+        errorEl.textContent = '📧 Please enter a valid email address';
         return;
     }
     showLoading('Creating account...');
@@ -180,9 +271,9 @@ async function handleRegister() {
         hideLoading();
         console.log('[REGISTER] Response:', data);
         if (!res.ok) {
-            errorEl.textContent = data.detail || 'Registration failed';
-            console.error('[REGISTER] Error:', data);
-            return;
+            const err = new Error(data.detail || 'Registration failed');
+            err.status = res.status;
+            throw err;
         }
         state.token = data.access_token;
         state.user = data.user;
@@ -193,11 +284,15 @@ async function handleRegister() {
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
         initApp();
-        toast('Account created! Welcome to VEYRONIS 🎉', 'success');
+        toast('🎉 Account created! Welcome to VEYRONIS!', 'success');
     } catch (err) {
         hideLoading();
-        errorEl.textContent = 'Network error. Is the server running?';
-        console.error('[REGISTER] Network error:', err);
+        handleError(err, 'Register');
+        if (err.message && err.message.includes('already registered')) {
+            errorEl.textContent = '📧 This email is already registered. Please log in.';
+        } else {
+            errorEl.textContent = '😕 Registration failed. Please try again.';
+        }
     }
 }
 
@@ -227,7 +322,7 @@ function handleLogout() {
     state.isAuthenticated = false;
     document.getElementById('app').classList.add('hidden');
     document.getElementById('auth-screen').classList.remove('hidden');
-    toast('Logged out', 'info');
+    toast('👋 Logged out', 'info');
     document.getElementById('messages').innerHTML = '';
     showEmpty(true);
 }
@@ -266,11 +361,11 @@ function handleGoogleCallback() {
             document.getElementById('auth-screen').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             initApp();
-            toast(`Welcome ${name}! Logged in with Google 🎉`, 'success');
+            toast('🎉 Welcome ' + name + '! Logged in with Google!', 'success');
         }
     } else if (status === 'error') {
         const message = params.get('message') || 'Google login failed';
-        toast('Google login failed: ' + decodeURIComponent(message), 'error');
+        toast('😕 Google login failed: ' + decodeURIComponent(message), 'error');
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 }
@@ -291,7 +386,7 @@ function closeForgotPassword() {
 async function sendResetLink() {
     const email = document.getElementById('reset-email').value.trim();
     if (!email) {
-        toast('Please enter your email', 'error');
+        toast('📝 Please enter your email', 'error');
         return;
     }
     showLoading('Sending reset link...');
@@ -303,17 +398,17 @@ async function sendResetLink() {
         });
         const data = await res.json();
         hideLoading();
-        if (res.ok) {
-            toast('Reset link sent! Check your email.', 'success');
-            closeForgotPassword();
-            document.getElementById('reset-email').value = '';
-        } else {
-            toast(data.detail || 'Something went wrong', 'error');
+        if (!res.ok) {
+            const err = new Error(data.detail || 'Failed to send reset link');
+            err.status = res.status;
+            throw err;
         }
+        toast('📧 Reset link sent! Check your email.', 'success');
+        closeForgotPassword();
+        document.getElementById('reset-email').value = '';
     } catch (err) {
         hideLoading();
-        toast('Network error', 'error');
-        console.error(err);
+        handleError(err, 'Forgot Password');
     }
 }
 
@@ -331,15 +426,15 @@ async function submitResetPassword() {
     const confirmPass = document.getElementById('confirm-password').value.trim();
     const errorEl = document.getElementById('reset-error');
     if (!token) {
-        errorEl.textContent = 'Invalid reset link';
+        errorEl.textContent = '🔗 Invalid reset link';
         return;
     }
     if (!newPass || newPass.length < 6) {
-        errorEl.textContent = 'Password must be at least 6 characters';
+        errorEl.textContent = '🔑 Password must be at least 6 characters';
         return;
     }
     if (newPass !== confirmPass) {
-        errorEl.textContent = 'Passwords do not match';
+        errorEl.textContent = '🔑 Passwords do not match';
         return;
     }
     showLoading('Resetting password...');
@@ -351,20 +446,26 @@ async function submitResetPassword() {
         });
         const data = await res.json();
         hideLoading();
-        if (res.ok) {
-            toast('Password reset successfully! Please log in.', 'success');
-            closeResetPassword();
-            document.getElementById('new-password').value = '';
-            document.getElementById('confirm-password').value = '';
-            document.getElementById('app').classList.add('hidden');
-            document.getElementById('auth-screen').classList.remove('hidden');
-            switchAuthTab('login');
-        } else {
-            errorEl.textContent = data.detail || 'Failed to reset password';
+        if (!res.ok) {
+            const err = new Error(data.detail || 'Failed to reset password');
+            err.status = res.status;
+            throw err;
         }
+        toast('✅ Password reset successfully! Please log in.', 'success');
+        closeResetPassword();
+        document.getElementById('new-password').value = '';
+        document.getElementById('confirm-password').value = '';
+        document.getElementById('app').classList.add('hidden');
+        document.getElementById('auth-screen').classList.remove('hidden');
+        switchAuthTab('login');
     } catch (err) {
         hideLoading();
-        errorEl.textContent = 'Network error';
+        handleError(err, 'Reset Password');
+        if (err.message && err.message.includes('expired')) {
+            errorEl.textContent = '⏳ This link has expired. Please request a new one.';
+        } else {
+            errorEl.textContent = '😕 Failed to reset password. Please try again.';
+        }
     }
 }
 
@@ -405,7 +506,7 @@ async function apiFetch(endpoint, options = {}) {
 
 function connect() {
     updateConnStatus('online');
-    toast('Connected to VEYRONIS', 'success');
+    toast('🌐 Connected to VEYRONIS', 'success');
 }
 
 function updateConnStatus(status) {
@@ -609,7 +710,7 @@ function initClickOutside() {
 }
 
 function renameCurrentConv() {
-    if (!state.conversationId) { toast('No conversation to rename', 'error'); return; }
+    if (!state.conversationId) { toast('📝 No conversation to rename', 'error'); return; }
     const convItem = document.querySelector(`.conv-item[data-id="${state.conversationId}"]`);
     const title = convItem ? convItem.querySelector('.conv-title')?.textContent || 'New Chat' : 'New Chat';
     closeMoreMenu();
@@ -617,7 +718,7 @@ function renameCurrentConv() {
 }
 
 function archiveCurrentConv() {
-    if (!state.conversationId) { toast('No conversation to archive', 'error'); return; }
+    if (!state.conversationId) { toast('📝 No conversation to archive', 'error'); return; }
     closeMoreMenu();
     const headers = {};
     if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
@@ -627,7 +728,7 @@ function archiveCurrentConv() {
     })
     .then(r => {
         if (r.ok) {
-            toast('Conversation archived', 'success');
+            toast('📦 Conversation archived', 'success');
             state.conversationId = null;
             document.getElementById('messages').innerHTML = '';
             showEmpty(true);
@@ -637,14 +738,14 @@ function archiveCurrentConv() {
                 loadArchivedConversations();
             }
         } else {
-            r.json().then(d => toast(d.detail || 'Failed to archive', 'error')).catch(() => toast('Failed to archive', 'error'));
+            r.json().then(d => toast(d.detail || '❌ Failed to archive', 'error')).catch(() => toast('❌ Failed to archive', 'error'));
         }
     })
-    .catch(() => toast('Failed to archive', 'error'));
+    .catch(err => handleError(err, 'Archive'));
 }
 
 function deleteCurrentConv() {
-    if (!state.conversationId) { toast('No conversation to delete', 'error'); return; }
+    if (!state.conversationId) { toast('📝 No conversation to delete', 'error'); return; }
     closeMoreMenu();
     deleteConv(state.conversationId);
 }
@@ -660,7 +761,7 @@ function openSearchModal() {
     if (!modal || !input || !results) return;
     modal.classList.remove('hidden');
     input.value = '';
-    results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">Enter a keyword to search</p>';
+    results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">🔍 Enter a keyword to search</p>';
     input.focus();
     input.onkeydown = function(e) {
         if (e.key === 'Enter') {
@@ -681,19 +782,23 @@ async function performSearch() {
     if (!input || !results) return;
     const query = input.value.trim();
     if (query.length < 2) {
-        results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">Please enter at least 2 characters</p>';
+        results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">📝 Please enter at least 2 characters</p>';
         return;
     }
-    results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">Searching...</p>';
+    results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">🔍 Searching...</p>';
     try {
         const headers = {};
         if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
         const res = await fetch(`${state.apiUrl}/search?q=${encodeURIComponent(query)}`, { headers });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Search failed');
+        if (!res.ok) {
+            const err = new Error(data.detail || 'Search failed');
+            err.status = res.status;
+            throw err;
+        }
         const conversations = data.results || [];
         if (conversations.length === 0) {
-            results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">No results found</p>';
+            results.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">🔍 No results found</p>';
             return;
         }
         let html = '';
@@ -730,10 +835,11 @@ async function performSearch() {
         });
         results.innerHTML = html;
     } catch (err) {
-        results.innerHTML = `<p style="color: #ef4444; text-align: center; padding: 40px 0;">Error: ${escapeHtml(err.message)}</p>`;
+        handleError(err, 'Search');
+        results.innerHTML = `<p style="color: #ef4444; text-align: center; padding: 40px 0;">😕 Search failed: ${escapeHtml(err.message)}</p>`;
     }
 }
-function shareCurrentConv() { if (!state.conversationId) { toast('No conversation to share', 'error'); return; } closeMoreMenu(); exportChat('json'); }
+function shareCurrentConv() { if (!state.conversationId) { toast('📝 No conversation to share', 'error'); return; } closeMoreMenu(); exportChat('json'); }
 function openUpgrade() {
     closeMoreMenu();
     closeSearchModal();
@@ -854,8 +960,8 @@ function renameConvPrompt(id, currentTitle) {
         headers,
         body: JSON.stringify({ title: newTitle.trim() })
     })
-        .then(r => { if (r.ok) { toast('Renamed', 'success'); loadConversations(); } else toast('Failed to rename', 'error'); })
-        .catch(() => toast('Failed to rename', 'error'));
+        .then(r => { if (r.ok) { toast('✅ Renamed', 'success'); loadConversations(); } else toast('❌ Failed to rename', 'error'); })
+        .catch(err => handleError(err, 'Rename'));
 }
 
 function deleteConv(id) {
@@ -867,16 +973,16 @@ function deleteConv(id) {
     fetch(`${state.apiUrl}/conversations/${id}`, { method: 'DELETE', headers })
         .then(r => {
             if (r.ok) {
-                toast('Deleted', 'success');
+                toast('🗑️ Deleted', 'success');
                 if (state.conversationId === id) {
                     state.conversationId = null;
                     document.getElementById('messages').innerHTML = '';
                     showEmpty(true);
                 }
                 loadConversations();
-            } else toast('Failed to delete', 'error');
+            } else toast('❌ Failed to delete', 'error');
         })
-        .catch(() => toast('Failed to delete', 'error'));
+        .catch(err => handleError(err, 'Delete'));
 }
 
 function toggleArchived() {
@@ -915,7 +1021,7 @@ function loadArchivedConversations() {
             const list = document.getElementById('archived-list');
             if (!list) return;
             if (convs.length === 0) {
-                list.innerHTML = '<div class="conv-empty">No archived chats</div>';
+                list.innerHTML = '<div class="conv-empty">📦 No archived chats</div>';
                 return;
             }
             list.innerHTML = convs.map(c => makeArchivedConvItem(c)).join('');
@@ -961,14 +1067,14 @@ function unarchiveConv(id) {
     })
     .then(r => {
         if (r.ok) {
-            toast('Conversation restored', 'success');
+            toast('📂 Conversation restored', 'success');
             loadConversations();
             loadArchivedConversations();
         } else {
-            r.json().then(d => toast(d.detail || 'Failed to unarchive', 'error')).catch(() => toast('Failed to unarchive', 'error'));
+            r.json().then(d => toast(d.detail || '❌ Failed to unarchive', 'error')).catch(() => toast('❌ Failed to unarchive', 'error'));
         }
     })
-    .catch(() => toast('Failed to unarchive', 'error'));
+    .catch(err => handleError(err, 'Unarchive'));
 }
 
 // ─── MODEL MENUS ───
@@ -987,7 +1093,7 @@ function pickModel(event, id, label) {
     document.querySelectorAll('.model-row').forEach(b => b.classList.remove('active'));
     if (event && event.currentTarget) event.currentTarget.classList.add('active');
     toggleModelMenu();
-    if (id === 'research') toast('Research mode activated', 'success');
+    if (id === 'research') toast('🔬 Research mode activated', 'success');
 }
 
 function pickAiModel(id, label) {
@@ -1111,7 +1217,7 @@ function cycleTheme() {
     document.documentElement.setAttribute('data-theme', currentTheme);
     localStorage.setItem('veyronis_theme', currentTheme);
     updateChartDefaults();
-    toast(`Theme: ${currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1)}`, 'success');
+    toast(`🎨 Theme: ${currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1)}`, 'success');
 }
 
 // ─── IMAGE UPLOAD ───
@@ -1123,7 +1229,7 @@ function triggerImageUpload() {
     input.onchange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        if (file.size > 5 * 1024 * 1024) { toast('Image too large. Max 5MB.', 'error'); return; }
+        if (file.size > 5 * 1024 * 1024) { toast('📎 Image too large. Max 5MB.', 'error'); return; }
         const reader = new FileReader();
         reader.onload = (ev) => {
             state.pendingImageBase64 = ev.target.result.split(',')[1];
@@ -1196,7 +1302,7 @@ function triggerDocumentUpload() {
     input.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        if (file.size > 10 * 1024 * 1024) { toast('File too large. Max 10MB.', 'error'); return; }
+        if (file.size > 10 * 1024 * 1024) { toast('📎 File too large. Max 10MB.', 'error'); return; }
         if (!state.userId || state.userId === 'null' || state.userId === 'undefined') {
             state.userId = state.user?.email || 'u_' + Date.now();
         }
@@ -1204,27 +1310,30 @@ function triggerDocumentUpload() {
         formData.append('file', file);
         formData.append('user_id', state.userId);
         if (state.conversationId) formData.append('conversation_id', state.conversationId);
-        toast('Uploading document...', 'info');
+        toast('📤 Uploading document...', 'info');
         document.getElementById('attach-pop').classList.remove('open');
         try {
             const res = await fetch(`${state.apiUrl}/upload`, { method: 'POST', body: formData });
             const data = await res.json();
-            if (res.ok) {
-                toast(`Document ready: ${data.extracted_length} chars`, 'success');
-                if (!state.conversationId && data.conversation_id) {
-                    state.conversationId = data.conversation_id;
-                    loadConversations();
-                    console.log('[SIDEBAR] Conversation ID saved from upload:', data.conversation_id);
-                }
-                state.pendingDocContent = data.content || data.preview || '';
-                state.pendingDocFilename = data.filename || file.name;
-                showDocPreview(state.pendingDocFilename);
-                setTimeout(updateChatPadding, 50);
-                updateSendButton();
-            } else {
-                toast(data.detail || 'Upload failed', 'error');
+            if (!res.ok) {
+                const err = new Error(data.detail || 'Upload failed');
+                err.status = res.status;
+                throw err;
             }
-        } catch (err) { toast('Upload failed', 'error'); }
+            toast(`📄 Document ready: ${data.extracted_length} chars`, 'success');
+            if (!state.conversationId && data.conversation_id) {
+                state.conversationId = data.conversation_id;
+                loadConversations();
+                console.log('[SIDEBAR] Conversation ID saved from upload:', data.conversation_id);
+            }
+            state.pendingDocContent = data.content || data.preview || '';
+            state.pendingDocFilename = data.filename || file.name;
+            showDocPreview(state.pendingDocFilename);
+            setTimeout(updateChatPadding, 50);
+            updateSendButton();
+        } catch (err) {
+            handleError(err, 'Upload');
+        }
     };
     input.click();
     setTimeout(() => { if (input.parentNode) input.parentNode.removeChild(input); }, 60000);
@@ -1256,7 +1365,7 @@ function initDragDrop() {
                 reader.readAsDataURL(file);
             } else if (file.name.match(/\.(pdf|docx|txt|md|csv|xlsx|xls)$/i)) {
                 handleDroppedFile(file);
-            } else toast('Use the attach menu for documents', 'info');
+            } else toast('📎 Use the attach menu for documents', 'info');
         }
     });
 }
@@ -1269,24 +1378,29 @@ async function handleDroppedFile(file) {
     formData.append('file', file);
     formData.append('user_id', state.userId);
     if (state.conversationId) formData.append('conversation_id', state.conversationId);
-    toast('Uploading document...', 'info');
+    toast('📤 Uploading document...', 'info');
     try {
         const res = await fetch(`${state.apiUrl}/upload`, { method: 'POST', body: formData });
         const data = await res.json();
-        if (res.ok) {
-            toast(`Document ready: ${data.extracted_length} chars`, 'success');
-            if (!state.conversationId && data.conversation_id) {
-                state.conversationId = data.conversation_id;
-                loadConversations();
-                console.log('[SIDEBAR] Conversation ID saved from dropped file:', data.conversation_id);
-            }
-            state.pendingDocContent = data.content || data.preview || '';
-            state.pendingDocFilename = data.filename || file.name;
-            showDocPreview(state.pendingDocFilename);
-            setTimeout(updateChatPadding, 50);
-            updateSendButton();
-        } else toast(data.detail || 'Upload failed', 'error');
-    } catch (err) { toast('Upload failed', 'error'); }
+        if (!res.ok) {
+            const err = new Error(data.detail || 'Upload failed');
+            err.status = res.status;
+            throw err;
+        }
+        toast(`📄 Document ready: ${data.extracted_length} chars`, 'success');
+        if (!state.conversationId && data.conversation_id) {
+            state.conversationId = data.conversation_id;
+            loadConversations();
+            console.log('[SIDEBAR] Conversation ID saved from dropped file:', data.conversation_id);
+        }
+        state.pendingDocContent = data.content || data.preview || '';
+        state.pendingDocFilename = data.filename || file.name;
+        showDocPreview(state.pendingDocFilename);
+        setTimeout(updateChatPadding, 50);
+        updateSendButton();
+    } catch (err) {
+        handleError(err, 'Upload (Dropped)');
+    }
 }
 
 function initPaste() {
@@ -1296,7 +1410,7 @@ function initPaste() {
             if (item.type.startsWith('image/')) {
                 const file = item.getAsFile();
                 if (!file) continue;
-                if (file.size > 5 * 1024 * 1024) { toast('Pasted image too large. Max 5MB.', 'error'); continue; }
+                if (file.size > 5 * 1024 * 1024) { toast('📎 Pasted image too large. Max 5MB.', 'error'); continue; }
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     state.pendingImageBase64 = ev.target.result.split(',')[1];
@@ -1442,6 +1556,11 @@ async function runCodeBlock(code, preElement) {
             body: JSON.stringify({ code })
         });
         const data = await res.json();
+        if (!res.ok) {
+            const err = new Error(data.error || 'Execution failed');
+            err.status = res.status;
+            throw err;
+        }
         const body = outputDiv.querySelector('.code-output-body');
         if (!body) return;
         if (data.success) {
@@ -1451,9 +1570,10 @@ async function runCodeBlock(code, preElement) {
             body.textContent = data.error || 'Execution failed';
             body.classList.add('error');
         }
-    } catch (e) {
+    } catch (err) {
+        handleError(err, 'Code Execution');
         const body = outputDiv.querySelector('.code-output-body');
-        if (body) { body.textContent = 'Network error: ' + e.message; body.classList.add('error'); }
+        if (body) { body.textContent = '❌ ' + (err.message || 'Execution failed'); body.classList.add('error'); }
     }
 }
 
@@ -1663,12 +1783,12 @@ function editMsg(id) {
     input.style.height = Math.min(input.scrollHeight, 200) + 'px';
     input.focus();
     state.editingId = id;
-    toast('Message loaded for editing. Press Enter to send.', 'info');
+    toast('✏️ Message loaded for editing. Press Enter to send.', 'info');
 }
 function copyMsg(id) {
     const bubble = document.querySelector('#' + id + ' .msg-bubble');
     if (!bubble) return;
-    navigator.clipboard.writeText(bubble.textContent).then(() => toast('Copied', 'success'));
+    navigator.clipboard.writeText(bubble.textContent).then(() => toast('📋 Copied', 'success'));
 }
 function delMsg(id) {
     const el = document.getElementById(id);
@@ -1684,19 +1804,19 @@ function delMsg(id) {
 function shareMsg(id) {
     const text = document.querySelector('#' + id + ' .msg-bubble')?.textContent || '';
     if (navigator.share) navigator.share({ text });
-    else navigator.clipboard.writeText(text).then(() => toast('Copied to share', 'success'));
+    else navigator.clipboard.writeText(text).then(() => toast('📋 Copied to share', 'success'));
 }
 function copyAiMsg(id) {
     const el = document.getElementById('text-' + id);
     if (!el) return;
-    navigator.clipboard.writeText(el.textContent || el.innerText).then(() => toast('Copied response', 'success'));
+    navigator.clipboard.writeText(el.textContent || el.innerText).then(() => toast('📋 Copied response', 'success'));
 }
 function shareAiMsg(id) {
     const el = document.getElementById('text-' + id);
     if (!el) return;
     const text = el.textContent || el.innerText;
     if (navigator.share) navigator.share({ text });
-    else navigator.clipboard.writeText(text).then(() => toast('Copied to share', 'success'));
+    else navigator.clipboard.writeText(text).then(() => toast('📋 Copied to share', 'success'));
 }
 
 // ─── SPEAK / STOP TOGGLE ───
@@ -1768,7 +1888,7 @@ function regenerateMsg(aiId) {
     while (userMsg && !userMsg.classList.contains('user')) {
         userMsg = userMsg.previousElementSibling;
     }
-    if (!userMsg) { toast('No user message found', 'error'); return; }
+    if (!userMsg) { toast('❌ No user message found', 'error'); return; }
     const bubble = userMsg.querySelector('.msg-bubble');
     const text = bubble ? bubble.textContent : '';
     const textEl = document.getElementById('text-' + aiId);
@@ -1876,7 +1996,7 @@ function regenerateMsg(aiId) {
         state.abortController = null;
         updateSendButton();
         hideLoading();
-        if (textEl) textEl.textContent = err.name === 'AbortError' ? 'Generation stopped.' : 'Error: ' + err.message;
+        if (textEl) textEl.textContent = err.name === 'AbortError' ? '⏹️ Generation stopped.' : 'Error: ' + err.message;
     });
 }
 
@@ -1886,7 +2006,7 @@ function thumbUp(id) {
     if (!btn) return;
     btn.classList.toggle('active');
     if (downBtn) downBtn.classList.remove('active');
-    toast('Thanks for the feedback!', 'success');
+    toast('👍 Thanks for the feedback!', 'success');
 }
 function thumbDown(id) {
     const btn = document.getElementById('down-' + id);
@@ -1894,9 +2014,9 @@ function thumbDown(id) {
     if (!btn) return;
     btn.classList.toggle('active');
     if (upBtn) upBtn.classList.remove('active');
-    toast('Thanks for the feedback!', 'success');
+    toast('👎 Thanks for the feedback!', 'success');
 }
-function shareChat() { toast('Share link copied', 'success'); }
+function shareChat() { toast('📋 Share link copied', 'success'); }
 function quickSend(text) {
     const input = document.getElementById('msg-input');
     if (input) input.value = text;
@@ -1906,7 +2026,7 @@ function quickSend(text) {
 // ─── EXPORT CHAT ───
 
 function exportChat(format) {
-    if (!state.conversationId) { toast('No conversation to export', 'error'); return; }
+    if (!state.conversationId) { toast('📝 No conversation to export', 'error'); return; }
     const headers = {};
     if (state.token) {
         headers['Authorization'] = `Bearer ${state.token}`;
@@ -1922,7 +2042,7 @@ function exportChat(format) {
                 a.download = `veyronis_chat_${state.conversationId}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
-                toast('Chat exported as JSON', 'success');
+                toast('📥 Chat exported as JSON', 'success');
             } else {
                 const blob = new Blob([data.content], { type: 'text/plain' });
                 const url = URL.createObjectURL(blob);
@@ -1931,10 +2051,10 @@ function exportChat(format) {
                 a.download = data.filename;
                 a.click();
                 URL.revokeObjectURL(url);
-                toast('Chat exported as TXT', 'success');
+                toast('📥 Chat exported as TXT', 'success');
             }
         })
-        .catch(() => toast('Export failed', 'error'));
+        .catch(err => handleError(err, 'Export'));
     document.getElementById('export-pop')?.classList.remove('open');
 }
 
@@ -1977,7 +2097,7 @@ async function sendMessage() {
         state.editingId = null;
         input.value = '';
         input.style.height = 'auto';
-        toast('Message updated. Regenerating response...', 'info');
+        toast('✏️ Message updated. Regenerating response...', 'info');
     } else {
         if (hasImage && imageDataUrl) {
             addUserImageMsg(input.value.trim(), imageDataUrl, imageFilename || 'image.png');
@@ -2037,7 +2157,9 @@ async function sendMessage() {
         clearTimeout(timeoutId);
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.detail || 'Server error');
+            const err = new Error(errData.detail || 'Server error');
+            err.status = response.status;
+            throw err;
         }
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
@@ -2105,7 +2227,7 @@ async function sendMessage() {
         state.abortController = null;
         if (sendBtn) sendBtn.disabled = false;
         if (err.name === 'AbortError') {
-            if (textEl) textEl.textContent = textEl.textContent || 'Generation stopped.';
+            if (textEl) textEl.textContent = textEl.textContent || '⏹️ Generation stopped.';
         } else if (!navigator.onLine) {
             if (textEl) textEl.textContent = '💾 Message queued. Will send when you are back online.';
             if (thinkingEl) thinkingEl.style.display = 'none';
@@ -2118,7 +2240,8 @@ async function sendMessage() {
             if (thinkingEl) thinkingEl.style.display = 'none';
             setTimeout(() => sendMessage(), 5000);
         } else {
-            if (textEl) textEl.textContent = 'Error: ' + err.message;
+            handleError(err, 'Chat');
+            if (textEl) textEl.textContent = '❌ ' + (err.message || 'Something went wrong');
             if (thinkingEl) thinkingEl.style.display = 'none';
         }
     }
@@ -2141,7 +2264,7 @@ function clearChat() {
             if (msgs) msgs.innerHTML = '';
             showEmpty(true);
         })
-        .catch(() => toast('Failed to clear chat', 'error'));
+        .catch(err => handleError(err, 'Clear Chat'));
 }
 
 function loadHistory() {
@@ -2263,7 +2386,7 @@ function initVoice() {
             btn.innerHTML = '<div class="voice-wave"><div></div><div></div><div></div></div>';
         }
         const ta = document.getElementById('msg-input');
-        if (ta) { ta.placeholder = 'Listening... Speak now'; ta.value = ''; ta.style.height = 'auto'; }
+        if (ta) { ta.placeholder = '🎤 Listening... Speak now'; ta.value = ''; ta.style.height = 'auto'; }
         updateSendButton();
     };
     state.recognition.onend = () => {
@@ -2294,13 +2417,13 @@ function initVoice() {
         }
         const ta = document.getElementById('msg-input');
         if (ta) ta.placeholder = 'Message VEYRONIS...';
-        if (e.error === 'no-speech') { toast('No speech detected', 'info'); } else if (e.error === 'audio-capture') { toast('No microphone found', 'error'); } else if (e.error === 'not-allowed') { toast('Microphone access denied', 'error'); } else if (e.error === 'network') { toast('Network error with voice', 'error'); } else if (e.error !== 'aborted') { toast('Voice failed: ' + e.error, 'error'); }
+        if (e.error === 'no-speech') { toast('🎤 No speech detected', 'info'); } else if (e.error === 'audio-capture') { toast('🎤 No microphone found', 'error'); } else if (e.error === 'not-allowed') { toast('🎤 Microphone access denied', 'error'); } else if (e.error === 'network') { toast('🎤 Network error with voice', 'error'); } else if (e.error !== 'aborted') { toast('🎤 Voice failed: ' + e.error, 'error'); }
     };
 }
 
 function toggleMic() {
-    if (!state.recognition) { initVoice(); if (!state.recognition) { toast('Voice not supported', 'error'); return; } }
-    if (state.isListening) { state.recognition.stop(); } else { try { state.recognition.start(); } catch (err) { toast('Could not start mic: ' + err.message, 'error'); } }
+    if (!state.recognition) { initVoice(); if (!state.recognition) { toast('🎤 Voice not supported', 'error'); return; } }
+    if (state.isListening) { state.recognition.stop(); } else { try { state.recognition.start(); } catch (err) { toast('🎤 Could not start mic: ' + err.message, 'error'); } }
 }
 
 // ─── SETTINGS ───
@@ -2403,7 +2526,7 @@ function setTheme(theme) {
     if (activeRadio) activeRadio.classList.add('checked');
     const themeVal = document.getElementById('settings-theme-value');
     if (themeVal) { themeVal.textContent = theme === 'system' ? 'Follow System' : (theme.charAt(0).toUpperCase() + theme.slice(1)); }
-    toast(`Theme: ${theme === 'system' ? 'Follow System' : theme.charAt(0).toUpperCase() + theme.slice(1)}`, 'success');
+    toast(`🎨 Theme: ${theme === 'system' ? 'Follow System' : theme.charAt(0).toUpperCase() + theme.slice(1)}`, 'success');
 }
 
 function toggleSettingsVoice() {
@@ -2411,7 +2534,7 @@ function toggleSettingsVoice() {
     localStorage.setItem('veyronis_tts', state.ttsEnabled);
     const voiceVal = document.getElementById('settings-voice-value');
     if (voiceVal) voiceVal.textContent = state.ttsEnabled ? 'On' : 'Off';
-    toast(state.ttsEnabled ? 'Voice ON' : 'Voice OFF', 'success');
+    toast(state.ttsEnabled ? '🔊 Voice ON' : '🔇 Voice OFF', 'success');
 }
 
 function saveChatPreferences() {
@@ -2419,7 +2542,7 @@ function saveChatPreferences() {
     state.customInstructions = ci ? ci.value.trim() : '';
     localStorage.setItem('veyronis_custom_instructions', state.customInstructions);
     closeSettingsSub();
-    toast('Chat preferences saved', 'success');
+    toast('✅ Chat preferences saved', 'success');
 }
 
 function pickStyle(style) {
@@ -2428,17 +2551,17 @@ function pickStyle(style) {
     document.querySelectorAll('.style-chip').forEach(chip => {
         if (chip) chip.classList.toggle('active', chip.dataset.style === style);
     });
-    toast('Style: ' + style.charAt(0).toUpperCase() + style.slice(1), 'success');
+    toast('🎨 Style: ' + style.charAt(0).toUpperCase() + style.slice(1), 'success');
 }
 
 function submitFeedback() {
     const fb = document.getElementById('feedback-text');
     const text = fb ? fb.value.trim() : '';
-    if (!text) { toast('Please enter your feedback', 'error'); return; }
+    if (!text) { toast('📝 Please enter your feedback', 'error'); return; }
     console.log('[VEYRONIS] Feedback:', text);
     fb.value = '';
     closeSettingsSub();
-    toast('Thank you for your feedback!', 'success');
+    toast('💬 Thank you for your feedback!', 'success');
 }
 
 function activateProPlan() {
@@ -2457,7 +2580,7 @@ function initConnectivity() {
         document.body.classList.remove('offline');
         const banner = document.getElementById('offline-banner');
         if (banner) banner.classList.add('hidden');
-        toast('Back online', 'success');
+        toast('🌐 Back online', 'success');
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage('flush-queue');
         }
@@ -2468,7 +2591,7 @@ function initConnectivity() {
         document.body.classList.add('offline');
         const banner = document.getElementById('offline-banner');
         if (banner) banner.classList.remove('hidden');
-        toast('You are offline', 'error');
+        toast('📡 You are offline', 'error');
     });
     if (!navigator.onLine) {
         document.body.classList.add('offline');
@@ -2478,8 +2601,8 @@ function initConnectivity() {
 }
 
 function retryConnection() {
-    toast('Checking connection...', 'info');
-    if (navigator.onLine && state.apiUrl) { checkServerHealth(); } else if (!navigator.onLine) { toast('Still offline', 'error'); }
+    toast('🔄 Checking connection...', 'info');
+    if (navigator.onLine && state.apiUrl) { checkServerHealth(); } else if (!navigator.onLine) { toast('📡 Still offline', 'error'); }
 }
 
 function checkServerHealth() {
@@ -2501,7 +2624,7 @@ function checkServerHealth() {
         .catch(() => {
             state.serverStatus = 'error';
             updateConnStatus('error');
-            if (state.retryCount === 0) toast('Server unreachable. Retrying...', 'error');
+            if (state.retryCount === 0) toast('🔧 Server unreachable. Retrying...', 'error');
             state.retryCount++;
         });
 }
@@ -2521,15 +2644,15 @@ function initInstallPrompt() {
         state.deferredPrompt = null;
         const promptEl = document.getElementById('install-prompt');
         if (promptEl) promptEl.classList.add('hidden');
-        toast('VEYRONIS installed! 🎉', 'success');
+        toast('📱 VEYRONIS installed! 🎉', 'success');
     });
 }
 
 function installPwa() {
-    if (!state.deferredPrompt) { toast('Install not available', 'info'); return; }
+    if (!state.deferredPrompt) { toast('📱 Install not available', 'info'); return; }
     state.deferredPrompt.prompt();
     state.deferredPrompt.userChoice.then((choice) => {
-        if (choice.outcome === 'accepted') toast('Installing...', 'success');
+        if (choice.outcome === 'accepted') toast('📱 Installing...', 'success');
         state.deferredPrompt = null;
         const promptEl = document.getElementById('install-prompt');
         if (promptEl) promptEl.classList.add('hidden');
@@ -2563,7 +2686,7 @@ function toast(msg, type) {
 async function viewAttachments() {
     console.log('[ATTACH] viewAttachments called, conversationId:', state.conversationId);
     if (!state.conversationId) {
-        toast('No conversation to view attachments', 'error');
+        toast('📝 No conversation to view attachments', 'error');
         return;
     }
     const modal = document.getElementById('attachments-modal');
@@ -2573,7 +2696,7 @@ async function viewAttachments() {
         return;
     }
     modal.classList.remove('hidden');
-    list.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-muted);">Loading...</p>';
+    list.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-muted);">📤 Loading...</p>';
 
     const headers = {};
     if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
@@ -2582,11 +2705,15 @@ async function viewAttachments() {
         const res = await fetch(`${state.apiUrl}/attachments?conversation_id=${state.conversationId}`, { headers });
         const data = await res.json();
         console.log('[ATTACH] API data:', data);
-        if (!res.ok) throw new Error(data.detail || 'Failed to load attachments');
+        if (!res.ok) {
+            const err = new Error(data.detail || 'Failed to load attachments');
+            err.status = res.status;
+            throw err;
+        }
 
         const attachments = data.attachments || [];
         if (attachments.length === 0) {
-            list.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-muted);">No files attached to this conversation.</p>';
+            list.innerHTML = '<p style="text-align:center;padding:20px;color:var(--text-muted);">📎 No files attached to this conversation.</p>';
             return;
         }
 
@@ -2611,8 +2738,8 @@ async function viewAttachments() {
         });
         list.innerHTML = html;
     } catch (err) {
-        console.error('[ATTACH] Error:', err);
-        list.innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px;">Error: ${err.message}</p>`;
+        handleError(err, 'Attachments');
+        list.innerHTML = `<p style="color:#ef4444;text-align:center;padding:20px;">❌ ${escapeHtml(err.message)}</p>`;
     }
 }
 
@@ -2643,7 +2770,7 @@ function toggleSimulationMode() {
     state.simulationMode = !state.simulationMode;
     const toggle = document.getElementById('sim-toggle');
     if (toggle) toggle.classList.toggle('active', state.simulationMode);
-    toast(state.simulationMode ? '🔮 Hindsight mode ON' : 'Hindsight mode OFF', state.simulationMode ? 'success' : 'info');
+    toast(state.simulationMode ? '🔮 Hindsight mode ON' : '🔮 Hindsight mode OFF', state.simulationMode ? 'success' : 'info');
     updateSimBadge();
 }
 
@@ -2712,13 +2839,18 @@ async function runHindsightSimulation(scenario) {
             })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Simulation failed');
+        if (!res.ok) {
+            const err = new Error(data.detail || 'Simulation failed');
+            err.status = res.status;
+            throw err;
+        }
         if (thinkingEl) thinkingEl.style.display = 'none';
         if (textEl) renderHindsightTimeline(textEl, data.response);
         incrementSimCount();
         if (data.conversation_id && !state.conversationId) { state.conversationId = data.conversation_id; loadConversations(); }
         refreshUserInfo();
     } catch (err) {
+        handleError(err, 'Hindsight');
         if (thinkingEl) thinkingEl.style.display = 'none';
         if (textEl) textEl.innerHTML = `<div class="sim-rate-limit"><span class="sim-rate-icon">⚠️</span>${escapeHtml(err.message)}</div>`;
     }
@@ -2783,22 +2915,23 @@ async function deleteAccount() {
             headers: { 'Authorization': `Bearer ${state.token}` }
         });
         hideLoading();
-        if (res.ok) {
-            toast('Account deleted successfully.', 'success');
-            localStorage.removeItem('veyronis_token');
-            localStorage.removeItem('veyronis_user');
-            state.token = null;
-            state.user = null;
-            state.isAuthenticated = false;
-            document.getElementById('app').classList.add('hidden');
-            document.getElementById('auth-screen').classList.remove('hidden');
-        } else {
+        if (!res.ok) {
             const data = await res.json();
-            toast(data.detail || 'Deletion failed', 'error');
+            const err = new Error(data.detail || 'Deletion failed');
+            err.status = res.status;
+            throw err;
         }
+        toast('🗑️ Account deleted successfully.', 'success');
+        localStorage.removeItem('veyronis_token');
+        localStorage.removeItem('veyronis_user');
+        state.token = null;
+        state.user = null;
+        state.isAuthenticated = false;
+        document.getElementById('app').classList.add('hidden');
+        document.getElementById('auth-screen').classList.remove('hidden');
     } catch (err) {
         hideLoading();
-        toast('Network error', 'error');
+        handleError(err, 'Delete Account');
     }
 }
 
