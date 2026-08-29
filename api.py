@@ -35,6 +35,7 @@ import uvicorn
 import json
 import time
 import traceback
+from fastapi.responses import Response
 
 # Cloudinary
 import cloudinary
@@ -500,6 +501,12 @@ async def root():
 @app.get("/service-worker.js")
 async def service_worker():
     return FileResponse(str(FRONTEND_DIR / "service-worker.js"), media_type="application/javascript")
+from fastapi.responses import Response  # <-- Add this import at the top if not already there
+
+@app.get("/favicon.ico")
+async def favicon():
+    svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#8b5cf6"/><text x="50" y="68" font-size="50" text-anchor="middle" fill="white" font-weight="bold">V</text></svg>"""
+    return Response(content=svg, media_type="image/svg+xml")
 @app.get("/privacy")
 async def privacy_policy():
     file_path = FRONTEND_DIR / "privacy.html"
