@@ -1,27 +1,30 @@
-"""Email sending module using Gmail SMTP."""
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+"""Email sending module using Resend (with verified sender)."""
+import resend
 from settings import Config
 
+# Resend API key
+if Config.RESEND_API_KEY:
+    resend.api_key = Config.RESEND_API_KEY
+else:
+    print("[VEYRONIS] WARNING: RESEND_API_KEY not set. Email disabled.")
+
+# The sender MUST be a verified sender in Resend
+SENDER_EMAIL = "mishobazadze@gmail.com"  # <-- THIS MUST BE YOUR EMAIL
+
 def send_email(to_email: str, subject: str, html_content: str) -> bool:
-    if not Config.SMTP_USER or not Config.SMTP_PASSWORD:
-        print("[EMAIL ERROR] SMTP not configured")
-        return False
     try:
-        msg = MIMEMultipart()
-        msg['From'] = Config.SMTP_USER
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(html_content, 'html'))
-        with smtplib.SMTP(Config.SMTP_HOST, Config.SMTP_PORT) as server:
-            server.starttls()
-            server.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
-            server.send_message(msg)
-        print(f"[EMAIL] Sent to {to_email}")
+        result = resend.Emails.send({
+            "from": SENDER_EMAIL,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content
+        })
+        print(f"[EMAIL] Sent to {to_email} | Response: {result}")
         return True
     except Exception as e:
         print(f"[EMAIL ERROR] {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def send_reset_email(email: str, token: str, base_url: str) -> bool:
