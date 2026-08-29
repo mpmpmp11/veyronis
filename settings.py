@@ -2,7 +2,7 @@
 VEYRONIS AI - Final Configuration Module
 Includes: Pro/Standard user model logic, 2026 Groq Official Model IDs,
 Rate-limit fallback to Gemini, Google OAuth configuration,
-JWT Secret enforcement, Cloudinary configuration, Email (Resend)
+JWT Secret enforcement, Cloudinary configuration, Email (Resend), SMTP (Gmail)
 """
 import os
 from pathlib import Path
@@ -42,10 +42,15 @@ class Config:
     CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "").strip()
     CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "").strip()
 
-    # Email (Resend)
+    # Email (Resend) - keep for fallback
     RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "").strip()
-    RESEND_FROM_EMAIL: str = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev").strip()
     APP_BASE_URL: str = os.getenv("APP_BASE_URL", "https://veyronis.onrender.com").strip()
+
+    # SMTP (Gmail) - For Forgot Password
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com").strip()
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "").strip()
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "").strip()
 
     # Official 2026 Model IDs
     MODEL_ULTRA: str = "openai/gpt-oss-120b"
@@ -93,6 +98,10 @@ class Config:
     @classmethod
     def email_ready(cls) -> bool:
         return bool(cls.RESEND_API_KEY)
+
+    @classmethod
+    def smtp_ready(cls) -> bool:
+        return bool(cls.SMTP_USER and cls.SMTP_PASSWORD)
 
 def get_groq_client() -> Groq:
     Config.validate()
