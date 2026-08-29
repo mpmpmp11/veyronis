@@ -2047,6 +2047,117 @@ async function sendMessage() {
     const timeoutId = setTimeout(() => controller.abort(), 60000);
     updateSendButton();
 
+    // ─── NO OVERLAY – just use the in-message thinking indicator ───
+
+    try {
+        const requestBody = {
+            message: text || '',
+            pro_code: '',
+            user_id: state.userId || state.user?.email || '',
+            conversation_id: state.conversationId,
+            image: imageBase64 || null,
+            model_mode: state.model,
+            ai_model: state.aiModel,
+            custom_instructions: state.customInstructions,
+            response_style: state.responseStyle
+        };
+        const response = await fetch(`${state.apiUrl}/chat/stream`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify(requestBody)
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.detail || 'Server error');
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '', fullResponse = '';
+        let firstToken = true;
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                const jsonStr = line.slice(6).trim();
+                if (!jsonStr) continue;
+                try {
+                    const data = JSON.parse(jsonStr);
+                    if (data.type === 'reasoning') {
+                        // ignored
+                    } else if (data.type === 'token') {
+                        if (firstToken) {
+                            firstToken = false;
+                            if (thinkingEl) thinkingEl.style.display = 'none';
+                        }
+                        if (textEl) textEl.textContent += data.content;
+                        fullResponse += data.content;
+                        scrollBottom();
+                    } else if (data.type === 'citations') {
+                        state.citations[aiId] = data.content;
+                    } else if (data.type === 'research_step') {
+                        updateResearchProgress(aiId, data.content);
+                    } else if (data.type === 'done') {
+                        state.isTyping = false;
+                        if (sendBtn) sendBtn.disabled = false;
+                        if (thinkingEl) thinkingEl.style.display = 'none';
+                        if (textEl) {
+                            renderMarkdown(textEl, fullResponse);
+                            renderCitations(aiId, state.citations[aiId]);
+                        }
+                        setTimeout(updateChatPadding, 100);
+                        if (data.conversation_id && !state.conversationId) {
+                            state.conversationId = data.conversation_id;
+                            loadConversations();
+                            console.log('[SIDEBAR] Conversation ID saved from stream:', data.conversation_id);
+                        }
+                        if (data.tier === 'pro') setProUi();
+                        else {
+                            state.msgCount++;
+                            const disclaimer = document.getElementById('input-disclaimer');
+                            if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`;
+                        }
+                        if (state.autoTts && state.ttsEnabled) {
+                            setTimeout(() => {
+                                const speakBtn = document.getElementById('speak-' + aiId);
+                                if (speakBtn) toggleSpeak(aiId);
+                            }, 400);
+                        }
+                        refreshUserInfo();
+                    } else if (data.type === 'error') throw new Error(data.content);
+                } catch (e) { if (e instanceof SyntaxError) continue; throw e; }
+            }
+        }
+    } catch (err) {
+        state.isTyping = false;
+        state.abortController = null;
+        if (sendBtn) sendBtn.disabled = false;
+        if (err.name === 'AbortError') {
+            if (textEl) textEl.textContent = textEl.textContent || 'Generation stopped.';
+        } else if (!navigator.onLine) {
+            if (textEl) textEl.textContent = '💾 Message queued. Will send when you are back online.';
+            if (thinkingEl) thinkingEl.style.display = 'none';
+        } else if (err.message && err.message.includes('429')) {
+            if (textEl) textEl.textContent = '⏳ Rate limited. Retrying...';
+            if (thinkingEl) thinkingEl.style.display = 'none';
+            setTimeout(() => sendMessage(), 3000);
+        } else if (err.message && err.message.includes('502')) {
+            if (textEl) textEl.textContent = '🔧 Server unavailable. Retrying...';
+            if (thinkingEl) thinkingEl.style.display = 'none';
+            setTimeout(() => sendMessage(), 5000);
+        } else {
+            if (textEl) textEl.textContent = 'Error: ' + err.message;
+            if (thinkingEl) thinkingEl.style.display = 'none';
+        }
+    }
+    updateSendButton();
+}
+
     showLoading('Thinking...');
 
     try {
@@ -2160,7 +2271,6 @@ async function sendMessage() {
         }
     }
     updateSendButton();
-}
 
 function clearChat() {
     if (!confirm('Clear all messages?')) return;
