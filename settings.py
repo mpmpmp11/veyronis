@@ -60,6 +60,9 @@ class Config:
     GROQ_MODEL: str = MODEL_ULTRA 
     JUDGE_MODEL: str = MODEL_ULTRA
 
+    # PostgreSQL Database URL
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:mysecret@localhost:5432/veyronis").strip()
+
     @classmethod
     def get_model(cls, is_pro: bool = False, is_limited: bool = False) -> str:
         if is_limited:

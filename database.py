@@ -1,530 +1,542 @@
-"""SQLite database for chat history, users, and usage limits."""
-import sqlite3
+"""PostgreSQL database for VEYRONIS — Production Ready with Connection Pooling."""
+import contextlib
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-import os
 
-DB_PATH = "veyronis.db"
+import psycopg2
+from psycopg2 import pool
+from psycopg2.extras import RealDictCursor
 
+from settings import Config
+
+# Global connection pool
+connection_pool = None
+
+
+@contextlib.contextmanager
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    """FastAPI dependency that yields a connection from the pool."""
+    global connection_pool
+    if connection_pool is None:
+        init_db()
+    conn = connection_pool.getconn()
+    try:
+        yield conn
+    finally:
+        connection_pool.putconn(conn)
+
+
+def init_db():
+    """Initialize the PostgreSQL connection pool and create tables if they don't exist."""
+    global connection_pool
+
+    if connection_pool is None:
+        connection_pool = psycopg2.pool.ThreadedConnectionPool(
+            minconn=1,
+            maxconn=10,
+            dsn=Config.DATABASE_URL,
+            cursor_factory=RealDictCursor
+        )
+
+    # Create tables using a connection from the pool
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            # Users table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    email TEXT UNIQUE NOT NULL,
+                    hashed_password TEXT,
+                    google_id TEXT,
+                    avatar_url TEXT,
+                    is_pro BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    verification_token TEXT,
+                    verification_token_expires TIMESTAMP,
+                    is_verified BOOLEAN DEFAULT FALSE,
+                    reset_token TEXT,
+                    reset_token_expires TIMESTAMP,
+                    is_banned BOOLEAN DEFAULT FALSE,
+                    ban_reason TEXT,
+                    banned_at TIMESTAMP,
+                    banned_until TIMESTAMP,
+                    lemon_squeezy_customer_id TEXT,
+                    lemon_squeezy_subscription_id TEXT,
+                    google_play_purchase_token TEXT,
+                    subscription_provider TEXT,
+                    subscription_status TEXT DEFAULT 'inactive',
+                    subscription_ends_at TIMESTAMP
+                )
+            """)
+
+            # Conversations table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS conversations (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    title TEXT DEFAULT 'New Chat',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_archived BOOLEAN DEFAULT FALSE
+                )
+            """)
+
+            # Messages table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    conversation_id INTEGER,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    image_data TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Attachments table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS attachments (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    conversation_id INTEGER,
+                    filename TEXT NOT NULL,
+                    cloudinary_url TEXT,
+                    file_type TEXT,
+                    size INTEGER,
+                    mime_type TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Usage logs table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS usage_logs (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    count INTEGER DEFAULT 0,
+                    UNIQUE(user_id, date)
+                )
+            """)
+
+            # Simulation logs table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS simulation_logs (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    sim_date TEXT NOT NULL,
+                    count INTEGER DEFAULT 0,
+                    UNIQUE(user_id, sim_date)
+                )
+            """)
+
+            # Reports table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS reports (
+                    id SERIAL PRIMARY KEY,
+                    reporter_user_id TEXT NOT NULL,
+                    reported_message_id TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    reviewed_by TEXT,
+                    reviewed_at TIMESTAMP,
+                    review_notes TEXT
+                )
+            """)
+
+            # Admin actions table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS admin_actions (
+                    id SERIAL PRIMARY KEY,
+                    admin_user_id TEXT NOT NULL,
+                    target_user_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    reason TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP
+                )
+            """)
+
+            # Indexes for performance
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_usage_logs_user_date ON usage_logs(user_id, date)")
+
+        conn.commit()
+
 
 def row_to_dict(row):
     return dict(row) if row else None
 
-def ensure_users_table():
-    conn = get_db()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            hashed_password TEXT,
-            google_id TEXT,
-            avatar_url TEXT,
-            is_pro BOOLEAN DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-def ensure_google_columns():
-    conn = get_db()
-    cursor = conn.execute("PRAGMA table_info(users)")
-    columns = [row["name"] for row in cursor.fetchall()]
-
-    if "google_id" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN google_id TEXT")
-        print("[VEYRONIS] Added google_id column to users")
-
-    if "avatar_url" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
-        print("[VEYRONIS] Added avatar_url column to users")
-
-    conn.commit()
-    conn.close()
-
-    try:
-        conn = get_db()
-        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL")
-        conn.commit()
-        print("[VEYRONIS] Created unique index on google_id")
-    except sqlite3.OperationalError as e:
-        print(f"[VEYRONIS] Note: {e}")
-    finally:
-        conn.close()
-
-def ensure_auth_columns():
-    """Add email verification and password reset columns."""
-    conn = get_db()
-    cursor = conn.execute("PRAGMA table_info(users)")
-    columns = [row["name"] for row in cursor.fetchall()]
-
-    if "verification_token" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN verification_token TEXT")
-        print("[VEYRONIS] Added verification_token column")
-    if "verification_token_expires" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN verification_token_expires TIMESTAMP")
-        print("[VEYRONIS] Added verification_token_expires column")
-    if "is_verified" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 0")
-        print("[VEYRONIS] Added is_verified column")
-    if "reset_token" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN reset_token TEXT")
-        print("[VEYRONIS] Added reset_token column")
-    if "reset_token_expires" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN reset_token_expires TIMESTAMP")
-        print("[VEYRONIS] Added reset_token_expires column")
-
-    conn.commit()
-    conn.close()
-
-def ensure_attachments_table():
-    """Create attachments table for file references per conversation."""
-    conn = get_db()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS attachments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            conversation_id INTEGER,
-            filename TEXT NOT NULL,
-            cloudinary_url TEXT,
-            file_type TEXT,
-            size INTEGER,
-            mime_type TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-        )
-    """)
-    conn.commit()
-    conn.close()
-    print("[VEYRONIS] Attachments table ready")
-
-def ensure_usage_table():
-    conn = get_db()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS usage_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            date TEXT NOT NULL,
-            count INTEGER DEFAULT 0,
-            UNIQUE(user_id, date)
-        )
-    """)
-    conn.commit()
-    conn.close()
-    print("[VEYRONIS] Usage logs table ready")
-
-def ensure_archive_column():
-    """Migrate conversations table to add is_archived column."""
-    conn = get_db()
-    cursor = conn.execute("PRAGMA table_info(conversations)")
-    columns = [row["name"] for row in cursor.fetchall()]
-    if "is_archived" not in columns:
-        conn.execute("ALTER TABLE conversations ADD COLUMN is_archived BOOLEAN DEFAULT 0")
-        conn.commit()
-        print("[VEYRONIS] Added is_archived column to conversations")
-    conn.close()
-
-def init_db():
-    conn = get_db()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS conversations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            title TEXT NOT NULL DEFAULT 'New Chat',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_archived BOOLEAN DEFAULT 0
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            conversation_id INTEGER,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            image_data TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-def _migrate():
-    conn = get_db()
-    cursor = conn.execute("PRAGMA table_info(messages)")
-    columns = [row["name"] for row in cursor.fetchall()]
-    if "conversation_id" not in columns:
-        conn.execute("ALTER TABLE messages ADD COLUMN conversation_id INTEGER")
-    if "image_data" not in columns:
-        conn.execute("ALTER TABLE messages ADD COLUMN image_data TEXT")
-    conn.commit()
-    conn.close()
 
 # ─── MESSAGES ───
 
 def save_message(user_id: str, role: str, content: str, conversation_id: Optional[int] = None, image_data: Optional[str] = None):
-    conn = get_db()
-    conn.execute(
-        "INSERT INTO messages (user_id, role, content, conversation_id, image_data) VALUES (?, ?, ?, ?, ?)",
-        (user_id, role, content, conversation_id, image_data)
-    )
-    if conversation_id:
-        conn.execute("UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (conversation_id,))
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO messages (user_id, role, content, conversation_id, image_data) VALUES (%s, %s, %s, %s, %s)",
+                (user_id, role, content, conversation_id, image_data)
+            )
+            if conversation_id:
+                cur.execute("UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = %s", (conversation_id,))
+        conn.commit()
+
 
 def get_history(user_id: str, limit: int = 50, conversation_id: Optional[int] = None) -> List[Dict[str, Any]]:
-    conn = get_db()
-    if conversation_id:
-        cursor = conn.execute(
-            "SELECT role, content, created_at, image_data FROM messages WHERE user_id = ? AND conversation_id = ? ORDER BY id DESC LIMIT ?",
-            (user_id, conversation_id, limit)
-        )
-    else:
-        cursor = conn.execute(
-            "SELECT role, content, created_at, image_data FROM messages WHERE user_id = ? AND conversation_id IS NULL ORDER BY id DESC LIMIT ?",
-            (user_id, limit)
-        )
-    rows = cursor.fetchall()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            if conversation_id:
+                cur.execute(
+                    "SELECT role, content, created_at, image_data FROM messages WHERE user_id = %s AND conversation_id = %s ORDER BY id DESC LIMIT %s",
+                    (user_id, conversation_id, limit)
+                )
+            else:
+                cur.execute(
+                    "SELECT role, content, created_at, image_data FROM messages WHERE user_id = %s AND conversation_id IS NULL ORDER BY id DESC LIMIT %s",
+                    (user_id, limit)
+                )
+            rows = cur.fetchall()
     return [{"role": r["role"], "content": r["content"], "time": r["created_at"], "image_data": r["image_data"]} for r in reversed(rows)]
 
+
 def clear_history(user_id: str, conversation_id: Optional[int] = None):
-    conn = get_db()
-    if conversation_id:
-        conn.execute("DELETE FROM messages WHERE user_id = ? AND conversation_id = ?", (user_id, conversation_id))
-    else:
-        conn.execute("DELETE FROM messages WHERE user_id = ? AND conversation_id IS NULL", (user_id,))
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            if conversation_id:
+                cur.execute("DELETE FROM messages WHERE user_id = %s AND conversation_id = %s", (user_id, conversation_id))
+            else:
+                cur.execute("DELETE FROM messages WHERE user_id = %s AND conversation_id IS NULL", (user_id,))
+        conn.commit()
+
 
 # ─── CONVERSATIONS ───
 
 def create_conversation(user_id: str, title: str = "New Chat") -> int:
-    conn = get_db()
-    cursor = conn.execute("INSERT INTO conversations (user_id, title) VALUES (?, ?)", (user_id, title))
-    conn.commit()
-    cid = cursor.lastrowid
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO conversations (user_id, title) VALUES (%s, %s) RETURNING id", (user_id, title))
+            cid = cur.fetchone()["id"]
+        conn.commit()
     return cid
 
+
 def get_conversations(user_id: str, include_archived: bool = False) -> List[Dict[str, Any]]:
-    conn = get_db()
-    if include_archived:
-        cursor = conn.execute(
-            "SELECT id, title, created_at, updated_at, is_archived FROM conversations WHERE user_id = ? ORDER BY updated_at DESC",
-            (user_id,)
-        )
-    else:
-        cursor = conn.execute(
-            "SELECT id, title, created_at, updated_at, is_archived FROM conversations WHERE user_id = ? AND is_archived = 0 ORDER BY updated_at DESC",
-            (user_id,)
-        )
-    rows = cursor.fetchall()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            if include_archived:
+                cur.execute(
+                    "SELECT id, title, created_at, updated_at, is_archived FROM conversations WHERE user_id = %s ORDER BY updated_at DESC",
+                    (user_id,)
+                )
+            else:
+                cur.execute(
+                    "SELECT id, title, created_at, updated_at, is_archived FROM conversations WHERE user_id = %s AND is_archived = FALSE ORDER BY updated_at DESC",
+                    (user_id,)
+                )
+            rows = cur.fetchall()
     return [{"id": r["id"], "title": r["title"], "created_at": r["created_at"], "updated_at": r["updated_at"], "is_archived": bool(r["is_archived"])} for r in rows]
+
 
 def get_archived_conversations(user_id: str) -> List[Dict[str, Any]]:
-    conn = get_db()
-    cursor = conn.execute(
-        "SELECT id, title, created_at, updated_at, is_archived FROM conversations WHERE user_id = ? AND is_archived = 1 ORDER BY updated_at DESC",
-        (user_id,)
-    )
-    rows = cursor.fetchall()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, title, created_at, updated_at, is_archived FROM conversations WHERE user_id = %s AND is_archived = TRUE ORDER BY updated_at DESC",
+                (user_id,)
+            )
+            rows = cur.fetchall()
     return [{"id": r["id"], "title": r["title"], "created_at": r["created_at"], "updated_at": r["updated_at"], "is_archived": bool(r["is_archived"])} for r in rows]
 
+
 def rename_conversation(conversation_id: int, title: str) -> bool:
-    conn = get_db()
-    cursor = conn.execute("UPDATE conversations SET title = ? WHERE id = ?", (title, conversation_id))
-    conn.commit()
-    changed = cursor.rowcount > 0
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE conversations SET title = %s WHERE id = %s", (title, conversation_id))
+            changed = cur.rowcount > 0
+        conn.commit()
     return changed
+
 
 def archive_conversation(conversation_id: int, user_id: str) -> bool:
-    conn = get_db()
-    cursor = conn.execute(
-        "UPDATE conversations SET is_archived = 1 WHERE id = ? AND user_id = ?",
-        (conversation_id, user_id)
-    )
-    conn.commit()
-    changed = cursor.rowcount > 0
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE conversations SET is_archived = TRUE WHERE id = %s AND user_id = %s",
+                (conversation_id, user_id)
+            )
+            changed = cur.rowcount > 0
+        conn.commit()
     return changed
+
 
 def unarchive_conversation(conversation_id: int, user_id: str) -> bool:
-    conn = get_db()
-    cursor = conn.execute(
-        "UPDATE conversations SET is_archived = 0 WHERE id = ? AND user_id = ?",
-        (conversation_id, user_id)
-    )
-    conn.commit()
-    changed = cursor.rowcount > 0
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE conversations SET is_archived = FALSE WHERE id = %s AND user_id = %s",
+                (conversation_id, user_id)
+            )
+            changed = cur.rowcount > 0
+        conn.commit()
     return changed
 
+
 def delete_conversation(conversation_id: int):
-    conn = get_db()
-    conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
-    conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM messages WHERE conversation_id = %s", (conversation_id,))
+            cur.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
+        conn.commit()
+
 
 # ─── ATTACHMENTS ───
 
 def save_attachment(user_id: str, conversation_id: int, filename: str, cloudinary_url: str = None,
                     file_type: str = None, size: int = None, mime_type: str = None) -> int:
-    conn = get_db()
-    cursor = conn.execute("""
-        INSERT INTO attachments (user_id, conversation_id, filename, cloudinary_url, file_type, size, mime_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, conversation_id, filename, cloudinary_url, file_type, size, mime_type))
-    conn.commit()
-    aid = cursor.lastrowid
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO attachments (user_id, conversation_id, filename, cloudinary_url, file_type, size, mime_type)
+                VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+            """, (user_id, conversation_id, filename, cloudinary_url, file_type, size, mime_type))
+            aid = cur.fetchone()["id"]
+        conn.commit()
     return aid
 
+
 def get_attachments(user_id: str, conversation_id: int) -> List[Dict[str, Any]]:
-    conn = get_db()
-    cursor = conn.execute(
-        "SELECT id, filename, cloudinary_url, file_type, size, mime_type, created_at FROM attachments "
-        "WHERE user_id = ? AND conversation_id = ? ORDER BY created_at DESC",
-        (user_id, conversation_id)
-    )
-    rows = cursor.fetchall()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, filename, cloudinary_url, file_type, size, mime_type, created_at FROM attachments "
+                "WHERE user_id = %s AND conversation_id = %s ORDER BY created_at DESC",
+                (user_id, conversation_id)
+            )
+            rows = cur.fetchall()
     return [dict(r) for r in rows]
 
+
 def delete_attachment(attachment_id: int, user_id: str) -> bool:
-    conn = get_db()
-    cursor = conn.execute(
-        "DELETE FROM attachments WHERE id = ? AND user_id = ?",
-        (attachment_id, user_id)
-    )
-    conn.commit()
-    deleted = cursor.rowcount > 0
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM attachments WHERE id = %s AND user_id = %s", (attachment_id, user_id))
+            deleted = cur.rowcount > 0
+        conn.commit()
     return deleted
+
 
 # ─── USERS ───
 
 def create_user(email: str, hashed_password: str = None, google_id: str = None, avatar_url: str = None) -> int:
-    conn = get_db()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            if google_id:
+                existing = cur.execute("SELECT id FROM users WHERE google_id = %s", (google_id,)).fetchone()
+                if existing:
+                    return existing["id"]
 
-    if google_id:
-        existing = conn.execute("SELECT id FROM users WHERE google_id = ?", (google_id,)).fetchone()
-        if existing:
-            conn.close()
-            return existing["id"]
+                existing = cur.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone()
+                if existing:
+                    cur.execute(
+                        "UPDATE users SET google_id = %s, avatar_url = %s WHERE id = %s",
+                        (google_id, avatar_url, existing["id"])
+                    )
+                    conn.commit()
+                    return existing["id"]
 
-        existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
-        if existing:
-            conn.execute(
-                "UPDATE users SET google_id = ?, avatar_url = ? WHERE id = ?",
-                (google_id, avatar_url, existing["id"])
-            )
-            conn.commit()
-            conn.close()
-            return existing["id"]
-
-        cursor = conn.execute(
-            "INSERT INTO users (email, google_id, avatar_url, is_pro) VALUES (?, ?, ?, 0)",
-            (email, google_id, avatar_url)
-        )
-    else:
-        if hashed_password is None:
-            raise ValueError("Password required for email registration")
-        cursor = conn.execute(
-            "INSERT INTO users (email, hashed_password) VALUES (?, ?)",
-            (email, hashed_password)
-        )
-
-    conn.commit()
-    user_id = cursor.lastrowid
-    conn.close()
+                cur.execute(
+                    "INSERT INTO users (email, google_id, avatar_url, is_pro) VALUES (%s, %s, %s, FALSE) RETURNING id",
+                    (email, google_id, avatar_url)
+                )
+            else:
+                if hashed_password is None:
+                    raise ValueError("Password required for email registration")
+                cur.execute(
+                    "INSERT INTO users (email, hashed_password) VALUES (%s, %s) RETURNING id",
+                    (email, hashed_password)
+                )
+            user_id = cur.fetchone()["id"]
+        conn.commit()
     return user_id
 
+
 def get_user_by_email(email: str):
-    conn = get_db()
-    cursor = conn.execute("SELECT id, email, hashed_password, is_pro, google_id, avatar_url FROM users WHERE email = ?", (email,))
-    row = cursor.fetchone()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, email, hashed_password, is_pro, google_id, avatar_url, is_verified, is_banned, ban_reason FROM users WHERE email = %s", (email,))
+            row = cur.fetchone()
     return row_to_dict(row)
+
 
 def get_user_by_id(user_id: int):
-    conn = get_db()
-    cursor = conn.execute("SELECT id, email, is_pro, avatar_url, is_verified FROM users WHERE id = ?", (user_id,))
-    row = cursor.fetchone()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, email, is_pro, avatar_url, is_verified, is_banned, ban_reason FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
     return row_to_dict(row)
+
 
 def get_user_by_google_id(google_id: str):
-    conn = get_db()
-    cursor = conn.execute(
-        "SELECT id, email, is_pro, avatar_url FROM users WHERE google_id = ?",
-        (google_id,)
-    )
-    row = cursor.fetchone()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, email, is_pro, avatar_url FROM users WHERE google_id = %s",
+                (google_id,)
+            )
+            row = cur.fetchone()
     return row_to_dict(row)
 
+
 def link_google_account(user_id: int, google_id: str, avatar_url: str = None):
-    conn = get_db()
-    if avatar_url:
-        conn.execute(
-            "UPDATE users SET google_id = ?, avatar_url = ? WHERE id = ?",
-            (google_id, avatar_url, user_id)
-        )
-    else:
-        conn.execute(
-            "UPDATE users SET google_id = ? WHERE id = ?",
-            (google_id, user_id)
-        )
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            if avatar_url:
+                cur.execute(
+                    "UPDATE users SET google_id = %s, avatar_url = %s WHERE id = %s",
+                    (google_id, avatar_url, user_id)
+                )
+            else:
+                cur.execute(
+                    "UPDATE users SET google_id = %s WHERE id = %s",
+                    (google_id, user_id)
+                )
+        conn.commit()
+
 
 def set_user_pro(user_id: int, is_pro: bool = True):
-    conn = get_db()
-    conn.execute("UPDATE users SET is_pro = ? WHERE id = ?", (1 if is_pro else 0, user_id))
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET is_pro = %s WHERE id = %s", (is_pro, user_id))
+        conn.commit()
+
 
 def update_user_password(user_id: int, hashed_password: str) -> bool:
-    """Update a user's password."""
-    conn = get_db()
-    cursor = conn.execute(
-        "UPDATE users SET hashed_password = ? WHERE id = ?",
-        (hashed_password, user_id)
-    )
-    conn.commit()
-    changed = cursor.rowcount > 0
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET hashed_password = %s WHERE id = %s", (hashed_password, user_id))
+            changed = cur.rowcount > 0
+        conn.commit()
     return changed
 
-def delete_user(user_id: int) -> bool:
-    conn = get_db()
-    try:
-        user = get_user_by_id(user_id)
-        if not user:
-            return False
-        email = user["email"]
 
-        conn.execute("""
-            DELETE FROM attachments WHERE conversation_id IN 
-            (SELECT id FROM conversations WHERE user_id = ?)
-        """, (email,))
-        conn.execute("""
-            DELETE FROM messages WHERE conversation_id IN 
-            (SELECT id FROM conversations WHERE user_id = ?)
-        """, (email,))
-        conn.execute("DELETE FROM conversations WHERE user_id = ?", (email,))
-        conn.execute("DELETE FROM usage_logs WHERE user_id = ?", (email,))
-        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+def delete_user(user_id: int) -> bool:
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            user = get_user_by_id(user_id)
+            if not user:
+                return False
+            email = user["email"]
+
+            cur.execute("""
+                DELETE FROM attachments WHERE conversation_id IN 
+                (SELECT id FROM conversations WHERE user_id = %s)
+            """, (email,))
+            cur.execute("""
+                DELETE FROM messages WHERE conversation_id IN 
+                (SELECT id FROM conversations WHERE user_id = %s)
+            """, (email,))
+            cur.execute("DELETE FROM conversations WHERE user_id = %s", (email,))
+            cur.execute("DELETE FROM usage_logs WHERE user_id = %s", (email,))
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
         conn.commit()
-        return True
-    except Exception as e:
-        print(f"[DELETE USER ERROR] {e}")
-        conn.rollback()
-        return False
-    finally:
-        conn.close()
+    return True
+
 
 # ─── AUTH TOKENS ───
 
 def set_verification_token(email: str, token: str, expires):
-    conn = get_db()
-    conn.execute(
-        "UPDATE users SET verification_token = ?, verification_token_expires = ? WHERE email = ?",
-        (token, expires, email)
-    )
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET verification_token = %s, verification_token_expires = %s WHERE email = %s",
+                (token, expires, email)
+            )
+        conn.commit()
+
 
 def get_user_by_verification_token(token: str):
-    conn = get_db()
-    cursor = conn.execute(
-        "SELECT id, email FROM users WHERE verification_token = ? AND verification_token_expires > datetime('now')",
-        (token,)
-    )
-    row = cursor.fetchone()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, email FROM users WHERE verification_token = %s AND verification_token_expires > CURRENT_TIMESTAMP",
+                (token,)
+            )
+            row = cur.fetchone()
     return row_to_dict(row)
+
 
 def verify_user(email: str):
-    conn = get_db()
-    conn.execute(
-        "UPDATE users SET is_verified = 1, verification_token = NULL, verification_token_expires = NULL WHERE email = ?",
-        (email,)
-    )
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET is_verified = TRUE, verification_token = NULL, verification_token_expires = NULL WHERE email = %s",
+                (email,)
+            )
+        conn.commit()
+
 
 def set_reset_token(email: str, token: str, expires):
-    conn = get_db()
-    conn.execute(
-        "UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE email = ?",
-        (token, expires, email)
-    )
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET reset_token = %s, reset_token_expires = %s WHERE email = %s",
+                (token, expires, email)
+            )
+        conn.commit()
+
 
 def get_user_by_reset_token(token: str):
-    conn = get_db()
-    cursor = conn.execute(
-        "SELECT id, email FROM users WHERE reset_token = ? AND reset_token_expires > datetime('now')",
-        (token,)
-    )
-    row = cursor.fetchone()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, email FROM users WHERE reset_token = %s AND reset_token_expires > CURRENT_TIMESTAMP",
+                (token,)
+            )
+            row = cur.fetchone()
     return row_to_dict(row)
 
+
 def clear_reset_token(email: str):
-    conn = get_db()
-    conn.execute(
-        "UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE email = ?",
-        (email,)
-    )
-    conn.commit()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE email = %s",
+                (email,)
+            )
+        conn.commit()
+
 
 # ─── USAGE LIMITS ───
 
 def get_usage_count(user_id: str, date: str) -> int:
-    conn = get_db()
-    row = conn.execute(
-        "SELECT count FROM usage_logs WHERE user_id = ? AND date = ?",
-        (user_id, date)
-    ).fetchone()
-    conn.close()
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT count FROM usage_logs WHERE user_id = %s AND date = %s",
+                (user_id, date)
+            )
+            row = cur.fetchone()
     return row["count"] if row else 0
 
+
 def increment_usage(user_id: str, date: str) -> int:
-    conn = get_db()
-    conn.execute("""
-        INSERT INTO usage_logs (user_id, date, count)
-        VALUES (?, ?, 1)
-        ON CONFLICT(user_id, date) DO UPDATE SET count = count + 1
-    """, (user_id, date))
-    conn.commit()
-    row = conn.execute(
-        "SELECT count FROM usage_logs WHERE user_id = ? AND date = ?",
-        (user_id, date)
-    ).fetchone()
-    conn.close()
-    return row["count"] if row else 0
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO usage_logs (user_id, date, count)
+                VALUES (%s, %s, 1)
+                ON CONFLICT(user_id, date) DO UPDATE SET count = usage_logs.count + 1
+                RETURNING count
+            """, (user_id, date))
+            row = cur.fetchone()
+        conn.commit()
+    return row["count"] if row else 1
+
 
 # ─── INIT ───
 init_db()
-_migrate()
-ensure_users_table()
-ensure_google_columns()
-ensure_auth_columns()
-ensure_attachments_table()
-ensure_usage_table()
-ensure_archive_column()

@@ -16,3 +16,4 @@ authlib
 httpx
 cloudinary>=1.33.0
 resend>=1.0.0
+psycopg2-binary

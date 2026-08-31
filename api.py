@@ -414,8 +414,8 @@ async def reset_password(request: Request):
 
         hashed = get_password_hash(new_password)
         conn = get_db()
-        conn.execute("UPDATE users SET hashed_password = ? WHERE id = ?", (hashed, user["id"]))
-        conn.execute("UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?", (user["id"],))
+        conn.execute("UPDATE users SET hashed_password = %s WHERE id = ?", (hashed, user["id"]))
+        conn.execute("UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = %s", (user["id"],))
         conn.commit()
         conn.close()
 
@@ -583,7 +583,7 @@ async def search_messages(
             m.role
         FROM messages m
         JOIN conversations c ON m.conversation_id = c.id
-        WHERE m.user_id = ? 
+        WHERE m.user_id = %s 
         AND m.content LIKE ?
         AND c.user_id = ?
         AND m.role = 'assistant'

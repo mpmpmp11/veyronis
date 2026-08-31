@@ -1,0 +1,27 @@
+{
+  "packageId": "com.veyronis.app",
+  "host": "veyronis.onrender.com",
+  "displayMode": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#8b5cf6",
+  "backgroundColor": "#050508",
+  "appName": "VEYRONIS",
+  "shortName": "VEYRONIS",
+  "startUrl": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ],
+  "fallbackType": "customtabs",
+  "features": [],
+  "signing": {
+    "keystorePath": "keystore.jks",
+    "keystorePassword": "",
+    "keyAlias": "android",
+    "keyPassword": ""
+  }
+}
