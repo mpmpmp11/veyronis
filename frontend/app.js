@@ -67,10 +67,14 @@ function toast(message, type = 'info') {
 function openModal(id) {
     const modal = document.getElementById(id);
     if (modal) {
+        // Remove hidden class and force visibility
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
         modal.style.zIndex = '9999';
-        // Force a reflow so the browser paints it immediately
+        modal.style.opacity = '1';
+        modal.style.pointerEvents = 'auto';
+        modal.style.visibility = 'visible';
+        // Force reflow – ensures the browser paints it
         modal.offsetHeight;
     }
     document.body.style.overflow = 'hidden';
@@ -81,6 +85,9 @@ function closeModal(id) {
     if (modal) {
         modal.classList.add('hidden');
         modal.style.display = 'none';
+        modal.style.opacity = '';
+        modal.style.pointerEvents = '';
+        modal.style.visibility = '';
     }
     document.body.style.overflow = '';
 }
@@ -243,6 +250,11 @@ async function handleLogin() {
     refreshUserInfo();
     updateUsageDisplay(); // ✅ force update
 }, 300);
+// ─── Force admin toggle for your email ───
+if (state.user && state.user.email === 'mishobazadze@gmail.com') {
+    const toggle = document.getElementById('adminToggle');
+    if (toggle) toggle.style.display = 'flex';
+}
         }
     }
 }
