@@ -4292,3 +4292,20 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
 #messages {
     padding-bottom: 120px !important;
 }
+/* ─── FORCE MODALS ON MOBILE ─── */
+.modal-overlay {
+    display: none !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 9999 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    padding: 20px !important;
+}
+
+.modal-overlay:not(.hidden) {
+    display: flex !important;
+}

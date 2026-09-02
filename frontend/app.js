@@ -67,14 +67,10 @@ function toast(message, type = 'info') {
 function openModal(id) {
     const modal = document.getElementById(id);
     if (modal) {
-        // Remove hidden class and force visibility
         modal.classList.remove('hidden');
-        modal.style.display = 'flex';
-        modal.style.zIndex = '9999';
-        modal.style.opacity = '1';
-        modal.style.pointerEvents = 'auto';
-        modal.style.visibility = 'visible';
-        // Force reflow – ensures the browser paints it
+        // Remove any inline display override so CSS can take over
+        modal.style.display = '';
+        // Force reflow to paint immediately
         modal.offsetHeight;
     }
     document.body.style.overflow = 'hidden';
@@ -84,13 +80,11 @@ function closeModal(id) {
     const modal = document.getElementById(id);
     if (modal) {
         modal.classList.add('hidden');
-        modal.style.display = 'none';
-        modal.style.opacity = '';
-        modal.style.pointerEvents = '';
-        modal.style.visibility = '';
+        modal.style.display = '';
     }
     document.body.style.overflow = '';
 }
+    document.body.style.overflow = '';
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -250,12 +244,16 @@ async function handleLogin() {
     refreshUserInfo();
     updateUsageDisplay(); // ✅ force update
 }, 300);
+        }
+    }
+}
+
 // ─── Force admin toggle for your email ───
 if (state.user && state.user.email === 'mishobazadze@gmail.com') {
     const toggle = document.getElementById('adminToggle');
-    if (toggle) toggle.style.display = 'flex';
-}
-        }
+    if (toggle) {
+        toggle.style.display = 'flex';
+        console.log('[Admin] Toggle shown for admin email');
     }
 }
 
