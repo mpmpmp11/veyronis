@@ -70,6 +70,8 @@ function openModal(id) {
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
         modal.style.zIndex = '9999';
+        // Force a reflow so the browser paints it immediately
+        modal.offsetHeight;
     }
     document.body.style.overflow = 'hidden';
 }
