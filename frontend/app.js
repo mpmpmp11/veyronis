@@ -237,6 +237,10 @@ async function handleLogin() {
             errorEl.textContent = '🔐 Invalid email or password. Please try again.';
         } else {
             errorEl.textContent = '😕 Login failed. Please try again.';
+            setTimeout(() => {
+    refreshUserInfo();
+    updateUsageDisplay(); // ✅ force update
+}, 300);
         }
     }
 }
@@ -273,7 +277,8 @@ async function handleRegister() {
         // Force refresh user info after registration
 setTimeout(() => {
     refreshUserInfo();
-}, 300);
+}, 300); updateUsageDisplay();
+
     } catch (err) {
         hideLoading();
         handleError(err, 'Register');
@@ -1347,7 +1352,15 @@ async function sendMessage() {
     }
     input.value = '';
     input.style.height = 'auto';
-    updateChatPadding();
+    function updateChatPadding() {
+    // ─── Fixed gap – no dynamic change ───
+    // const messages = document.getElementById('messages');
+    // const inputShell = document.querySelector('.input-shell');
+    // if (!messages || !inputShell) return;
+    // const inputHeight = inputShell.offsetHeight;
+    // const paddingBottom = Math.max(inputHeight + 24, 120);
+    // messages.style.paddingBottom = paddingBottom + 'px';
+}
     const sendBtn = document.getElementById('send-btn');
     if (sendBtn) sendBtn.disabled = true;
     const aiId = addAiShell();
@@ -2167,8 +2180,132 @@ function removeDocPreview() {
     if (existing) existing.remove();
     updateSendButton();
 }
-function toggleMic() { toast('🎤 Voice input coming soon', 'info'); }
+function toggleMic() {
+    if (!state.recognition) {
+        initVoice();
+        if (!state.recognition) {
+            toast('🎤 Voice not supported in this browser.', 'error');
+            return;
+        }
+    }
+    if (state.isListening) {
+        state.recognition.stop();
+    } else {
+        try {
+            state.recognition.start();
+        } catch (err) {
+            console.error('[Voice] Start error:', err);
+            toast('🎤 Could not start mic: ' + err.message, 'error');
+        }
+    }
+}
 
+function initVoice() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        console.warn('[Voice] Speech recognition not supported');
+        const btn = document.getElementById('mic-btn');
+        if (btn) btn.style.display = 'none';
+        return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    state.recognition = new SpeechRecognition();
+    state.recognition.continuous = false;
+    state.recognition.interimResults = true;
+    state.recognition.lang = 'en-US';
+
+    let finalTranscript = '';
+
+    state.recognition.onstart = () => {
+        console.log('[Voice] Started');
+        state.isListening = true;
+        finalTranscript = '';
+        const btn = document.getElementById('mic-btn');
+        if (btn) {
+            btn.classList.add('listening');
+            btn.innerHTML = '<div class="voice-wave"><div></div><div></div><div></div></div>';
+        }
+        const ta = document.getElementById('msg-input');
+        if (ta) {
+            ta.placeholder = '🎤 Listening... Speak now';
+            ta.value = '';
+            ta.style.height = 'auto';
+        }
+        updateSendButton();
+    };
+
+    state.recognition.onend = () => {
+        console.log('[Voice] Ended');
+        state.isListening = false;
+        const btn = document.getElementById('mic-btn');
+        if (btn) {
+            btn.classList.remove('listening');
+            btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>`;
+        }
+        const ta = document.getElementById('msg-input');
+        if (ta) {
+            ta.placeholder = 'Message VEYRONIS...';
+            if (finalTranscript.trim()) {
+                ta.value = finalTranscript.trim();
+                ta.style.height = 'auto';
+                ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+                updateSendButton();
+                setTimeout(() => sendMessage(), 400);
+            }
+        }
+    };
+
+    state.recognition.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+            const transcript = e.results[i][0].transcript;
+            if (e.results[i].isFinal) {
+                finalTranscript += transcript;
+            } else {
+                interim += transcript;
+            }
+        }
+        const ta = document.getElementById('msg-input');
+        if (ta) {
+            ta.value = finalTranscript + interim;
+            ta.style.height = 'auto';
+            ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+            updateSendButton();
+        }
+    };
+
+    state.recognition.onerror = (e) => {
+        console.error('[Voice] Error:', e);
+        state.isListening = false;
+        const btn = document.getElementById('mic-btn');
+        if (btn) {
+            btn.classList.remove('listening');
+            btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>`;
+        }
+        const ta = document.getElementById('msg-input');
+        if (ta) ta.placeholder = 'Message VEYRONIS...';
+        if (e.error === 'no-speech') {
+            toast('🎤 No speech detected', 'info');
+        } else if (e.error === 'audio-capture') {
+            toast('🎤 No microphone found', 'error');
+        } else if (e.error === 'not-allowed') {
+            toast('🎤 Microphone access denied', 'error');
+        } else if (e.error === 'network') {
+            toast('🎤 Network error with voice', 'error');
+        } else if (e.error !== 'aborted') {
+            toast('🎤 Voice failed: ' + e.error, 'error');
+        }
+    };
+}
 // ─── LIGHTBOX ───
 function openLightbox(src) {
     const lb = document.getElementById('img-lightbox');
@@ -2311,7 +2448,8 @@ function initApp() {
     try { mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' }); } catch(e) {}
     if (window.Chart) updateChartDefaults();
     loadConversations();
-    if (!state.recognition) { const micBtn = document.getElementById('mic-btn'); if (micBtn) micBtn.style.display = 'none'; }
+    const micBtn = document.getElementById('mic-btn');
+if (micBtn) micBtn.style.display = 'flex';
     initScrollHeader();
     initSettings();
     initTextarea();

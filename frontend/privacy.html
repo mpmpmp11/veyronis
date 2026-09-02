@@ -64,6 +64,13 @@
             margin-bottom: 12px;
             letter-spacing: -0.3px;
         }
+        h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #f0f0f5;
+            margin-top: 18px;
+            margin-bottom: 6px;
+        }
         p {
             color: #a0a0b8;
             font-size: 15px;
@@ -85,6 +92,31 @@
         .highlight {
             color: #a78bfa;
             font-weight: 600;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0 16px;
+            font-size: 14px;
+            color: #a0a0b8;
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        th {
+            background: rgba(255,255,255,0.03);
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 700;
+            color: #f0f0f5;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        td {
+            padding: 10px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        tr:last-child td {
+            border-bottom: none;
         }
         .contact-block {
             background: rgba(167, 139, 250, 0.06);
@@ -146,7 +178,7 @@
 
         <h1>🔒 Privacy Policy</h1>
         <span class="last-updated">
-            <strong>Last Updated:</strong> August 29, 2026 &nbsp;·&nbsp; <span class="badge">v1.0</span>
+            <strong>Last Updated:</strong> September 2, 2026 &nbsp;·&nbsp; <span class="badge">v1.1</span>
         </span>
 
         <p>
@@ -159,15 +191,17 @@
         <h2>1. Information We Collect</h2>
         <p>We collect the following types of information to provide and improve our Service:</p>
 
-        <h3 style="font-size:16px;font-weight:600;color:#f0f0f5;margin-top:16px;margin-bottom:4px;">1.1 Account Information</h3>
+        <h3>1.1 Account Information</h3>
         <ul>
             <li><strong>Email address</strong> – used for login, account recovery, and important notifications.</li>
             <li><strong>Password</strong> – securely hashed using <span class="highlight">bcrypt</span> with SHA256 pre‑hashing. We never store plain‑text passwords.</li>
-            <li><strong>Name</strong> – optional, used for personalization (e.g., "Welcome back, [Name]").</li>
+            <li><strong>Name</strong> – optional, used for personalisation (e.g., "Welcome back, [Name]").</li>
             <li><strong>Profile picture</strong> – optional, stored securely via <span class="highlight">Cloudinary</span>.</li>
+            <li><strong>Display ID</strong> – a unique, user‑friendly identifier (e.g., VY‑A1B2C3) generated for each account.</li>
+            <li><strong>Ban status and reason</strong> – if you violate our Terms, we may store a ban record with the reason and expiration date.</li>
         </ul>
 
-        <h3 style="font-size:16px;font-weight:600;color:#f0f0f5;margin-top:16px;margin-bottom:4px;">1.2 Usage Data</h3>
+        <h3>1.2 Usage Data</h3>
         <ul>
             <li><strong>Messages &amp; conversations</strong> – all text you send to VEYRONIS, including AI responses, are stored to maintain conversation context and improve the service.</li>
             <li><strong>Uploaded files</strong> – images, documents (PDF, DOCX, TXT, MD, CSV, Excel) are temporarily processed and stored securely.</li>
@@ -175,7 +209,7 @@
             <li><strong>Hindsight simulations</strong> – scenarios and simulation results are stored to provide context and improve the feature.</li>
         </ul>
 
-        <h3 style="font-size:16px;font-weight:600;color:#f0f0f5;margin-top:16px;margin-bottom:4px;">1.3 Technical Data</h3>
+        <h3>1.3 Technical Data</h3>
         <ul>
             <li><strong>IP address</strong> – used for rate limiting, security, and analytics.</li>
             <li><strong>Browser type and version</strong> – to ensure compatibility and improve performance.</li>
@@ -183,7 +217,7 @@
             <li><strong>Usage patterns</strong> – how you interact with the Service (feature usage, session duration, etc.).</li>
         </ul>
 
-        <h3 style="font-size:16px;font-weight:600;color:#f0f0f5;margin-top:16px;margin-bottom:4px;">1.4 Voice Data (if enabled)</h3>
+        <h3>1.4 Voice Data (if enabled)</h3>
         <ul>
             <li><strong>Voice recordings</strong> – processed in real‑time using browser‑based speech recognition. Audio is <strong>not stored</strong> on our servers.</li>
         </ul>
@@ -206,7 +240,7 @@
             <li><strong>Hashing</strong> – passwords are hashed using <span class="highlight">bcrypt</span> with SHA256 pre‑hashing. We never store plain‑text passwords.</li>
             <li><strong>Secure hosting</strong> – data is stored on <span class="highlight">Render.com</span> servers with industry‑standard security measures.</li>
             <li><strong>File storage</strong> – uploaded files are stored securely via <span class="highlight">Cloudinary</span>, with access controlled by user authentication.</li>
-            <li><strong>Database</strong> – SQLite with parameterised queries to prevent SQL injection.</li>
+            <li><strong>Database</strong> – PostgreSQL with parameterised queries to prevent SQL injection.</li>
             <li><strong>Access control</strong> – strict ownership checks ensure users can only access their own data.</li>
         </ul>
         <p>
@@ -216,37 +250,41 @@
         <h2>4. Third‑Party Services</h2>
         <p>VEYRONIS relies on trusted third‑party services to power its features. These services may process your data according to their own privacy policies. We only share the minimum data necessary for each service to function.</p>
 
-        <table style="width:100%;border-collapse:collapse;margin:12px 0 16px;font-size:14px;color:#a0a0b8;border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;">
+        <table>
             <thead>
-                <tr style="background:rgba(255,255,255,0.03);border-bottom:1px solid rgba(255,255,255,0.06);">
-                    <th style="padding:10px 14px;text-align:left;font-weight:700;color:#f0f0f5;">Service</th>
-                    <th style="padding:10px 14px;text-align:left;font-weight:700;color:#f0f0f5;">Purpose</th>
+                <tr>
+                    <th>Service</th>
+                    <th>Purpose</th>
                 </tr>
             </thead>
             <tbody>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:10px 14px;"><span class="highlight">Groq</span></td>
-                    <td style="padding:10px 14px;">Primary AI language model for chat responses</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:10px 14px;"><span class="highlight">Google Gemini</span></td>
-                    <td style="padding:10px 14px;">Vision and document understanding</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:10px 14px;"><span class="highlight">Tavily</span></td>
-                    <td style="padding:10px 14px;">Web search with citations</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:10px 14px;"><span class="highlight">Cloudinary</span></td>
-                    <td style="padding:10px 14px;">Secure file storage and image processing</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:10px 14px;"><span class="highlight">Resend</span></td>
-                    <td style="padding:10px 14px;">Email sending (verification, password reset)</td>
+                <tr>
+                    <td><span class="highlight">Groq</span></td>
+                    <td>Primary AI language model for chat responses</td>
                 </tr>
                 <tr>
-                    <td style="padding:10px 14px;"><span class="highlight">Google OAuth</span></td>
-                    <td style="padding:10px 14px;">Optional Google login (email, profile picture)</td>
+                    <td><span class="highlight">Google Gemini</span></td>
+                    <td>Vision and document understanding</td>
+                </tr>
+                <tr>
+                    <td><span class="highlight">Tavily</span></td>
+                    <td>Web search with citations</td>
+                </tr>
+                <tr>
+                    <td><span class="highlight">Cloudinary</span></td>
+                    <td>Secure file storage and image processing</td>
+                </tr>
+                <tr>
+                    <td><span class="highlight">Resend</span></td>
+                    <td>Email sending (primary method)</td>
+                </tr>
+                <tr>
+                    <td><span class="highlight">Gmail SMTP</span></td>
+                    <td>Email delivery (fallback when Resend is unavailable)</td>
+                </tr>
+                <tr>
+                    <td><span class="highlight">Google OAuth</span></td>
+                    <td>Optional Google login (email, profile picture)</td>
                 </tr>
             </tbody>
         </table>
@@ -279,6 +317,7 @@
             <li><strong>Usage logs</strong> – retained for up to 30 days for analytics and security, then anonymised or deleted.</li>
             <li><strong>Email verification tokens</strong> – automatically expire after 24 hours.</li>
             <li><strong>Password reset tokens</strong> – automatically expire after 1 hour.</li>
+            <li><strong>Ban records</strong> – retained for the duration of the ban, and may be kept for audit purposes after expiry.</li>
         </ul>
         <p>
             We may retain anonymised or aggregated data for analytical purposes after your account is deleted. This data does not personally identify you.

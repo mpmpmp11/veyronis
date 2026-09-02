@@ -4288,3 +4288,7 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
     transform: translateY(0) scale(1) !important;
     pointer-events: auto !important;
 }
+/* ─── FIXED GAP BETWEEN MESSAGES AND INPUT BAR ─── */
+#messages {
+    padding-bottom: 120px !important;
+}
