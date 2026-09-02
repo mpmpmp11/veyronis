@@ -1,5 +1,7 @@
 """PostgreSQL database for VEYRONIS — Production Ready with Connection Pooling."""
 import contextlib
+import secrets
+import string
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
@@ -13,9 +15,31 @@ from settings import Config
 connection_pool = None
 
 
-@contextlib.contextmanager
+def generate_display_id() -> str:
+    """Generate a unique display ID like VY-A1B2C3"""
+    chars = string.ascii_uppercase + string.digits
+    # Exclude confusing chars: 0, O, I, 1
+    safe_chars = ''.join(c for c in chars if c not in '0OI1')
+    return "VY-" + ''.join(secrets.choice(safe_chars) for _ in range(6))
+
+
+# ─── For FastAPI dependencies (plain generator) ───
 def get_db():
-    """FastAPI dependency that yields a connection from the pool."""
+    """FastAPI dependency – yields a connection from the pool."""
+    global connection_pool
+    if connection_pool is None:
+        init_db()
+    conn = connection_pool.getconn()
+    try:
+        yield conn
+    finally:
+        connection_pool.putconn(conn)
+
+
+# ─── For internal use inside database.py (context manager) ───
+@contextlib.contextmanager
+def db_connection():
+    """Context manager for internal database functions."""
     global connection_pool
     if connection_pool is None:
         init_db()
@@ -27,7 +51,7 @@ def get_db():
 
 
 def init_db():
-    """Initialize the PostgreSQL connection pool and create tables if they don't exist."""
+    """Initialize connection pool and create tables (no `with get_db()`)."""
     global connection_pool
 
     if connection_pool is None:
@@ -38,8 +62,9 @@ def init_db():
             cursor_factory=RealDictCursor
         )
 
-    # Create tables using a connection from the pool
-    with get_db() as conn:
+    # ─── Manually get connection ───
+    conn = connection_pool.getconn()
+    try:
         with conn.cursor() as cur:
             # Users table
             cur.execute("""
@@ -68,6 +93,22 @@ def init_db():
                     subscription_ends_at TIMESTAMP
                 )
             """)
+
+            # ─── MIGRATION: Add display_id if missing ───
+            cur.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name='users' AND column_name='display_id'
+            """)
+            if not cur.fetchone():
+                print("[VEYRONIS] Adding display_id column to users table...")
+                cur.execute("ALTER TABLE users ADD COLUMN display_id TEXT UNIQUE")
+                cur.execute("""
+                    UPDATE users 
+                    SET display_id = 'VY-' || substr(md5(random()::text), 1, 6)
+                    WHERE display_id IS NULL
+                """)
+                print("[VEYRONIS] display_id column added and populated.")
 
             # Conversations table
             cur.execute("""
@@ -159,14 +200,17 @@ def init_db():
                 )
             """)
 
-            # Indexes for performance
+            # Indexes
             cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_users_display_id ON users(display_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_usage_logs_user_date ON usage_logs(user_id, date)")
 
         conn.commit()
+    finally:
+        connection_pool.putconn(conn)
 
 
 def row_to_dict(row):
@@ -176,7 +220,7 @@ def row_to_dict(row):
 # ─── MESSAGES ───
 
 def save_message(user_id: str, role: str, content: str, conversation_id: Optional[int] = None, image_data: Optional[str] = None):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO messages (user_id, role, content, conversation_id, image_data) VALUES (%s, %s, %s, %s, %s)",
@@ -188,7 +232,7 @@ def save_message(user_id: str, role: str, content: str, conversation_id: Optiona
 
 
 def get_history(user_id: str, limit: int = 50, conversation_id: Optional[int] = None) -> List[Dict[str, Any]]:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             if conversation_id:
                 cur.execute(
@@ -205,7 +249,7 @@ def get_history(user_id: str, limit: int = 50, conversation_id: Optional[int] = 
 
 
 def clear_history(user_id: str, conversation_id: Optional[int] = None):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             if conversation_id:
                 cur.execute("DELETE FROM messages WHERE user_id = %s AND conversation_id = %s", (user_id, conversation_id))
@@ -217,7 +261,7 @@ def clear_history(user_id: str, conversation_id: Optional[int] = None):
 # ─── CONVERSATIONS ───
 
 def create_conversation(user_id: str, title: str = "New Chat") -> int:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("INSERT INTO conversations (user_id, title) VALUES (%s, %s) RETURNING id", (user_id, title))
             cid = cur.fetchone()["id"]
@@ -226,7 +270,7 @@ def create_conversation(user_id: str, title: str = "New Chat") -> int:
 
 
 def get_conversations(user_id: str, include_archived: bool = False) -> List[Dict[str, Any]]:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             if include_archived:
                 cur.execute(
@@ -243,7 +287,7 @@ def get_conversations(user_id: str, include_archived: bool = False) -> List[Dict
 
 
 def get_archived_conversations(user_id: str) -> List[Dict[str, Any]]:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, title, created_at, updated_at, is_archived FROM conversations WHERE user_id = %s AND is_archived = TRUE ORDER BY updated_at DESC",
@@ -254,7 +298,7 @@ def get_archived_conversations(user_id: str) -> List[Dict[str, Any]]:
 
 
 def rename_conversation(conversation_id: int, title: str) -> bool:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("UPDATE conversations SET title = %s WHERE id = %s", (title, conversation_id))
             changed = cur.rowcount > 0
@@ -263,7 +307,7 @@ def rename_conversation(conversation_id: int, title: str) -> bool:
 
 
 def archive_conversation(conversation_id: int, user_id: str) -> bool:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE conversations SET is_archived = TRUE WHERE id = %s AND user_id = %s",
@@ -275,7 +319,7 @@ def archive_conversation(conversation_id: int, user_id: str) -> bool:
 
 
 def unarchive_conversation(conversation_id: int, user_id: str) -> bool:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE conversations SET is_archived = FALSE WHERE id = %s AND user_id = %s",
@@ -287,7 +331,7 @@ def unarchive_conversation(conversation_id: int, user_id: str) -> bool:
 
 
 def delete_conversation(conversation_id: int):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM messages WHERE conversation_id = %s", (conversation_id,))
             cur.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
@@ -298,7 +342,7 @@ def delete_conversation(conversation_id: int):
 
 def save_attachment(user_id: str, conversation_id: int, filename: str, cloudinary_url: str = None,
                     file_type: str = None, size: int = None, mime_type: str = None) -> int:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO attachments (user_id, conversation_id, filename, cloudinary_url, file_type, size, mime_type)
@@ -310,7 +354,7 @@ def save_attachment(user_id: str, conversation_id: int, filename: str, cloudinar
 
 
 def get_attachments(user_id: str, conversation_id: int) -> List[Dict[str, Any]]:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, filename, cloudinary_url, file_type, size, mime_type, created_at FROM attachments "
@@ -322,7 +366,7 @@ def get_attachments(user_id: str, conversation_id: int) -> List[Dict[str, Any]]:
 
 
 def delete_attachment(attachment_id: int, user_id: str) -> bool:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM attachments WHERE id = %s AND user_id = %s", (attachment_id, user_id))
             deleted = cur.rowcount > 0
@@ -333,7 +377,7 @@ def delete_attachment(attachment_id: int, user_id: str) -> bool:
 # ─── USERS ───
 
 def create_user(email: str, hashed_password: str = None, google_id: str = None, avatar_url: str = None) -> int:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             if google_id:
                 existing = cur.execute("SELECT id FROM users WHERE google_id = %s", (google_id,)).fetchone()
@@ -349,16 +393,20 @@ def create_user(email: str, hashed_password: str = None, google_id: str = None, 
                     conn.commit()
                     return existing["id"]
 
+                # Generate display_id
+                display_id = generate_display_id()
                 cur.execute(
-                    "INSERT INTO users (email, google_id, avatar_url, is_pro) VALUES (%s, %s, %s, FALSE) RETURNING id",
-                    (email, google_id, avatar_url)
+                    "INSERT INTO users (email, google_id, avatar_url, is_pro, display_id) VALUES (%s, %s, %s, FALSE, %s) RETURNING id",
+                    (email, google_id, avatar_url, display_id)
                 )
             else:
                 if hashed_password is None:
                     raise ValueError("Password required for email registration")
+                # Generate display_id
+                display_id = generate_display_id()
                 cur.execute(
-                    "INSERT INTO users (email, hashed_password) VALUES (%s, %s) RETURNING id",
-                    (email, hashed_password)
+                    "INSERT INTO users (email, hashed_password, display_id) VALUES (%s, %s, %s) RETURNING id",
+                    (email, hashed_password, display_id)
                 )
             user_id = cur.fetchone()["id"]
         conn.commit()
@@ -366,26 +414,26 @@ def create_user(email: str, hashed_password: str = None, google_id: str = None, 
 
 
 def get_user_by_email(email: str):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id, email, hashed_password, is_pro, google_id, avatar_url, is_verified, is_banned, ban_reason FROM users WHERE email = %s", (email,))
+            cur.execute("SELECT id, email, hashed_password, is_pro, google_id, avatar_url, is_verified, is_banned, ban_reason, display_id FROM users WHERE email = %s", (email,))
             row = cur.fetchone()
     return row_to_dict(row)
 
 
 def get_user_by_id(user_id: int):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id, email, is_pro, avatar_url, is_verified, is_banned, ban_reason FROM users WHERE id = %s", (user_id,))
+            cur.execute("SELECT id, email, is_pro, avatar_url, is_verified, is_banned, ban_reason, display_id FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
     return row_to_dict(row)
 
 
 def get_user_by_google_id(google_id: str):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, email, is_pro, avatar_url FROM users WHERE google_id = %s",
+                "SELECT id, email, is_pro, avatar_url, display_id FROM users WHERE google_id = %s",
                 (google_id,)
             )
             row = cur.fetchone()
@@ -393,7 +441,7 @@ def get_user_by_google_id(google_id: str):
 
 
 def link_google_account(user_id: int, google_id: str, avatar_url: str = None):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             if avatar_url:
                 cur.execute(
@@ -409,14 +457,14 @@ def link_google_account(user_id: int, google_id: str, avatar_url: str = None):
 
 
 def set_user_pro(user_id: int, is_pro: bool = True):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("UPDATE users SET is_pro = %s WHERE id = %s", (is_pro, user_id))
         conn.commit()
 
 
 def update_user_password(user_id: int, hashed_password: str) -> bool:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("UPDATE users SET hashed_password = %s WHERE id = %s", (hashed_password, user_id))
             changed = cur.rowcount > 0
@@ -425,7 +473,7 @@ def update_user_password(user_id: int, hashed_password: str) -> bool:
 
 
 def delete_user(user_id: int) -> bool:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             user = get_user_by_id(user_id)
             if not user:
@@ -450,7 +498,7 @@ def delete_user(user_id: int) -> bool:
 # ─── AUTH TOKENS ───
 
 def set_verification_token(email: str, token: str, expires):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE users SET verification_token = %s, verification_token_expires = %s WHERE email = %s",
@@ -460,7 +508,7 @@ def set_verification_token(email: str, token: str, expires):
 
 
 def get_user_by_verification_token(token: str):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, email FROM users WHERE verification_token = %s AND verification_token_expires > CURRENT_TIMESTAMP",
@@ -471,7 +519,7 @@ def get_user_by_verification_token(token: str):
 
 
 def verify_user(email: str):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE users SET is_verified = TRUE, verification_token = NULL, verification_token_expires = NULL WHERE email = %s",
@@ -481,7 +529,7 @@ def verify_user(email: str):
 
 
 def set_reset_token(email: str, token: str, expires):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE users SET reset_token = %s, reset_token_expires = %s WHERE email = %s",
@@ -491,7 +539,7 @@ def set_reset_token(email: str, token: str, expires):
 
 
 def get_user_by_reset_token(token: str):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, email FROM users WHERE reset_token = %s AND reset_token_expires > CURRENT_TIMESTAMP",
@@ -502,7 +550,7 @@ def get_user_by_reset_token(token: str):
 
 
 def clear_reset_token(email: str):
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE email = %s",
@@ -514,7 +562,7 @@ def clear_reset_token(email: str):
 # ─── USAGE LIMITS ───
 
 def get_usage_count(user_id: str, date: str) -> int:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT count FROM usage_logs WHERE user_id = %s AND date = %s",
@@ -525,7 +573,7 @@ def get_usage_count(user_id: str, date: str) -> int:
 
 
 def increment_usage(user_id: str, date: str) -> int:
-    with get_db() as conn:
+    with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO usage_logs (user_id, date, count)

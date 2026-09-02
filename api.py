@@ -1,4 +1,4 @@
-"""VEYRONIS API Server — Production Hardened + Cloudinary + Email."""
+"""VEYRONIS API Server — Production Hardened + Cloudinary + Email + Admin + Feedback."""
 import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends
@@ -42,7 +42,7 @@ import cloudinary
 import cloudinary.uploader
 
 # Email
-from email_service import send_reset_email, send_verification_email
+from email_service import send_reset_email, send_verification_email, send_feedback_email
 
 # Hindsight imports
 from hindsight_engine import HindsightEngine
@@ -115,10 +115,8 @@ def get_current_user_required(token: str = Depends(oauth2_scheme)):
     user = get_user_by_id(int(user_id))
     if user is None:
         raise HTTPException(401, detail="🔒 User not found. Please log in again.")
-    # Check if user is banned (if we have that column)
-    # This would be in the database but we don't have it yet in the schema shown.
-    # We'll add a simple check if 'banned' column exists.
-    # For now, we'll assume the user is not banned; future migration will add it.
+    if user.get("is_banned", False):
+        raise HTTPException(403, detail="🚫 Your account has been banned. Contact support.")
     return {"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])}
 
 # ─── PATH SETUP ───
@@ -132,13 +130,11 @@ app = FastAPI(title="VEYRONIS API")
 async def https_redirect_middleware(request: Request, call_next):
     forwarded_proto = request.headers.get("x-forwarded-proto")
     host = request.headers.get("host", "")
-
     if forwarded_proto == "http" and ("onrender.com" in host or "railway.app" in host):
         https_url = f"https://{host}{request.url.path}"
         if request.url.query:
             https_url += f"?{request.url.query}"
         return RedirectResponse(https_url, status_code=301)
-
     return await call_next(request)
 
 # ─── CORS — Restricted ───
@@ -287,10 +283,12 @@ async def register(req: RegisterRequest, request: Request):
             if not success:
                 print(f"[VEYRONIS] Verification email failed to send for {req.email}")
 
+        # Fetch user to get display_id
+        user = get_user_by_id(user_id)
         return TokenResponse(
             access_token=token,
             token_type="bearer",
-            user={"id": user_id, "email": req.email, "is_pro": False}
+            user={"id": user_id, "email": req.email, "is_pro": False, "display_id": user.get("display_id") if user else None}
         )
     except HTTPException:
         raise
@@ -311,13 +309,13 @@ async def login(req: LoginRequest, request: Request):
             raise HTTPException(400, detail="🔐 Invalid email or password.")
         if not verify_password(req.password, user["hashed_password"]):
             raise HTTPException(400, detail="🔐 Invalid email or password.")
-        # Optional: check if user is banned (if column exists)
-        # For now we skip but we can add if we add the column later.
+        if user.get("is_banned", False):
+            raise HTTPException(403, detail="🚫 Your account has been banned. Contact support.")
         token = create_access_token({"sub": str(user["id"])})
         return TokenResponse(
             access_token=token,
             token_type="bearer",
-            user={"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])}
+            user={"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"]), "display_id": user.get("display_id")}
         )
     except HTTPException:
         raise
@@ -341,7 +339,8 @@ async def get_me(current_user: dict = Depends(get_current_user_required)):
                 "avatar_url": user.get("avatar_url"),
                 "usage": usage,
                 "remaining": remaining,
-                "is_verified": bool(user.get("is_verified", False))
+                "is_verified": bool(user.get("is_verified", False)),
+                "display_id": user.get("display_id")
             }
         }
     except Exception as e:
@@ -414,8 +413,9 @@ async def reset_password(request: Request):
 
         hashed = get_password_hash(new_password)
         conn = get_db()
-        conn.execute("UPDATE users SET hashed_password = %s WHERE id = ?", (hashed, user["id"]))
-        conn.execute("UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = %s", (user["id"],))
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET hashed_password = %s WHERE id = %s", (hashed, user["id"]))
+        cursor.execute("UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = %s", (user["id"],))
         conn.commit()
         conn.close()
 
@@ -430,17 +430,17 @@ async def reset_password(request: Request):
 
 @app.get("/verify-email")
 async def verify_email(token: str):
-    try:
-        user = get_user_by_verification_token(token)
-        if not user:
-            raise HTTPException(400, detail="🔗 Invalid or expired verification link.")
-        verify_user(user["email"])
-        return RedirectResponse(f"{Config.APP_BASE_URL}/#email-verified")
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[VERIFY EMAIL ERROR] {e}")
-        raise HTTPException(500, detail="😕 Verification failed. Please try again.")
+    """Redirects to frontend with token in URL hash."""
+    return RedirectResponse(f"{Config.APP_BASE_URL}/#email-verified?token={token}")
+
+@app.get("/api/verify-email")
+async def api_verify_email(token: str):
+    """JSON endpoint for frontend to verify email."""
+    user = get_user_by_verification_token(token)
+    if not user:
+        raise HTTPException(400, detail="Invalid or expired verification link.")
+    verify_user(user["email"])
+    return {"success": True, "email": user["email"]}
 
 # ─── GOOGLE OAUTH ───
 
@@ -501,12 +501,12 @@ async def root():
 @app.get("/service-worker.js")
 async def service_worker():
     return FileResponse(str(FRONTEND_DIR / "service-worker.js"), media_type="application/javascript")
-from fastapi.responses import Response  # <-- Add this import at the top if not already there
 
 @app.get("/favicon.ico")
 async def favicon():
     svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#8b5cf6"/><text x="50" y="68" font-size="50" text-anchor="middle" fill="white" font-weight="bold">V</text></svg>"""
     return Response(content=svg, media_type="image/svg+xml")
+
 @app.get("/privacy")
 async def privacy_policy():
     file_path = FRONTEND_DIR / "privacy.html"
@@ -520,6 +520,8 @@ async def terms_of_service():
     if not file_path.exists():
         raise HTTPException(404, detail="Terms of Service page not found")
     return FileResponse(str(file_path), media_type="text/html")
+
+@app.get("/history")
 async def history(
     user_id: str,
     conversation_id: Optional[int] = None,
@@ -565,15 +567,16 @@ async def export_conversation(
 @app.get("/search")
 async def search_messages(
     q: str,
-    current_user: dict = Depends(get_current_user_required)
+    current_user: dict = Depends(get_current_user_required),
+    conn = Depends(get_db)   # ✅ Use dependency injection
 ):
     if not q or len(q.strip()) < 2:
         raise HTTPException(400, detail="📝 Please enter at least 2 characters to search.")
 
     search_term = f"%{q.strip()}%"
-    conn = get_db()
+    cursor = conn.cursor()
 
-    cursor = conn.execute("""
+    cursor.execute("""
         SELECT 
             c.id as conversation_id,
             c.title,
@@ -584,15 +587,14 @@ async def search_messages(
         FROM messages m
         JOIN conversations c ON m.conversation_id = c.id
         WHERE m.user_id = %s 
-        AND m.content LIKE ?
-        AND c.user_id = ?
+        AND m.content LIKE %s
+        AND c.user_id = %s
         AND m.role = 'assistant'
         ORDER BY m.created_at DESC
         LIMIT 50
     """, (current_user["email"], search_term, current_user["email"]))
 
     rows = cursor.fetchall()
-    conn.close()
 
     if not rows:
         return {"results": []}
@@ -607,6 +609,7 @@ async def search_messages(
                 "messages": []
             }
         content = row["content"]
+        # Highlight the search term
         idx = content.lower().find(q.lower())
         if idx != -1:
             start = max(0, idx - 50)
@@ -1115,6 +1118,184 @@ async def routes(current_user: dict = Depends(get_current_user_required)):
     for route in app.routes:
         route_list.append({"path": route.path, "methods": list(route.methods) if hasattr(route, "methods") else []})
     return {"routes": route_list}
+
+# ─── ADMIN ENDPOINTS ───
+
+@app.get("/admin/users")
+async def admin_list_users(
+    current_user: dict = Depends(get_current_user_required),
+    conn = Depends(get_db)
+):
+    """List all users with their status (admin only)"""
+    if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, email, is_pro, is_verified, is_banned, ban_reason,
+               banned_until, created_at, subscription_status, display_id
+        FROM users
+        ORDER BY created_at DESC
+    """)
+    users = cursor.fetchall()
+
+    result = []
+    for user in users:
+        # ✅ FIX: use email (text) not id (integer)
+        cursor.execute(
+            "SELECT COUNT(*) FROM messages WHERE user_id = %s",
+            (user["email"],)
+        )
+        msg_count = cursor.fetchone()["count"]
+        result.append({
+            "id": user["id"],
+            "email": user["email"],
+            "is_pro": bool(user["is_pro"]),
+            "is_verified": bool(user["is_verified"]),
+            "is_banned": bool(user["is_banned"]),
+            "ban_reason": user["ban_reason"],
+            "banned_until": user["banned_until"],
+            "created_at": user["created_at"],
+            "message_count": msg_count,
+            "subscription_status": user["subscription_status"],
+            "display_id": user.get("display_id")
+        })
+
+    return {"users": result}
+
+@app.post("/admin/users/{user_id}/ban")
+async def admin_ban_user(
+    user_id: str,
+    request: dict,
+    current_user: dict = Depends(get_current_user_required),
+    conn = Depends(get_db)
+):
+    """Ban a user (admin only)"""
+    if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    reason = request.get("reason", "Violation of terms")
+    duration_days = request.get("duration_days", 30)
+
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, is_banned FROM users WHERE id = %s", (user_id,))
+    user = cursor.fetchone()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user["is_banned"]:
+        raise HTTPException(status_code=400, detail="User is already banned")
+
+    banned_until = (datetime.utcnow() + timedelta(days=duration_days)).isoformat()
+
+    cursor.execute("""
+        UPDATE users
+        SET is_banned = TRUE, ban_reason = %s, banned_until = %s
+        WHERE id = %s
+    """, (reason, banned_until, user_id))
+
+    cursor.execute("""
+        INSERT INTO admin_actions (admin_user_id, target_user_id, action, reason, expires_at)
+        VALUES (%s, %s, 'ban', %s, %s)
+    """, (current_user["id"], user_id, reason, banned_until))
+
+    conn.commit()
+    return {"message": f"User {user_id} banned until {banned_until}"}
+
+@app.post("/admin/users/{user_id}/unban")
+async def admin_unban_user(
+    user_id: str,
+    current_user: dict = Depends(get_current_user_required),
+    conn = Depends(get_db)
+):
+    """Unban a user (admin only)"""
+    if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE users
+        SET is_banned = FALSE, ban_reason = NULL, banned_until = NULL
+        WHERE id = %s
+    """, (user_id,))
+
+    cursor.execute("""
+        INSERT INTO admin_actions (admin_user_id, target_user_id, action)
+        VALUES (%s, %s, 'unban')
+    """, (current_user["id"], user_id))
+
+    conn.commit()
+    return {"message": f"User {user_id} unbanned"}
+
+@app.get("/admin/reports")
+async def admin_list_reports(
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user_required),
+    conn = Depends(get_db)
+):
+    """List all reports (admin only)"""
+    if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    cursor = conn.cursor()
+    query = """
+        SELECT r.*, u.email as reporter_email, m.content as message_content
+        FROM reports r
+        JOIN users u ON r.reporter_user_id = u.id
+        JOIN messages m ON r.reported_message_id = m.id
+    """
+    params = []
+    if status:
+        query += " WHERE r.status = %s"
+        params.append(status)
+    query += " ORDER BY r.created_at DESC"
+
+    cursor.execute(query, params)
+    reports = cursor.fetchall()
+    return {"reports": reports}
+
+@app.post("/admin/reports/{report_id}/review")
+async def admin_review_report(
+    report_id: str,
+    request: dict,
+    current_user: dict = Depends(get_current_user_required),
+    conn = Depends(get_db)
+):
+    """Review a report (admin only)"""
+    if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    status = request.get("status")
+    notes = request.get("notes", "")
+    if status not in ["resolved", "dismissed"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE reports
+        SET status = %s, reviewed_by = %s, reviewed_at = %s, review_notes = %s
+        WHERE id = %s
+    """, (status, current_user["id"], datetime.utcnow().isoformat(), notes, report_id))
+
+    conn.commit()
+    return {"message": f"Report {report_id} {status}"}
+
+# ─── FEEDBACK ENDPOINT ───
+
+@app.post("/feedback")
+async def submit_feedback(
+    request: dict,
+    current_user: dict = Depends(get_current_user_required)
+):
+    """Send user feedback to admin via email."""
+    if not Config.email_ready():
+        raise HTTPException(503, detail="Email service not configured")
+    message = request.get("message", "").strip()
+    if not message:
+        raise HTTPException(400, detail="Feedback message cannot be empty")
+    admin_emails = Config.ADMIN_EMAILS.split(",")
+    for admin in admin_emails:
+        send_feedback_email(admin, current_user["email"], message)
+    return {"status": "Feedback sent"}
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))

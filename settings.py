@@ -63,6 +63,8 @@ class Config:
     # PostgreSQL Database URL
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:mysecret@localhost:5432/veyronis").strip()
 
+    ADMIN_EMAILS: str = os.getenv("ADMIN_EMAILS", "mishobazadze@gmail.com").strip()
+
     @classmethod
     def get_model(cls, is_pro: bool = False, is_limited: bool = False) -> str:
         if is_limited:

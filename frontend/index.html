@@ -9,14 +9,16 @@
     <title>VEYRONIS</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b5cf6'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white' font-weight='bold'%3EV%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="stylesheet" href="/static/style.css?v=1.6">
+    <link rel="stylesheet" href="/static/style.css?v=2.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
     <base target="_blank">
 </head>
 <body>
 
-    <!-- ========== AUTH SCREEN ========== -->
+    <!-- ============================================================
+    AUTH SCREEN
+    ============================================================ -->
     <div id="auth-screen" class="auth-screen">
         <div class="ambient-bg">
             <div class="ambient-orb orb-1"></div>
@@ -74,14 +76,13 @@
                 <div id="register-error" class="auth-error"></div>
                 <button class="auth-action" onclick="handleRegister()">Create Account</button>
             </div>
-
-            <div class="auth-hint">
-                Local server running at <code>http://localhost:8000</code>
             </div>
         </div>
     </div>
 
-    <!-- ========== OFFLINE BANNER ========== -->
+    <!-- ============================================================
+    OFFLINE BANNER
+    ============================================================ -->
     <div id="offline-banner" class="offline-banner hidden">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="1" y1="1" x2="23" y2="23"/>
@@ -96,22 +97,26 @@
         <button onclick="retryConnection()" class="retry-btn">Retry</button>
     </div>
 
-    <!-- ========== INSTALL PROMPT ========== -->
+    <!-- ============================================================
+    INSTALL PROMPT
+    ============================================================ -->
     <div id="install-prompt" class="install-prompt hidden">
         <div class="install-text">Install VEYRONIS for offline access</div>
         <button class="install-btn" onclick="installPwa()">Install</button>
         <button class="install-dismiss" onclick="dismissInstall()">×</button>
     </div>
 
-    <!-- ========== MAIN APP ========== -->
+    <!-- ============================================================
+    MAIN APP
+    ============================================================ -->
     <div id="app" class="hidden">
-        <div id="sidebar-backdrop" onclick="toggleSidebar()"></div>
+        <div id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
         <!-- SIDEBAR -->
         <aside id="sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-brand">VEYRONIS</div>
-                <button class="sidebar-close" onclick="toggleSidebar()">
+                <button class="sidebar-close" onclick="closeSidebar()">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                         <line x1="18" y1="6" x2="6" y2="18"/>
                         <line x1="6" y1="6" x2="18" y2="18"/>
@@ -121,7 +126,7 @@
             <div class="sidebar-profile" onclick="openSettingsPanel()">
                 <div class="sidebar-avatar">V</div>
                 <div class="sidebar-user">
-                    <div class="sidebar-name">You</div>
+                    <div class="sidebar-name" id="sidebar-name">You</div>
                     <div class="sidebar-email" id="sidebar-email">user@veyronis.ai</div>
                 </div>
                 <div class="sidebar-pro-badge" id="sidebar-pro-badge">FREE</div>
@@ -133,7 +138,6 @@
                 <div id="conv-list-yesterday" class="conv-list"></div>
                 <div class="sidebar-section">Previous 7 Days</div>
                 <div id="conv-list-week" class="conv-list"></div>
-                <!-- Archived section -->
                 <div class="sidebar-section" onclick="toggleArchived()" style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between;">
                     <span>📦 Archived</span>
                     <span id="archived-chevron" style="font-size: 10px; transition: transform 0.3s;">▼</span>
@@ -152,9 +156,9 @@
             </div>
         </aside>
 
-        <!-- MAIN -->
+        <!-- MAIN CONTENT -->
         <main id="main">
-            <!-- TOP BAR — Clean, Full Canvas, Round Glass Buttons -->
+            <!-- TOP BAR -->
             <header class="top-bar glass" id="top-bar">
                 <div class="top-left">
                     <button class="top-icon round-icon" onclick="toggleSidebar()" title="Open sidebar">
@@ -166,10 +170,18 @@
                     </button>
                 </div>
                 <div class="top-center">
-                    <!-- No VEYRONIS text here — clean canvas -->
+                    <span class="brand-text">VEYRONIS</span>
                 </div>
                 <div class="top-right">
-                    <button class="top-icon round-icon pro-btn" onclick="openUpgrade()" title="Upgrade to PRO">
+                    <button class="top-icon round-icon admin-toggle" id="adminToggle" onclick="openAdminPanel()" title="Admin Panel" style="display:none;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="23"/>
+                            <line x1="8" y1="23" x2="16" y2="23"/>
+                        </svg>
+                    </button>
+                    <button class="top-icon round-icon pro-btn" onclick="openUpgradeModal()" title="Upgrade to PRO">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                         </svg>
@@ -209,11 +221,11 @@
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                 Delete
                             </button>
-                            <button class="more-item" onclick="viewAttachments(); closeMoreMenu();">
+                            <button class="more-item" onclick="openAttachmentsModal(); closeMoreMenu();">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                                 Attached Files
                             </button>
-                            <button class="more-item" onclick="shareCurrentConv(); closeMoreMenu();">
+                            <button class="more-item" onclick="openExportModal(); closeMoreMenu();">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                                 Share
                             </button>
@@ -222,7 +234,7 @@
                 </div>
             </header>
 
-            <!-- CONNECTION STATUS (Minimal) -->
+            <!-- CONNECTION STATUS -->
             <div class="conn-status-bar">
                 <div class="conn-status-wrap checking" id="conn-status-wrap">
                     <div class="conn-dot checking" id="conn-dot"></div>
@@ -248,95 +260,325 @@
                 </div>
             </div>
 
-            <!-- INPUT COMPOSER — Clean +, Text, Voice, Send -->
-            <div class="input-shell">
-                <div class="input-glass glass-strong" id="input-glass">
-                    <div class="input-composer">
-                        <button class="composer-btn glass-icon attach-btn" onclick="toggleAttach()" title="Attach">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M12 5v14M5 12h14"/>
-                            </svg>
-                        </button>
-                        <div class="attach-pop glass" id="attach-pop">
-                            <div class="attach-item" onclick="triggerDocumentUpload()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-                                    <polyline points="13 2 13 9 20 9"/>
-                                </svg>
-                                Document
-                            </div>
-                            <div class="attach-item" onclick="triggerImageUpload()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                                    <circle cx="8.5" cy="8.5" r="1.5"/>
-                                    <polyline points="21 15 16 10 5 21"/>
-                                </svg>
-                                Image
-                            </div>
-                        </div>
-                        <div class="composer-input-wrap">
-                            <input type="text" id="msg-input" placeholder="Message VEYRONIS..." autocomplete="off">
-                        </div>
-                        <button class="composer-btn glass-icon mic-btn" id="mic-btn" onclick="toggleMic()" title="Voice">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                                <line x1="12" y1="19" x2="12" y2="23"/>
-                                <line x1="8" y1="23" x2="16" y2="23"/>
-                            </svg>
-                        </button>
-                        <button class="composer-btn send-btn" id="send-btn" onclick="sendMessage()" title="Send">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                <line x1="22" y1="2" x2="11" y2="13"/>
-                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                            </svg>
-                        </button>
-                    </div>
-                    <!-- Model selector moved inline -->
-                    <div class="composer-model-row">
-                        <button class="model-toggle glass-toggle" id="model-toggle" onclick="toggleModelMenu()">
-                            <span id="model-label">Instant</span>
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                                <polyline points="6 9 12 15 18 9"/>
-                            </svg>
-                        </button>
-                        <div class="model-menu glass" id="model-menu">
-                            <button class="model-row glass" onclick="pickModel(event, 'instant','Instant')">
-                                <div class="model-row-name">Instant</div>
-                                <div class="model-row-desc">Fast responses</div>
-                            </button>
-                            <button class="model-row glass" onclick="pickModel(event, 'smart','Smart')">
-                                <div class="model-row-name">Smart</div>
-                                <div class="model-row-desc">Deeper reasoning</div>
-                            </button>
-                            <button class="model-row glass" onclick="pickModel(event, 'genius','Genius')">
-                                <div class="model-row-name">Genius</div>
-                                <div class="model-row-desc">Maximum capability</div>
-                            </button>
-                            <button class="model-row glass research-row" onclick="pickModel(event, 'research','Research')">
-                                <div class="model-row-name">🔬 Research</div>
-                                <div class="model-row-desc">Deep research report</div>
-                            </button>
-                        </div>
-                        <button class="simulation-toggle glass-toggle" id="sim-toggle" onclick="toggleSimulationMode()" title="Toggle VEYRONIS HINDSIGHT">
-                            <span class="sim-icon">🔮</span>
-                            <span>Hindsight</span>
-                            <span class="sim-limit-badge" id="sim-badge">1/1</span>
-                        </button>
-                    </div>
-                </div>
-                <div class="input-disclaimer" id="input-disclaimer">Free: 0/20 today · VEYRONIS can make mistakes</div>
-            </div>
-        </main>
+            <!-- INPUT COMPOSER -->
+   <div class="input-glass glass-strong" id="input-glass">
+    <!-- ─── MAIN INPUT ROW ─── -->
+    <div class="input-composer">
+        <button class="composer-btn attach-btn" onclick="toggleAttach()" title="Attach">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14M5 12h14"/>
+            </svg>
+        </button>
+        <div class="composer-input-wrap">
+            <textarea id="msg-input" rows="1" placeholder="Message VEYRONIS..." autocomplete="off"></textarea>
+        </div>
+        <button class="composer-btn send-btn" id="send-btn" onclick="sendMessage()" title="Send">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+        </button>
     </div>
 
-    <!-- ========== TOASTS ========== -->
+    <!-- ─── OPTIONS ROW ─── -->
+    <div class="composer-options">
+        <button class="model-toggle glass-toggle" id="model-toggle" onclick="toggleModelMenu()">
+            <span id="model-label">Instant</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <polyline points="6 9 12 15 18 9"/>
+            </svg>
+        </button>
+        <button class="simulation-toggle glass-toggle" id="sim-toggle" onclick="toggleSimulationMode()" title="Toggle VEYRONIS HINDSIGHT">
+            <span class="sim-icon">🔮</span>
+            <span>Hindsight</span>
+            <span class="sim-limit-badge" id="sim-badge">1/1</span>
+        </button>
+        <div style="flex:1;"></div>
+    </div>
+
+<!-- ─── MODEL MENU ─── -->
+<div class="model-menu glass" id="model-menu">
+    <button class="model-row glass" onclick="pickModel(event, 'instant','Instant')">
+        <div class="model-row-name">Instant</div>
+        <div class="model-row-desc">Fast responses</div>
+    </button>
+    <button class="model-row glass" onclick="pickModel(event, 'smart','Smart')">
+        <div class="model-row-name">Smart</div>
+        <div class="model-row-desc">Deeper reasoning</div>
+    </button>
+    <button class="model-row glass" onclick="pickModel(event, 'genius','Genius')">
+        <div class="model-row-name">Genius</div>
+        <div class="model-row-desc">Maximum capability</div>
+    </button>
+    <button class="model-row glass research-row" onclick="pickModel(event, 'research','Research')">
+        <div class="model-row-name">🔬 Research</div>
+        <div class="model-row-desc">Deep research report</div>
+    </button>
+</div>
+
+    <!-- ─── ATTACH POPUP ─── -->
+    <div class="attach-pop glass" id="attach-pop">
+        <div class="attach-item" onclick="triggerDocumentUpload()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                <polyline points="13 2 13 9 20 9"/>
+            </svg>
+            Document
+        </div>
+        <div class="attach-item" onclick="triggerImageUpload()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            Image
+        </div>
+    </div>
+</div>
+
+    <!-- ============================================================
+    TOAST CONTAINER
+    ============================================================ -->
     <div id="toast-box"></div>
 
-    <!-- ========== DRAG OVERLAY ========== -->
+    <!-- ============================================================
+    DRAG OVERLAY
+    ============================================================ -->
     <div id="drag-overlay" class="drag-overlay">Drop file to upload</div>
 
-    <!-- ========== SETTINGS PANEL ========== -->
+    <!-- ============================================================
+    LIGHTBOX
+    ============================================================ -->
+    <div id="img-lightbox" class="img-lightbox hidden" onclick="closeLightbox()">
+        <img id="lightbox-img" src="" alt="Full size">
+    </div>
+
+    <!-- ============================================================
+    MODAL SYSTEM
+    ============================================================ -->
+
+    <!-- CUSTOM CONFIRM -->
+    <div id="modal-confirm" class="modal-overlay hidden">
+        <div class="modal-backdrop" onclick="closeModal('modal-confirm')"></div>
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title" id="confirm-title">Confirm</span>
+                <button class="modal-close" onclick="closeModal('modal-confirm')">✕</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-message" class="modal-text">Are you sure?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="resolveConfirm(false)">Cancel</button>
+                <button class="modal-btn primary" onclick="resolveConfirm(true)">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CUSTOM PROMPT -->
+    <div id="modal-prompt" class="modal-overlay hidden">
+        <div class="modal-backdrop" onclick="closeModal('modal-prompt')"></div>
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title" id="prompt-title">Enter Value</span>
+                <button class="modal-close" onclick="closeModal('modal-prompt')">✕</button>
+            </div>
+            <div class="modal-body">
+                <p id="prompt-message" class="modal-text">Please enter a value:</p>
+                <input type="text" id="prompt-input" class="modal-input" placeholder="Type here..." autocomplete="off">
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="resolvePrompt(null)">Cancel</button>
+                <button class="modal-btn primary" onclick="resolvePrompt(document.getElementById('prompt-input').value.trim())">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SEARCH -->
+    <div id="modal-search" class="modal-overlay hidden">
+        <div class="modal-backdrop" onclick="closeModal('modal-search')"></div>
+        <div class="modal-card" style="max-width: 560px;">
+            <div class="modal-header">
+                <span class="modal-title">🔍 Search Conversations</span>
+                <button class="modal-close" onclick="closeModal('modal-search')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="search-input-wrap">
+                    <input type="text" id="search-input" class="modal-input" placeholder="Search..." autocomplete="off">
+                    <button class="search-btn" onclick="performSearch()">Search</button>
+                </div>
+                <div id="search-results" class="search-results">
+                    <p class="search-empty">Enter a keyword to search</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="closeModal('modal-search')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EXPORT/SHARE -->
+    <div id="modal-export" class="modal-overlay hidden">
+        <div class="modal-backdrop" onclick="closeModal('modal-export')"></div>
+        <div class="modal-card" style="max-width: 400px;">
+            <div class="modal-header">
+                <span class="modal-title">📤 Share Chat</span>
+                <button class="modal-close" onclick="closeModal('modal-export')">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-text" style="margin-bottom: 12px;">Export this conversation as:</p>
+                <button class="export-option" onclick="exportWithFormat('json')">
+                    <span class="export-icon">📄</span>
+                    <div>
+                        <div class="export-label">JSON</div>
+                        <div class="export-desc">Full conversation with metadata</div>
+                    </div>
+                </button>
+                <button class="export-option" onclick="exportWithFormat('txt')">
+                    <span class="export-icon">📄</span>
+                    <div>
+                        <div class="export-label">TXT</div>
+                        <div class="export-desc">Plain text conversation</div>
+                    </div>
+                </button>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="closeModal('modal-export')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ATTACHMENTS -->
+    <div id="modal-attachments" class="modal-overlay hidden">
+        <div class="modal-backdrop" onclick="closeModal('modal-attachments')"></div>
+        <div class="modal-card" style="max-width: 480px;">
+            <div class="modal-header">
+                <span class="modal-title">📎 Attached Files</span>
+                <button class="modal-close" onclick="closeModal('modal-attachments')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div id="attachments-list" class="attachments-list">
+                    <p class="modal-empty">Loading...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="closeModal('modal-attachments')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRO UPGRADE -->
+    <div id="modal-upgrade" class="modal-overlay hidden">
+        <div class="modal-backdrop" onclick="closeModal('modal-upgrade')"></div>
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title">⭐ Unlock PRO</span>
+                <button class="modal-close" onclick="closeModal('modal-upgrade')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="upgrade-hero">
+                    <div class="upgrade-icon">🚀</div>
+                    <div class="upgrade-title">Go Unlimited</div>
+                    <div class="upgrade-desc">Unlimited messages, priority speed, and early access.</div>
+                </div>
+                <div class="plan-card pro">
+                    <div class="plan-badge">BEST VALUE</div>
+                    <div class="plan-header">
+                        <span class="plan-name">Pro</span>
+                        <span class="plan-price">$9<span class="plan-period">/mo</span></span>
+                    </div>
+                    <div class="plan-features">
+                        <div class="plan-feature">✅ Unlimited messages</div>
+                        <div class="plan-feature">✅ Priority speed</div>
+                        <div class="plan-feature">✅ Deep Research mode</div>
+                        <div class="plan-feature">✅ Image & document analysis</div>
+                        <div class="plan-feature">✅ Advanced code execution</div>
+                    </div>
+                    <button class="plan-btn" onclick="activateProPlan()">Upgrade to Pro</button>
+                    <div class="plan-note">🎯 Beta pricing locked</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="closeModal('modal-upgrade')">Maybe later</button>
+                <button class="modal-btn primary" onclick="activateProPlan()">Get PRO</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN PANEL -->
+    <div id="modal-admin" class="modal-overlay hidden">
+        <div class="modal-backdrop" onclick="closeModal('modal-admin')"></div>
+        <div class="modal-card" style="max-width: 900px; max-height: 85vh;">
+            <div class="modal-header">
+                <span class="modal-title">🛡️ Admin Panel</span>
+                <button class="modal-close" onclick="closeModal('modal-admin')">✕</button>
+            </div>
+            <div class="modal-body" style="flex:1;overflow-y:auto;padding:12px 20px;">
+                <div class="admin-tabs">
+                    <button class="admin-tab active" data-tab="users" onclick="switchAdminTab('users')">👥 Users</button>
+                    <button class="admin-tab" data-tab="reports" onclick="switchAdminTab('reports')">📋 Reports</button>
+                </div>
+                <div id="admin-users" class="admin-content">
+                    <div class="admin-search">
+                        <input type="text" id="admin-search" class="modal-input" placeholder="Search users..." oninput="filterAdminUsers()">
+                    </div>
+                    <div id="users-list" class="users-list"></div>
+                </div>
+                <div id="admin-reports" class="admin-content hidden">
+                    <div id="reports-list" class="reports-list"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="closeModal('modal-admin')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FORGOT PASSWORD -->
+    <div id="modal-forgot" class="modal-overlay hidden">
+        <div class="modal-backdrop" onclick="closeModal('modal-forgot')"></div>
+        <div class="modal-card" style="max-width: 400px;">
+            <div class="modal-header">
+                <span class="modal-title">Reset Password</span>
+                <button class="modal-close" onclick="closeModal('modal-forgot')">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-text">Enter your email and we'll send you a reset link.</p>
+                <input type="email" id="reset-email" class="modal-input" placeholder="you@example.com" autocomplete="email">
+                <div id="reset-error" class="modal-error hidden"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="closeModal('modal-forgot')">Cancel</button>
+                <button class="modal-btn primary" onclick="sendResetLink()">Send Link</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RESET PASSWORD -->
+    <div id="modal-reset" class="modal-overlay hidden">
+        <div class="modal-backdrop" onclick="closeModal('modal-reset')"></div>
+        <div class="modal-card" style="max-width: 400px;">
+            <div class="modal-header">
+                <span class="modal-title">Set New Password</span>
+                <button class="modal-close" onclick="closeModal('modal-reset')">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-text">Enter your new password below.</p>
+                <input type="hidden" id="reset-token-input">
+                <input type="password" id="new-password" class="modal-input" placeholder="Min 6 characters" autocomplete="new-password">
+                <input type="password" id="confirm-password" class="modal-input" style="margin-top:8px;" placeholder="Confirm password" autocomplete="new-password">
+                <div id="reset-error2" class="modal-error hidden"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="closeModal('modal-reset')">Cancel</button>
+                <button class="modal-btn primary" onclick="submitResetPassword()">Reset Password</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+    SETTINGS PANEL
+    ============================================================ -->
     <div id="settings-panel" class="settings-panel hidden">
         <div class="settings-header">
             <button class="settings-back" onclick="closeSettingsPanel()">
@@ -391,15 +633,14 @@
                         <svg class="settings-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
                 </div>
-                <button class="settings-logout" onclick="logout()">Logout</button>
-             <div class="settings-footer">
-   <div class="settings-footer">
-    VEYRONIS v1.3 · Built with 💜
-    <br />
-    <a href="/privacy" target="_blank" style="color: var(--text-muted); font-size: 11px; text-decoration: none;">Privacy Policy</a>
-    ·
-    <a href="/terms" target="_blank" style="color: var(--text-muted); font-size: 11px; text-decoration: none;">Terms of Service</a>
-</div>
+                <button class="settings-logout" onclick="handleLogout()">Logout</button>
+                <div class="settings-footer">
+                    VEYRONIS v1.3 · Built with 💜
+                    <br />
+                    <a href="/privacy" target="_blank" style="color: var(--text-muted); font-size: 11px; text-decoration: none;">Privacy Policy</a>
+                    ·
+                    <a href="/terms" target="_blank" style="color: var(--text-muted); font-size: 11px; text-decoration: none;">Terms of Service</a>
+                </div>
             </div>
 
             <!-- PROFILE SUB -->
@@ -428,7 +669,6 @@
                             <div class="settings-value" id="profile-id-value-sub">—</div>
                         </div>
                     </div>
-
                     <div class="settings-card" style="margin-top: 12px; border-color: rgba(239, 68, 68, 0.2);">
                         <div class="settings-section" style="color: #ef4444;">Danger Zone</div>
                         <div style="padding: 12px 16px 16px;">
@@ -558,7 +798,6 @@
                                 <div class="plan-feature">✅ Deep Research mode</div>
                                 <div class="plan-feature">✅ Image & document analysis</div>
                                 <div class="plan-feature">✅ Advanced code execution</div>
-                                <div class="plan-feature">✅ Canvas whiteboard</div>
                                 <div class="plan-feature">✅ Hindsight simulation</div>
                             </div>
                             <button class="plan-btn" id="plan-btn-pro" onclick="activateProPlan()">Upgrade to Pro</button>
@@ -626,171 +865,9 @@
         </div>
     </div>
 
-    <!-- ========== LIGHTBOX ========== -->
-    <div id="img-lightbox" class="img-lightbox hidden" onclick="closeLightbox()">
-        <img id="lightbox-img" src="" alt="Full size">
-    </div>
-
-    <!-- ========== PRO UPGRADE MODAL ========== -->
-    <div id="upgrade-modal" class="modal hidden">
-        <div class="modal-backdrop" onclick="closeUpgrade()"></div>
-        <div class="modal-card glass-strong">
-            <div class="modal-header">
-                <div class="modal-title">⭐ Unlock VEYRONIS PRO</div>
-                <button class="modal-close" onclick="closeUpgrade()">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="upgrade-hero">
-                    <div class="upgrade-icon">🚀</div>
-                    <div class="upgrade-title">Go Unlimited</div>
-                    <div class="upgrade-desc">Get unlimited messages, priority speed, and early access to new features.</div>
-                </div>
-                <div class="plan-card pro glass">
-                    <div class="plan-badge">BEST VALUE</div>
-                    <div class="plan-header">
-                        <div class="plan-name">Pro</div>
-                        <div class="plan-price">$9<span>/mo</span></div>
-                    </div>
-                    <div class="plan-features">
-                        <div class="plan-feature">✅ Unlimited messages</div>
-                        <div class="plan-feature">✅ Priority response speed</div>
-                        <div class="plan-feature">✅ Deep Research mode</div>
-                        <div class="plan-feature">✅ Image & document analysis</div>
-                        <div class="plan-feature">✅ Advanced code execution</div>
-                    </div>
-                    <button class="plan-btn" onclick="activateProPlan()">Upgrade to Pro</button>
-                    <div class="plan-note">🎯 Beta pricing locked for first 100 users</div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="modal-btn secondary" onclick="closeUpgrade()">Maybe later</button>
-                <button class="modal-btn primary" onclick="activateProPlan()">Get PRO</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========== ATTACHMENTS MODAL ========== -->
-    <div id="attachments-modal" class="modal hidden">
-        <div class="modal-backdrop" onclick="closeAttachmentsModal()"></div>
-        <div class="modal-card glass-strong">
-            <div class="modal-header">
-                <div class="modal-title">📎 Attached Files</div>
-                <button class="modal-close" onclick="closeAttachmentsModal()">✕</button>
-            </div>
-            <div class="modal-body">
-                <div id="attachments-list">
-                    <!-- Rendered by JS -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="modal-btn secondary" onclick="closeAttachmentsModal()">Close</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========== SEARCH MODAL ========== -->
-    <div id="search-modal" class="modal hidden">
-        <div class="modal-backdrop" onclick="closeSearchModal()"></div>
-        <div class="modal-card glass-strong">
-            <div class="modal-header">
-                <div class="modal-title">🔍 Search Conversations</div>
-                <button class="modal-close" onclick="closeSearchModal()">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="search-input-wrap">
-                    <div class="search-input-row">
-                        <input type="text" id="search-input" placeholder="Search your conversations..." autocomplete="off">
-                        <button id="search-btn" onclick="performSearch()">Search</button>
-                    </div>
-                </div>
-                <div id="search-results">
-                    <p class="search-empty">Enter a keyword to search</p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="modal-btn secondary" onclick="closeSearchModal()">Close</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========== EXPORT MODAL ========== -->
-    <div id="export-modal" class="modal hidden">
-        <div class="modal-backdrop" onclick="closeExportModal()"></div>
-        <div class="modal-card glass-strong" style="max-width: 400px;">
-            <div class="modal-header">
-                <div class="modal-title">📤 Share Chat</div>
-                <button class="modal-close" onclick="closeExportModal()">✕</button>
-            </div>
-            <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px; padding: 16px 20px;">
-                <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 4px;">
-                    Export this conversation as:
-                </p>
-                <button class="export-option-btn" onclick="exportWithFormat('json')" style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: var(--radius); border: 1px solid var(--glass-border); background: var(--glass-bg); cursor: pointer; transition: all 0.2s ease; width: 100%; text-align: left; font-family: inherit; color: var(--text);">
-                    <span style="font-size: 20px;">📄</span>
-                    <div>
-                        <div style="font-weight: 700;">JSON</div>
-                        <div style="font-size: 12px; color: var(--text-muted);">Full conversation with metadata</div>
-                    </div>
-                </button>
-                <button class="export-option-btn" onclick="exportWithFormat('txt')" style="display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: var(--radius); border: 1px solid var(--glass-border); background: var(--glass-bg); cursor: pointer; transition: all 0.2s ease; width: 100%; text-align: left; font-family: inherit; color: var(--text);">
-                    <span style="font-size: 20px;">📄</span>
-                    <div>
-                        <div style="font-weight: 700;">TXT</div>
-                        <div style="font-size: 12px; color: var(--text-muted);">Plain text conversation</div>
-                    </div>
-                </button>
-            </div>
-            <div class="modal-footer">
-                <button class="modal-btn secondary" onclick="closeExportModal()">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========== FORGOT PASSWORD MODAL ========== -->
-    <div id="forgot-password-modal" class="modal hidden">
-        <div class="modal-backdrop" onclick="closeForgotPassword()"></div>
-        <div class="modal-card glass-strong" style="max-width: 400px;">
-            <div class="modal-header">
-                <div class="modal-title">Reset Password</div>
-                <button class="modal-close" onclick="closeForgotPassword()">✕</button>
-            </div>
-            <div class="modal-body">
-                <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">Enter your email and we'll send you a link to reset your password.</p>
-                <div class="auth-field">
-                    <label>Email</label>
-                    <input type="email" id="reset-email" placeholder="you@example.com" autocomplete="email">
-                </div>
-                <button class="auth-action" onclick="sendResetLink()" style="width:100%;">Send Reset Link</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========== RESET PASSWORD MODAL ========== -->
-    <div id="reset-password-modal" class="modal hidden">
-        <div class="modal-backdrop" onclick="closeResetPassword()"></div>
-        <div class="modal-card glass-strong" style="max-width: 400px;">
-            <div class="modal-header">
-                <div class="modal-title">Set New Password</div>
-                <button class="modal-close" onclick="closeResetPassword()">✕</button>
-            </div>
-            <div class="modal-body">
-                <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">Enter your new password below.</p>
-                <input type="hidden" id="reset-token-input">
-                <div class="auth-field">
-                    <label>New Password</label>
-                    <input type="password" id="new-password" placeholder="Min 6 characters" autocomplete="new-password">
-                </div>
-                <div class="auth-field">
-                    <label>Confirm Password</label>
-                    <input type="password" id="confirm-password" placeholder="Repeat password" autocomplete="new-password">
-                </div>
-                <div id="reset-error" class="auth-error"></div>
-                <button class="auth-action" onclick="submitResetPassword()" style="width:100%;">Reset Password</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========== SCRIPTS ========== -->
+    <!-- ============================================================
+    SCRIPTS
+    ============================================================ -->
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
@@ -804,6 +881,6 @@
                 .catch(err => console.log('[VEYRONIS] SW failed', err));
         }
     </script>
-    <script src="/static/app.js?v=1.6"></script>
+    <script src="/static/app.js?v=2.0"></script>
 </body>
 </html>
