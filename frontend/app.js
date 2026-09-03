@@ -248,14 +248,7 @@ async function handleLogin() {
     }
 }
 
-// ─── Force admin toggle for your email ───
-if (state.user && state.user.email === 'mishobazadze@gmail.com') {
-    const toggle = document.getElementById('adminToggle');
-    if (toggle) {
-        toggle.style.display = 'flex';
-        console.log('[Admin] Toggle shown for admin email');
-    }
-}
+
 
 async function handleRegister() {
     const email = document.getElementById('register-email').value.trim();
@@ -1066,13 +1059,20 @@ function switchAdminTab(tab) {
 }
 
 async function checkAdminStatus() {
+    const toggle = document.getElementById('adminToggle');
+    if (!toggle) return;
+
     try {
         const res = await authenticatedFetch('/admin/users');
         if (res.ok) {
-            document.getElementById('adminToggle').style.display = 'flex';
+            toggle.style.display = 'flex';
+        } else {
+            toggle.style.display = 'none';
+            toggle.style.removeProperty('display');
         }
     } catch (e) {
-        // Not admin – hide
+        toggle.style.display = 'none';
+        toggle.style.removeProperty('display');
     }
 }
 
