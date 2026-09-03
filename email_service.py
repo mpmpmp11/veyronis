@@ -14,38 +14,33 @@ else:
 # The sender MUST be a verified sender in Resend
 SENDER_EMAIL = "mishobazadze@gmail.com"
 
-
 def send_smtp_email(to_email: str, subject: str, html_content: str) -> bool:
-    """
-    Send email via SMTP (Gmail or other SMTP server).
-    Uses Config.SMTP_USER, Config.SMTP_PASSWORD, Config.SMTP_HOST, Config.SMTP_PORT.
-    """
     if not Config.smtp_ready():
         print("[SMTP] SMTP not configured. Skipping.")
         return False
 
     try:
+        print(f"[SMTP] Attempting to send to {to_email} via {Config.SMTP_HOST}:{Config.SMTP_PORT}")
+        
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = Config.SMTP_USER
         msg["To"] = to_email
-
-        # Attach HTML version
         msg.attach(MIMEText(html_content, "html"))
 
         with smtplib.SMTP(Config.SMTP_HOST, Config.SMTP_PORT) as server:
+            server.set_debuglevel(1)  # ← This prints SMTP conversation to console
             server.starttls()
             server.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
             server.send_message(msg)
 
-        print(f"[SMTP] Sent to {to_email}")
+        print(f"[SMTP] ✅ Email sent successfully to {to_email}")
         return True
     except Exception as e:
         print(f"[SMTP ERROR] {e}")
         import traceback
         traceback.print_exc()
         return False
-
 
 def send_email(to_email: str, subject: str, html_content: str) -> bool:
     """

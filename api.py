@@ -369,9 +369,6 @@ async def delete_account(current_user: dict = Depends(get_current_user_required)
 
 @app.post("/forgot-password")
 async def forgot_password(request: Request):
-    if not Config.email_ready():
-        return {"message": "📧 If this email exists, a reset link has been sent."}
-
     try:
         data = await request.json()
         email = data.get("email", "").strip()
@@ -380,6 +377,7 @@ async def forgot_password(request: Request):
 
         user = get_user_by_email(email)
         if not user:
+            # Still return success for security (don't reveal if email exists)
             return {"message": "📧 If this email exists, a reset link has been sent."}
 
         token = secrets.token_urlsafe(32)
@@ -388,12 +386,18 @@ async def forgot_password(request: Request):
 
         base_url = Config.APP_BASE_URL
         success = send_reset_email(email, token, base_url)
+
         if not success:
             print(f"[FORGOT PASSWORD] Failed to send email to {email}")
+            raise HTTPException(500, detail="⚠️ We could not send the reset email. Please try again later or contact support.")
+
         return {"message": "📧 If this email exists, a reset link has been sent."}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[FORGOT PASSWORD ERROR] {e}")
-        return {"message": "📧 If this email exists, a reset link has been sent."}
+        traceback.print_exc()
+        raise HTTPException(500, detail="😕 Something went wrong. Please try again.")
 
 @app.post("/reset-password")
 async def reset_password(request: Request):
