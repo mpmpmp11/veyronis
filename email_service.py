@@ -53,7 +53,7 @@ def send_email(to_email: str, subject: str, html_content: str) -> bool:
 # ─── Convenience functions for VEYRONIS ───
 
 def send_reset_email(email: str, token: str, base_url: str) -> bool:
-    reset_link = f"{base_url}/reset-password?token={token}"
+    reset_link = f"{base_url}/#reset-password?token={token}"  # ← Added #
     html = f"""
     <html><body style="font-family:Arial;background:#0a0a0c;color:#f0f0f5;padding:20px;">
         <div style="background:#1a1a2e;padding:30px;border-radius:16px;border:1px solid rgba(167,139,250,0.2);">
@@ -69,7 +69,6 @@ def send_reset_email(email: str, token: str, base_url: str) -> bool:
     </body></html>
     """
     return send_email(email, "Reset Your VEYRONIS Password", html)
-
 
 def send_verification_email(email: str, token: str, base_url: str) -> bool:
     verify_link = f"{base_url}/verify-email?token={token}"
