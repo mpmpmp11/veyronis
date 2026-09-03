@@ -3039,18 +3039,22 @@ body::before {
   margin: 14px 0;
 }
 .flashcard {
-  perspective: 1000px;
-  cursor: pointer;
-  height: 160px;
+    perspective: 1000px;
+    cursor: pointer;
+    min-height: 160px;
+    height: auto; /* Allows the card to grow with content */
 }
+
 .flashcard-inner {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  transform-style: preserve-3d;
-  border-radius: var(--radius);
+    position: relative;
+    width: 100%;
+    height: 100%; /* This now follows the wrapper's min-height or expanded height */
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    transform-style: preserve-3d;
+    border-radius: var(--radius);
+    min-height: inherit; /* Ensures it matches the wrapper's min-height */
 }
+
 .flashcard.flipped .flashcard-inner {
   transform: rotateY(180deg);
 }
@@ -3069,7 +3073,11 @@ body::before {
   border: 1px solid var(--glass-border);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
   backdrop-filter: blur(8px);
+  word-break: break-word;
+  overflow-wrap: break-word;
+  overflow-y: auto; /* Adds a scrollbar only if text is excessively long */
 }
+
 .flashcard-back {
   transform: rotateY(180deg);
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -3545,7 +3553,10 @@ body::before {
   .settings-label { font-size: 13px; }
 
   .flashcard-deck { grid-template-columns: 1fr; }
-  .flashcard { height: 140px; }
+  .flashcard {
+        min-height: 140px; /* Slightly shorter on tablet, but still expandable */
+        height: auto;
+    }
 
   .auth-card { padding: 32px 24px; margin: 12px; }
   .auth-brand { font-size: 28px; letter-spacing: 4px; }
@@ -3567,6 +3578,11 @@ body::before {
 }
 
 @media (max-width: 480px) {
+   .flashcard {
+        min-height: 120px; /* Compact but readable on phones */
+        height: auto;
+           }
+}
   .top-bar { height: 44px; padding: 0 6px; }
   .top-center .brand-text { font-size: 12px; letter-spacing: 1px; }
   .top-icon { width: 30px; height: 30px; border-radius: 8px; }
@@ -3608,7 +3624,9 @@ body::before {
   .auth-action { font-size: 13px; padding: 10px; }
   .auth-google-btn { font-size: 12px; padding: 8px; }
 
-  .flashcard { height: 140px; }
+   .flashcard {
+        min-height: 120px; /* Compact but readable on phones */
+        height: auto;
   .flashcard-q { font-size: 13px; }
   .flashcard-a { font-size: 13px; }
   .flashcard-deck { grid-template-columns: 1fr; gap: 10px; }
