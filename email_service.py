@@ -1,79 +1,58 @@
-"""Email sending module using Resend (with SMTP fallback)."""
-import resend
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+"""Email sending via Brevo (free, no domain required)."""
+import os
+import requests
 from settings import Config
 
-# Resend API key
-if Config.RESEND_API_KEY:
-    resend.api_key = Config.RESEND_API_KEY
-else:
-    print("[VEYRONIS] WARNING: RESEND_API_KEY not set. Email will fall back to SMTP if configured.")
+# Brevo API endpoint
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
 
-# The sender MUST be a verified sender in Resend
+# Sender – use your verified email (the one you signed up with)
 SENDER_EMAIL = "mishobazadze@gmail.com"
+SENDER_NAME = "VEYRONIS"
 
-def send_smtp_email(to_email: str, subject: str, html_content: str) -> bool:
-    if not Config.smtp_ready():
-        print("[SMTP] SMTP not configured. Skipping.")
+
+def send_brevo_email(to_email: str, subject: str, html_content: str) -> bool:
+    """Send email using Brevo API. Returns True on success, False on failure."""
+    if not Config.BREVO_API_KEY:
+        print("[BREVO] API key missing.")
         return False
+
+    headers = {
+        "api-key": Config.BREVO_API_KEY,
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "sender": {"email": SENDER_EMAIL, "name": SENDER_NAME},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "htmlContent": html_content,
+    }
 
     try:
-        print(f"[SMTP] Attempting to send to {to_email} via {Config.SMTP_HOST}:{Config.SMTP_PORT}")
-        
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = Config.SMTP_USER
-        msg["To"] = to_email
-        msg.attach(MIMEText(html_content, "html"))
-
-        with smtplib.SMTP(Config.SMTP_HOST, Config.SMTP_PORT) as server:
-            server.set_debuglevel(1)  # ← This prints SMTP conversation to console
-            server.starttls()
-            server.login(Config.SMTP_USER, Config.SMTP_PASSWORD)
-            server.send_message(msg)
-
-        print(f"[SMTP] ✅ Email sent successfully to {to_email}")
-        return True
+        resp = requests.post(BREVO_URL, headers=headers, json=payload, timeout=10)
+        if resp.status_code in (200, 201):
+            print(f"[BREVO] ✅ Email sent to {to_email}")
+            return True
+        else:
+            print(f"[BREVO] ❌ Error {resp.status_code}: {resp.text}")
+            return False
     except Exception as e:
-        print(f"[SMTP ERROR] {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"[BREVO] ❌ Exception: {e}")
         return False
+
 
 def send_email(to_email: str, subject: str, html_content: str) -> bool:
     """
-    Send email using Resend (primary), fallback to SMTP if Resend fails or is not configured.
+    Main entry point. Uses Brevo (primary).
+    Returns True if sent, False otherwise.
     """
-    # Try Resend first
-    if Config.RESEND_API_KEY:
-        try:
-            result = resend.Emails.send({
-                "from": SENDER_EMAIL,
-                "to": [to_email],
-                "subject": subject,
-                "html": html_content
-            })
-            print(f"[EMAIL] Sent via Resend to {to_email} | Response: {result}")
-            return True
-        except Exception as e:
-            print(f"[EMAIL ERROR] Resend failed: {e}")
-            import traceback
-            traceback.print_exc()
-            # Fall through to SMTP
+    return send_brevo_email(to_email, subject, html_content)
 
-    # Fallback to SMTP
-    if Config.smtp_ready():
-        print(f"[EMAIL] Falling back to SMTP for {to_email}")
-        return send_smtp_email(to_email, subject, html_content)
 
-    print(f"[EMAIL] No email method available. Failed to send to {to_email}")
-    return False
-
+# ─── Convenience functions for VEYRONIS ───
 
 def send_reset_email(email: str, token: str, base_url: str) -> bool:
-    """Send password reset email."""
     reset_link = f"{base_url}/reset-password?token={token}"
     html = f"""
     <html><body style="font-family:Arial;background:#0a0a0c;color:#f0f0f5;padding:20px;">
@@ -93,7 +72,6 @@ def send_reset_email(email: str, token: str, base_url: str) -> bool:
 
 
 def send_verification_email(email: str, token: str, base_url: str) -> bool:
-    """Send email verification link."""
     verify_link = f"{base_url}/verify-email?token={token}"
     html = f"""
     <html><body style="font-family:Arial;background:#0a0a0c;color:#f0f0f5;padding:20px;">
@@ -113,7 +91,6 @@ def send_verification_email(email: str, token: str, base_url: str) -> bool:
 
 
 def send_feedback_email(to_admin: str, from_user: str, message: str) -> bool:
-    """Send user feedback to admin."""
     html = f"""
     <html><body style="font-family:Arial;background:#0a0a0c;color:#f0f0f5;padding:20px;">
         <div style="background:#1a1a2e;padding:30px;border-radius:16px;border:1px solid rgba(167,139,250,0.2);">

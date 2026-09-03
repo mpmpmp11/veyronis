@@ -377,7 +377,7 @@ async def forgot_password(request: Request):
 
         user = get_user_by_email(email)
         if not user:
-            # Still return success for security (don't reveal if email exists)
+            # Security: don't reveal if email exists
             return {"message": "📧 If this email exists, a reset link has been sent."}
 
         token = secrets.token_urlsafe(32)

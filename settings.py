@@ -52,6 +52,12 @@ class Config:
     SMTP_USER: str = os.getenv("SMTP_USER", "").strip()
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "").strip()
 
+BREVO_API_KEY: str = os.getenv("BREVO_API_KEY", "").strip()
+
+@classmethod
+def brevo_ready(cls) -> bool:
+    return bool(cls.BREVO_API_KEY)
+
     # Official 2026 Model IDs
     MODEL_ULTRA: str = "openai/gpt-oss-120b"
     MODEL_STABLE: str = "llama-3.3-70b-versatile"
