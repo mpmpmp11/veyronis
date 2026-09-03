@@ -3032,75 +3032,113 @@ body::before {
    FLASHCARDS, CODE, CITATIONS, HINDSIGHT
    ============================================================ */
 
+/* ─── FLASHCARD DECK ─── */
 .flashcard-deck {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 14px;
-  margin: 14px 0;
-}
-.flashcard {
-    perspective: 1000px;
-    cursor: pointer;
-    min-height: 160px;
-    height: auto; /* Allows the card to grow with content */
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    margin: 20px auto;
+    padding: 0 12px;
+    max-width: 640px; /* prevents cards from stretching too wide */
 }
 
+/* ─── INDIVIDUAL CARD (square) ─── */
+.flashcard {
+    flex: 0 1 220px;        /* grows/shrinks around 220px */
+    min-width: 160px;
+    max-width: 280px;
+    aspect-ratio: 1 / 1;    /* makes it a perfect square */
+    perspective: 1000px;
+    cursor: pointer;
+}
+
+/* ─── CARD INNER (flips) ─── */
 .flashcard-inner {
     position: relative;
     width: 100%;
-    height: 100%; /* This now follows the wrapper's min-height or expanded height */
-    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    height: 100%;
+    transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
     transform-style: preserve-3d;
     border-radius: var(--radius);
-    min-height: inherit; /* Ensures it matches the wrapper's min-height */
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .flashcard.flipped .flashcard-inner {
-  transform: rotateY(180deg);
+    transform: rotateY(180deg);
 }
-.flashcard-front, .flashcard-back {
-  position: absolute;
-  inset: 0;
-  backface-visibility: hidden;
-  border-radius: var(--radius);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  background: var(--surface);
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(8px);
-  word-break: break-word;
-  overflow-wrap: break-word;
-  overflow-y: auto; /* Adds a scrollbar only if text is excessively long */
+
+/* ─── FRONT & BACK FACES ─── */
+.flashcard-front,
+.flashcard-back {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: var(--radius);
+    padding: 18px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    background: var(--surface);
+    border: 1px solid var(--glass-border);
+    word-break: break-word;
+    overflow-wrap: break-word;
+    overflow-y: auto; /* scrolls if text is extremely long */
 }
 
 .flashcard-back {
-  transform: rotateY(180deg);
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: #fff;
-  border: none;
-  box-shadow: 0 8px 32px var(--accent-glow);
+    transform: rotateY(180deg);
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    border: none;
+    box-shadow: 0 8px 32px var(--accent-glow);
 }
+
+/* ─── TEXT INSIDE CARD ─── */
+.flashcard-q {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.5;
+    max-width: 100%;
+}
+
+.flashcard-a {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.5;
+    color: #fff;
+    max-width: 100%;
+}
+
 .flashcard-num {
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  font-size: 10px;
-  font-weight: 800;
-  opacity: 0.3;
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 11px;
+    font-weight: 800;
+    opacity: 0.3;
+    color: var(--text-muted);
 }
-.flashcard-q { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.4; }
-.flashcard-a { font-size: 15px; font-weight: 600; line-height: 1.4; }
+
+.flashcard-back .flashcard-num {
+    color: rgba(255,255,255,0.4);
+}
+
 .flashcard-hint {
-  position: absolute;
-  bottom: 8px;
-  font-size: 10px;
-  opacity: 0.3;
-  color: var(--text-muted);
+    position: absolute;
+    bottom: 8px;
+    font-size: 10px;
+    opacity: 0.3;
+    color: var(--text-muted);
+}
+
+.flashcard-back .flashcard-hint {
+    color: rgba(255,255,255,0.4);
 }
 
 .run-code-btn {
@@ -3554,9 +3592,14 @@ body::before {
 
   .flashcard-deck { grid-template-columns: 1fr; }
   .flashcard {
-        min-height: 140px; /* Slightly shorter on tablet, but still expandable */
-        height: auto;
+        flex: 0 1 180px;
+        min-width: 140px;
+        max-width: 220px;
     }
+    .flashcard-q, .flashcard-a {
+        font-size: 13px;
+    }
+}
 
   .auth-card { padding: 32px 24px; margin: 12px; }
   .auth-brand { font-size: 28px; letter-spacing: 4px; }
@@ -3575,13 +3618,21 @@ body::before {
   .modal-body { padding: 12px 16px; }
   .modal-footer { padding: 10px 16px; }
   .modal-overlay { padding: 0; align-items: flex-end; }
-}
+
 
 @media (max-width: 480px) {
    .flashcard {
-        min-height: 120px; /* Compact but readable on phones */
-        height: auto;
-           }
+        flex: 0 1 100%;        /* full width on very small screens */
+        max-width: 280px;
+        min-width: unset;
+    }
+    .flashcard-q, .flashcard-a {
+        font-size: 14px;
+    }
+    .flashcard-deck {
+        gap: 14px;
+        padding: 0 4px;
+    }
 }
   .top-bar { height: 44px; padding: 0 6px; }
   .top-center .brand-text { font-size: 12px; letter-spacing: 1px; }
