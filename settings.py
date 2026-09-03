@@ -46,17 +46,14 @@ class Config:
     RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "").strip()
     APP_BASE_URL: str = os.getenv("APP_BASE_URL", "https://veyronis.onrender.com").strip()
 
-    # SMTP (Gmail) - For Forgot Password
+    # Brevo Email (new - free, no domain required)
+    BREVO_API_KEY: str = os.getenv("BREVO_API_KEY", "").strip()
+
+    # SMTP (Gmail) - fallback
     SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com").strip()
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USER: str = os.getenv("SMTP_USER", "").strip()
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "").strip()
-
-BREVO_API_KEY: str = os.getenv("BREVO_API_KEY", "").strip()
-
-@classmethod
-def brevo_ready(cls) -> bool:
-    return bool(cls.BREVO_API_KEY)
 
     # Official 2026 Model IDs
     MODEL_ULTRA: str = "openai/gpt-oss-120b"
@@ -113,6 +110,10 @@ def brevo_ready(cls) -> bool:
     @classmethod
     def smtp_ready(cls) -> bool:
         return bool(cls.SMTP_USER and cls.SMTP_PASSWORD)
+
+    @classmethod
+    def brevo_ready(cls) -> bool:
+        return bool(cls.BREVO_API_KEY)
 
 def get_groq_client() -> Groq:
     Config.validate()
