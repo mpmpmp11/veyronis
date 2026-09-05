@@ -362,6 +362,7 @@ def get_attachments(user_id: str, conversation_id: int) -> List[Dict[str, Any]]:
                 (user_id, conversation_id)
             )
             rows = cur.fetchall()
+            print(f"[DB] get_attachments: user={user_id}, conv={conversation_id}, count={len(rows)}")
     return [dict(r) for r in rows]
 
 

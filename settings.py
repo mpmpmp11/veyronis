@@ -55,10 +55,10 @@ class Config:
     SMTP_USER: str = os.getenv("SMTP_USER", "").strip()
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "").strip()
 
-    # Official 2026 Model IDs
+    # Model IDs (updated)
     MODEL_ULTRA: str = "openai/gpt-oss-120b"
     MODEL_STABLE: str = "llama-3.3-70b-versatile"
-    GEMINI_MODEL: str = "gemini-1.5-flash-latest"
+    GEMINI_MODEL: str = "gemini-2.0-flash"   # <-- Updated from deprecated 1.5
 
     GROQ_MODEL: str = MODEL_ULTRA 
     JUDGE_MODEL: str = MODEL_ULTRA
@@ -68,7 +68,7 @@ class Config:
 
     ADMIN_EMAILS: str = os.getenv("ADMIN_EMAILS", "mishobazadze@gmail.com").strip()
 
-    # In Config class
+    # Attachment retention (hours)
     ATTACHMENT_RETENTION_HOURS: int = int(os.getenv("ATTACHMENT_RETENTION_HOURS", "48"))
 
     @classmethod

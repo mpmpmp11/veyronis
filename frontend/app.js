@@ -898,30 +898,32 @@ async function loadAttachments() {
     if (!container) return;
 
     if (!state.conversationId) {
+        console.log('[Attachments] No conversation ID');
         container.innerHTML = '<p class="modal-empty">No conversation selected</p>';
         return;
     }
 
+    console.log('[Attachments] Loading for conv:', state.conversationId);
     container.innerHTML = '<p class="modal-empty">Loading...</p>';
 
     try {
         const res = await authenticatedFetch(`/attachments?conversation_id=${state.conversationId}`);
         const data = await res.json();
+        console.log('[Attachments] Response:', data);
 
         if (!res.ok) {
             throw new Error(data.detail || 'Failed to load attachments');
         }
 
         const attachments = data.attachments || [];
+        console.log('[Attachments] Count:', attachments.length);
 
         if (attachments.length === 0) {
             container.innerHTML = '<p class="modal-empty">No attachments in this conversation</p>';
             return;
         }
 
-        // Render thumbnail grid
         container.innerHTML = renderAttachmentGrid(attachments);
-
     } catch (err) {
         handleError(err, 'Attachments');
         container.innerHTML = `<p class="modal-empty error">❌ ${escapeHtml(err.message)}</p>`;
@@ -2109,10 +2111,8 @@ function removeImagePreview() {
     if (existing) existing.remove();
     updateSendButton();
 }
+
 function triggerDocumentUpload() {
-    if (!state.userId || state.userId === 'null' || state.userId === 'undefined') {
-        state.userId = state.user?.email || 'u_' + Date.now();
-    }
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.pdf,.docx,.txt,.md,.csv,.xlsx,.xls,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -2130,7 +2130,6 @@ function triggerDocumentUpload() {
 
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('user_id', state.userId);
 
         // ─── Send conversation_id if we already have one ───
         if (state.conversationId) {
@@ -2141,7 +2140,8 @@ function triggerDocumentUpload() {
         document.getElementById('attach-pop')?.classList.remove('open');
 
         try {
-            const res = await fetch(`${state.apiUrl}/upload`, {
+            // ✅ Use authenticatedFetch to send token
+            const res = await authenticatedFetch('/upload', {
                 method: 'POST',
                 body: formData
             });
@@ -2154,6 +2154,10 @@ function triggerDocumentUpload() {
                 throw err;
             }
 
+            console.log('[Upload] Success:', data);
+            console.log('[Upload] conversation_id:', data.conversation_id);
+            console.log('[Upload] attachment_id:', data.attachment_id);
+
             toast(`📄 Document ready: ${data.extracted_length} chars`, 'success');
 
             // ─── Handle conversation ───
@@ -2164,11 +2168,10 @@ function triggerDocumentUpload() {
                     loadConversations();
                     loadHistory();
                     showEmpty(false);
-                    console.log('[Attachments] New conversation created:', data.conversation_id);
+                    console.log('[Upload] New conversation created:', data.conversation_id);
                 } else {
                     // We already have a conversation – the file is now attached to it.
-                    // Nothing else to do – the backend already linked the file.
-                    console.log('[Attachments] File attached to conversation:', state.conversationId);
+                    console.log('[Upload] File attached to conversation:', state.conversationId);
                 }
             }
 
@@ -2188,6 +2191,7 @@ function triggerDocumentUpload() {
         if (input.parentNode) input.parentNode.removeChild(input);
     }, 60000);
 }
+
 function showDocPreview(filename) {
     const existing = document.getElementById('doc-preview');
     if (existing) existing.remove();

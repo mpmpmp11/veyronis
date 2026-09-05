@@ -761,10 +761,12 @@ async def list_attachments(
     conversation_id: int,
     current_user: dict = Depends(get_current_user_required)
 ):
-    convs = get_conversations(current_user["email"], include_archived=True)
-    if not any(c["id"] == conversation_id for c in convs):
-        raise HTTPException(403, detail="🔒 Access denied.")
-    attachments = get_attachments(current_user["email"], conversation_id)
+    user_email = current_user["email"]
+    print(f"[ATTACHMENTS] user={user_email}, conv={conversation_id}")
+    
+    attachments = get_attachments(user_email, conversation_id)
+    print(f"[ATTACHMENTS] found {len(attachments)} rows")
+    
     return {"attachments": attachments}
 
 # ─── UPLOAD ENDPOINT (With Cloudinary + attachment saving) ───
@@ -772,16 +774,17 @@ async def list_attachments(
 @app.post("/upload")
 async def upload_document(
     file: UploadFile = File(...),
-    user_id: str = "",
     conversation_id: Optional[int] = None,
-    request: Request = None
+    request: Request = None,
+    current_user: dict = Depends(get_current_user_required)   # ← force auth
 ):
     client_ip = request.client.host if request else "unknown"
     if not _check_rate_limit(client_ip, max_requests=10, window_seconds=60):
         raise HTTPException(429, detail="⏳ Too many uploads. Please slow down.")
 
-    if not user_id:
-        user_id = "u_auto_" + str(int(time.time()))
+    # Use the authenticated user's email
+    user_id = current_user["email"]
+    print(f"[UPLOAD] user: {user_id}, conv: {conversation_id}, file: {file.filename}")
 
     try:
         content = await file.read()
@@ -825,6 +828,7 @@ async def upload_document(
         except Exception as e:
             print(f"[VEYRONIS] Gemini doc analysis failed: {e}")
 
+        # If no conversation_id, create one
         if not conversation_id:
             conversation_id = create_conversation(user_id, title=file.filename)
 
@@ -838,6 +842,7 @@ async def upload_document(
             size=len(content),
             mime_type=file.content_type
         )
+        print(f"[UPLOAD] Saved attachment id: {attach_id}")
 
         response = {
             "filename": file.filename,
@@ -851,13 +856,14 @@ async def upload_document(
         if gemini_analysis:
             response["gemini_analysis"] = gemini_analysis
         return response
+
     except HTTPException:
         raise
     except Exception as e:
         print(f"[UPLOAD ERROR] {e}")
         traceback.print_exc()
         raise HTTPException(500, detail="😕 Upload failed. Please try again.")
-
+    
 # ─── CHAT ENDPOINTS ───
 
 @app.post("/chat", response_model=ChatResponse)
