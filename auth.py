@@ -16,7 +16,7 @@ def get_google_auth_url(redirect_uri: str) -> str:
         "response_type": "code",
         "scope": "email profile openid",
         "access_type": "online",
-        "prompt": "select_account"
+        "prompt": "select_account"   # ← ADD THIS LINE
     }
     return f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
 
