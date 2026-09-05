@@ -776,13 +776,13 @@ async def upload_document(
     file: UploadFile = File(...),
     conversation_id: Optional[int] = None,
     request: Request = None,
-    current_user: dict = Depends(get_current_user_required)   # ← force auth
+    current_user: dict = Depends(get_current_user_required)  # ← Force auth
 ):
     client_ip = request.client.host if request else "unknown"
     if not _check_rate_limit(client_ip, max_requests=10, window_seconds=60):
         raise HTTPException(429, detail="⏳ Too many uploads. Please slow down.")
 
-    # Use the authenticated user's email
+    # Use authenticated user's email
     user_id = current_user["email"]
     print(f"[UPLOAD] user: {user_id}, conv: {conversation_id}, file: {file.filename}")
 

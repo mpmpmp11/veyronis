@@ -500,9 +500,21 @@ async function submitResetPassword() {
 
 // ─── API HELPER ───
 async function authenticatedFetch(endpoint, options = {}) {
-    const headers = { 'Content-Type': 'application/json', ...options.headers };
-    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
-    const res = await fetch(`${state.apiUrl}${endpoint}`, { ...options, headers });
+    const headers = { ...options.headers };
+    
+    // Don't set Content-Type for FormData – browser will set it with boundary
+    if (!(options.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+    }
+    
+    if (state.token) {
+        headers['Authorization'] = `Bearer ${state.token}`;
+    }
+    
+    const res = await fetch(`${state.apiUrl}${endpoint}`, { 
+        ...options, 
+        headers 
+    });
     return res;
 }
 
