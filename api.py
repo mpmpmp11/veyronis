@@ -1314,9 +1314,8 @@ async def submit_feedback(
 async def preview_file(
     attachment_id: int,
     current_user: dict = Depends(get_current_user_required),
-    conn = Depends(get_db)   # ← use dependency injection
+    conn = Depends(get_db)
 ):
-    """Render a dedicated preview page for a file."""
     cursor = conn.cursor()
     cursor.execute(
         "SELECT filename, cloudinary_url, mime_type FROM attachments WHERE id = %s AND user_id = %s",
@@ -1327,14 +1326,12 @@ async def preview_file(
     if not row:
         raise HTTPException(404, detail="File not found")
     
-    # Convert row to dict (if not already)
     filename = row["filename"]
     url = row["cloudinary_url"]
     mime_type = row["mime_type"] or ""
     
-    # If no cloudinary URL, show error
     if not url:
-        html = f"""
+        return HTMLResponse(content=f"""
         <!DOCTYPE html>
         <html>
         <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Preview – {filename}</title></head>
@@ -1345,10 +1342,8 @@ async def preview_file(
             <a href="/" style="color:#a78bfa;">← Back to VEYRONIS</a>
         </body>
         </html>
-        """
-        return HTMLResponse(content=html)
+        """)
     
-    # Build the full HTML page (same as before)
     html = f"""
     <!DOCTYPE html>
     <html>

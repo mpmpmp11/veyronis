@@ -2868,11 +2868,18 @@ function downloadPreview() {
         toast('❌ No file to download', 'error');
         return;
     }
-    // Add fl_attachment to force download
+    // Force download by adding fl_attachment
     const downloadUrl = previewUrl.includes('?') 
         ? previewUrl + '&fl_attachment' 
         : previewUrl + '?fl_attachment';
-    window.open(downloadUrl, '_blank');
+    
+    // Create a hidden anchor to trigger download
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = previewFilename || 'download';  // Force download with filename
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
 
 // ─── OPEN DEDICATED PREVIEW PAGE ───
@@ -2881,7 +2888,7 @@ function openPreviewPage() {
         toast('❌ No file to preview', 'error');
         return;
     }
-    // Open the dedicated preview page
+    // Open dedicated preview page in new tab
     window.open(`${state.apiUrl}/preview/${previewAttachment}`, '_blank');
 }
 
