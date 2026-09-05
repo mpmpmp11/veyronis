@@ -122,6 +122,33 @@ def get_current_user_required(token: str = Depends(oauth2_scheme)):
         raise HTTPException(403, detail="🚫 Your account has been banned. Contact support.")
     return {"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])}
 
+async def get_current_user_from_token_or_query(
+    request: Request,
+    token: Optional[str] = None
+):
+    """Get current user from either Authorization header or query parameter 'token'."""
+    # First check Authorization header
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+    # If not, fall back to query param
+    if not token:
+        token = request.query_params.get("token")
+    if not token:
+        raise HTTPException(401, detail="Missing authentication token")
+    payload = decode_token(token)
+    if not payload:
+        raise HTTPException(401, detail="Invalid token")
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(401, detail="Invalid token")
+    user = get_user_by_id(int(user_id))
+    if not user:
+        raise HTTPException(401, detail="User not found")
+    if user.get("is_banned", False):
+        raise HTTPException(403, detail="Account banned")
+    return {"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])}
+
 # ─── PATH SETUP ───
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
@@ -1313,9 +1340,12 @@ async def submit_feedback(
 @app.get("/preview/{attachment_id}")
 async def preview_file(
     attachment_id: int,
-    current_user: dict = Depends(get_current_user_required),
+    request: Request,
+    token: Optional[str] = None,
+    current_user: dict = Depends(get_current_user_from_token_or_query),
     conn = Depends(get_db)
 ):
+    """Render a dedicated preview page for a file."""
     cursor = conn.cursor()
     cursor.execute(
         "SELECT filename, cloudinary_url, mime_type FROM attachments WHERE id = %s AND user_id = %s",
@@ -1331,7 +1361,7 @@ async def preview_file(
     mime_type = row["mime_type"] or ""
     
     if not url:
-        return HTMLResponse(content=f"""
+        html = f"""
         <!DOCTYPE html>
         <html>
         <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Preview – {filename}</title></head>
@@ -1342,8 +1372,10 @@ async def preview_file(
             <a href="/" style="color:#a78bfa;">← Back to VEYRONIS</a>
         </body>
         </html>
-        """)
+        """
+        return HTMLResponse(content=html)
     
+    # Build the full HTML page (same as before)
     html = f"""
     <!DOCTYPE html>
     <html>

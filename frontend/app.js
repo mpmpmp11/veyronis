@@ -2888,8 +2888,9 @@ function openPreviewPage() {
         toast('❌ No file to preview', 'error');
         return;
     }
-    // Open dedicated preview page in new tab
-    window.open(`${state.apiUrl}/preview/${previewAttachment}`, '_blank');
+    // Pass token in URL so the new tab can authenticate
+    const url = `${state.apiUrl}/preview/${previewAttachment}?token=${encodeURIComponent(state.token)}`;
+    window.open(url, '_blank');
 }
 
 // ─── RENDER PDF ───
