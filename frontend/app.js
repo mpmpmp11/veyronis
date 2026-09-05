@@ -2889,6 +2889,10 @@ function openPreviewPage() {
 async function renderPDF(url, container) {
     try {
         const pdfjsLib = window.pdfjsLib;
+        if (!pdfjsLib) {
+            container.innerHTML = `<iframe src="${url}" style="width:100%;height:70vh;border:none;border-radius:8px;"></iframe>`;
+            return;
+        }
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.js';
         
         const loadingTask = pdfjsLib.getDocument(url);
@@ -2902,22 +2906,12 @@ async function renderPDF(url, container) {
             const context = canvas.getContext('2d');
             canvas.height = viewport.height;
             canvas.width = viewport.width;
-            
+            canvas.style.maxWidth = '100%';
+            canvas.style.height = 'auto';
             await page.render({ canvasContext: context, viewport: viewport }).promise;
             html += `<canvas height="${viewport.height}" width="${viewport.width}" style="max-width:100%;height:auto;"></canvas>`;
-            // Append canvas directly
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = `<div class="pdf-page-container">${html}</div>`;
-            container.innerHTML = tempDiv.innerHTML;
-            
-            // Re-attach canvas
-            const canvasEl = container.querySelectorAll('canvas');
-            const lastCanvas = canvasEl[canvasEl.length - 1];
-            if (lastCanvas) {
-                const ctx = lastCanvas.getContext('2d');
-                ctx.drawImage(canvas, 0, 0);
-            }
         }
+        html += '</div>';
         container.innerHTML = html;
     } catch (err) {
         console.error('[PDF Render] Error:', err);
@@ -2925,7 +2919,7 @@ async function renderPDF(url, container) {
             <div style="text-align:center;padding:40px;color:#ef4444;">
                 <div style="font-size:48px;">📄</div>
                 <p>Could not render PDF: ${err.message}</p>
-                <button class="modal-btn primary" onclick="downloadPreview()" style="margin-top:16px;">⬇️ Download File</button>
+                <button class="modal-btn primary" onclick="downloadPreview()">⬇️ Download File</button>
             </div>
         `;
     }
@@ -2987,11 +2981,4 @@ function closePreview() {
     previewAttachment = null;
     previewUrl = null;
     previewFilename = '';
-}
-
-// ─── DOWNLOAD PREVIEW ───
-function downloadPreview() {
-    if (previewUrl) {
-        window.open(previewUrl, '_blank');
-    }
 }

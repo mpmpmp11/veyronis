@@ -1311,54 +1311,45 @@ async def submit_feedback(
     return {"status": "Feedback sent"}
 
 @app.get("/preview/{attachment_id}")
-async def get_preview(
-    attachment_id: int,
-    current_user: dict = Depends(get_current_user_required)
-):
-    """Get file content for preview (text or binary)"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT filename, cloudinary_url, file_type, mime_type FROM attachments WHERE id = %s AND user_id = %s",
-        (attachment_id, current_user["email"])
-    )
-    row = cursor.fetchone()
-    conn.close()
-    
-    if not row:
-        raise HTTPException(404, detail="Attachment not found")
-    
-    # If Cloudinary URL exists, redirect to it for images/PDFs
-    if row["cloudinary_url"]:
-        return {"url": row["cloudinary_url"], "filename": row["filename"], "mime_type": row["mime_type"]}
-    
-    # For documents stored locally, we'd need to fetch from storage
-    # (but we're using Cloudinary, so this is a fallback)
-    return {"url": None, "filename": row["filename"], "mime_type": row["mime_type"]}
-
-@app.get("/preview/{attachment_id}")
 async def preview_file(
     attachment_id: int,
-    current_user: dict = Depends(get_current_user_required)
+    current_user: dict = Depends(get_current_user_required),
+    conn = Depends(get_db)   # ← use dependency injection
 ):
     """Render a dedicated preview page for a file."""
-    conn = get_db()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT filename, cloudinary_url, file_type, mime_type FROM attachments WHERE id = %s AND user_id = %s",
+        "SELECT filename, cloudinary_url, mime_type FROM attachments WHERE id = %s AND user_id = %s",
         (attachment_id, current_user["email"])
     )
     row = cursor.fetchone()
-    conn.close()
     
     if not row:
         raise HTTPException(404, detail="File not found")
     
+    # Convert row to dict (if not already)
     filename = row["filename"]
     url = row["cloudinary_url"]
     mime_type = row["mime_type"] or ""
     
-    html = """
+    # If no cloudinary URL, show error
+    if not url:
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Preview – {filename}</title></head>
+        <body style="font-family:sans-serif;background:#0a0a0c;color:#f0f0f5;display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;">
+            <div style="font-size:64px;">⚠️</div>
+            <h2>File not available</h2>
+            <p>The file could not be found. It may have been deleted.</p>
+            <a href="/" style="color:#a78bfa;">← Back to VEYRONIS</a>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html)
+    
+    # Build the full HTML page (same as before)
+    html = f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -1366,8 +1357,8 @@ async def preview_file(
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Preview – {filename}</title>
         <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{
                 background: #0a0a0c;
                 color: #f0f0f5;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -1377,69 +1368,71 @@ async def preview_file(
                 align-items: center;
                 justify-content: center;
                 padding: 20px;
-            }
-            .preview-container {
+            }}
+            .container {{
                 max-width: 1000px;
                 width: 100%;
-                background: rgba(18, 18, 28, 0.85);
+                background: rgba(18,18,28,0.85);
                 backdrop-filter: blur(24px);
                 border: 1px solid rgba(255,255,255,0.08);
                 border-radius: 16px;
                 padding: 30px;
                 box-shadow: 0 24px 80px rgba(0,0,0,0.6);
-            }
-            .header {
+            }}
+            .header {{
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
                 margin-bottom: 20px;
                 padding-bottom: 16px;
                 border-bottom: 1px solid rgba(255,255,255,0.06);
-            }
-            .filename {
+                flex-wrap: wrap;
+                gap: 12px;
+            }}
+            .filename {{
                 font-size: 18px;
                 font-weight: 700;
-                color: #f0f0f5;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
-            }
-            .filename span { color: #a78bfa; }
-            .actions {
+            }}
+            .filename span {{ color: #a78bfa; }}
+            .actions {{
                 display: flex;
                 gap: 10px;
-            }
-            .btn {
+                flex-wrap: wrap;
+            }}
+            .btn {{
                 padding: 8px 18px;
                 border-radius: 8px;
                 border: none;
                 font-size: 13px;
                 font-weight: 600;
                 cursor: pointer;
-                transition: all 0.2s ease;
+                transition: all 0.2s;
                 text-decoration: none;
                 display: inline-flex;
                 align-items: center;
                 gap: 6px;
-            }
-            .btn-primary {
+            }}
+            .btn-primary {{
                 background: linear-gradient(135deg, #a78bfa, #818cf8);
                 color: #fff;
-            }
-            .btn-primary:hover {
+            }}
+            .btn-primary:hover {{
                 transform: translateY(-2px);
-                box-shadow: 0 8px 24px rgba(167, 139, 250, 0.3);
-            }
-            .btn-secondary {
+                box-shadow: 0 8px 24px rgba(167,139,250,0.3);
+            }}
+            .btn-secondary {{
                 background: rgba(255,255,255,0.06);
                 color: #a0a0b8;
                 border: 1px solid rgba(255,255,255,0.08);
-            }
-            .btn-secondary:hover {
+            }}
+            .btn-secondary:hover {{
                 background: rgba(255,255,255,0.12);
                 color: #f0f0f5;
-            }
-            .content {
+            }}
+            .content {{
                 min-height: 300px;
                 display: flex;
                 align-items: center;
@@ -1448,21 +1441,21 @@ async def preview_file(
                 border-radius: 12px;
                 overflow: hidden;
                 padding: 20px;
-            }
-            .content img {
+            }}
+            .content img {{
                 max-width: 100%;
                 max-height: 70vh;
                 object-fit: contain;
                 border-radius: 8px;
-            }
-            .content iframe {
+            }}
+            .content iframe {{
                 width: 100%;
                 height: 70vh;
                 border: none;
                 border-radius: 8px;
                 background: #fff;
-            }
-            .content pre {
+            }}
+            .content pre {{
                 width: 100%;
                 max-height: 70vh;
                 overflow: auto;
@@ -1475,57 +1468,32 @@ async def preview_file(
                 white-space: pre-wrap;
                 word-wrap: break-word;
                 color: #e2e8f0;
-            }
-            .content .fallback {
+            }}
+            .fallback {{
                 text-align: center;
                 padding: 40px;
                 color: #6e6e8a;
-            }
-            .content .fallback .icon {
-                font-size: 64px;
-                margin-bottom: 16px;
-            }
-            .footer {
+            }}
+            .fallback .icon {{ font-size: 64px; margin-bottom: 16px; }}
+            .footer {{
                 margin-top: 16px;
                 text-align: center;
                 font-size: 12px;
                 color: #6e6e8a;
-            }
-            .footer a {
-                color: #a78bfa;
-                text-decoration: none;
-            }
-            @media (max-width: 640px) {
-                .header {
-                    flex-direction: column;
-                    gap: 12px;
-                    align-items: flex-start;
-                }
-                .filename {
-                    font-size: 14px;
-                    white-space: normal;
-                    word-break: break-word;
-                }
-                .actions {
-                    width: 100%;
-                    justify-content: flex-start;
-                }
-                .btn {
-                    font-size: 12px;
-                    padding: 6px 14px;
-                }
-                .content {
-                    min-height: 200px;
-                    padding: 10px;
-                }
-                .content iframe {
-                    height: 50vh;
-                }
-            }
+            }}
+            .footer a {{ color: #a78bfa; text-decoration: none; }}
+            @media (max-width: 640px) {{
+                .header {{ flex-direction: column; align-items: flex-start; }}
+                .filename {{ font-size: 14px; white-space: normal; word-break: break-word; }}
+                .actions {{ width: 100%; }}
+                .btn {{ font-size: 12px; padding: 6px 14px; }}
+                .content {{ min-height: 200px; padding: 10px; }}
+                .content iframe {{ height: 50vh; }}
+            }}
         </style>
     </head>
     <body>
-        <div class="preview-container">
+        <div class="container">
             <div class="header">
                 <div class="filename">📎 <span>{filename}</span></div>
                 <div class="actions">
@@ -1534,10 +1502,7 @@ async def preview_file(
                 </div>
             </div>
             <div class="content" id="preview-content">
-                <div class="fallback">
-                    <div class="icon">📄</div>
-                    <p>Loading preview...</p>
-                </div>
+                <div class="fallback"><div class="icon">📄</div><p>Loading preview...</p></div>
             </div>
             <div class="footer">
                 <a href="/">← Back to VEYRONIS</a>
@@ -1546,10 +1511,18 @@ async def preview_file(
         <script>
             const url = "{url}";
             const filename = "{filename}";
-            const mimeType = "{mime_type}";
             const ext = filename.split('.').pop().toLowerCase();
-            
             const content = document.getElementById('preview-content');
+            
+            function showFallback() {{
+                content.innerHTML = `
+                    <div class="fallback">
+                        <div class="icon">📎</div>
+                        <p>This file type cannot be previewed directly.</p>
+                        <p style="font-size:13px;margin-top:8px;">Click <strong>Download</strong> to save it.</p>
+                    </div>
+                `;
+            }}
             
             if (['jpg','jpeg','png','gif','webp','svg','bmp'].includes(ext)) {{
                 content.innerHTML = `<img src="${{url}}" alt="${{filename}}" onerror="showFallback()">`;
@@ -1572,20 +1545,10 @@ async def preview_file(
             else {{
                 showFallback();
             }}
-            
-            function showFallback() {{
-                content.innerHTML = `
-                    <div class="fallback">
-                        <div class="icon">📎</div>
-                        <p>This file type cannot be previewed directly.</p>
-                        <p style="font-size:13px;margin-top:8px;">Click <strong>Download</strong> to save it.</p>
-                    </div>
-                `;
-            }}
         </script>
     </body>
     </html>
-    """.format(filename=filename, url=url, mime_type=mime_type)
+    """
     
     return HTMLResponse(content=html)
 
