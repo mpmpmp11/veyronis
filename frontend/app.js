@@ -2819,31 +2819,27 @@ async function openPreview(attachmentId, filename, cloudinaryUrl, mimeType) {
     const ext = filename.split('.').pop().toLowerCase();
     const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext);
     const isPDF = ext === 'pdf';
-    const isText = ['txt', 'md', 'json', 'xml', 'css', 'js', 'py', 'html'].includes(ext);
+    const isText = ['txt', 'md', 'json', 'xml', 'css', 'js', 'py', 'html', 'csv'].includes(ext);
     
     try {
-        if (isImage && cloudinaryUrl) {
+        if (isImage && cloudinaryUrl && cloudinaryUrl !== '#') {
             content.innerHTML = `<img src="${cloudinaryUrl}" alt="${filename}" onerror="this.style.display='none'">`;
-        } else if (isPDF && cloudinaryUrl) {
-            // Use PDF.js if available, otherwise fallback to iframe
+        } else if (isPDF && cloudinaryUrl && cloudinaryUrl !== '#') {
             if (typeof pdfjsLib !== 'undefined') {
                 await renderPDF(cloudinaryUrl, content);
             } else {
                 content.innerHTML = `<iframe src="${cloudinaryUrl}" style="width:100%;height:70vh;border:none;border-radius:8px;"></iframe>`;
             }
-        } else if (isText && cloudinaryUrl) {
+        } else if (isText && cloudinaryUrl && cloudinaryUrl !== '#') {
             await renderTextFile(cloudinaryUrl, content);
         } else {
-            // Fallback: show info + both buttons
+            // Fallback – no preview available, show informational message only
             content.innerHTML = `
                 <div style="text-align:center;padding:40px;">
                     <div style="font-size:48px;margin-bottom:16px;">📄</div>
                     <h3 style="color:var(--text);">${escapeHtml(filename)}</h3>
                     <p style="color:var(--text-muted);margin:8px 0;">Preview not available for this file type.</p>
-                    <div style="margin-top:16px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-                        <button class="modal-btn primary" onclick="downloadPreview()">⬇️ Download File</button>
-                        <button class="modal-btn secondary" onclick="openPreviewPage()">📂 Open in Preview</button>
-                    </div>
+                    <p style="color:var(--text-muted);font-size:13px;margin-top:8px;">You can download this file from the attachments modal.</p>
                 </div>
             `;
         }
@@ -2853,44 +2849,10 @@ async function openPreview(attachmentId, filename, cloudinaryUrl, mimeType) {
             <div style="text-align:center;padding:40px;color:#ef4444;">
                 <div style="font-size:48px;">⚠️</div>
                 <p>Could not load preview: ${escapeHtml(err.message)}</p>
-                <div style="margin-top:16px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-                    <button class="modal-btn primary" onclick="downloadPreview()">⬇️ Download File</button>
-                    <button class="modal-btn secondary" onclick="openPreviewPage()">📂 Open in Preview</button>
-                </div>
+                <p style="color:var(--text-muted);font-size:13px;margin-top:8px;">You can download this file from the attachments modal.</p>
             </div>
         `;
     }
-}
-
-// ─── DOWNLOAD PREVIEW (forces download) ───
-function downloadPreview() {
-    if (!previewUrl) {
-        toast('❌ No file to download', 'error');
-        return;
-    }
-    // Force download by adding fl_attachment
-    const downloadUrl = previewUrl.includes('?') 
-        ? previewUrl + '&fl_attachment' 
-        : previewUrl + '?fl_attachment';
-    
-    // Create a hidden anchor to trigger download
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = previewFilename || 'download';  // Force download with filename
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-}
-
-// ─── OPEN DEDICATED PREVIEW PAGE ───
-function openPreviewPage() {
-    if (!previewAttachment) {
-        toast('❌ No file to preview', 'error');
-        return;
-    }
-    // Pass token in URL so the new tab can authenticate
-    const url = `${state.apiUrl}/preview/${previewAttachment}?token=${encodeURIComponent(state.token)}`;
-    window.open(url, '_blank');
 }
 
 // ─── RENDER PDF ───
@@ -2914,8 +2876,6 @@ async function renderPDF(url, container) {
             const context = canvas.getContext('2d');
             canvas.height = viewport.height;
             canvas.width = viewport.width;
-            canvas.style.maxWidth = '100%';
-            canvas.style.height = 'auto';
             await page.render({ canvasContext: context, viewport: viewport }).promise;
             html += `<canvas height="${viewport.height}" width="${viewport.width}" style="max-width:100%;height:auto;"></canvas>`;
         }
@@ -2926,8 +2886,8 @@ async function renderPDF(url, container) {
         container.innerHTML = `
             <div style="text-align:center;padding:40px;color:#ef4444;">
                 <div style="font-size:48px;">📄</div>
-                <p>Could not render PDF: ${err.message}</p>
-                <button class="modal-btn primary" onclick="downloadPreview()">⬇️ Download File</button>
+                <p>Could not render PDF: ${escapeHtml(err.message)}</p>
+                <p style="color:var(--text-muted);font-size:13px;margin-top:8px;">You can download this file from the attachments modal.</p>
             </div>
         `;
     }
@@ -2937,36 +2897,24 @@ async function renderPDF(url, container) {
 async function renderTextFile(url, container) {
     try {
         const response = await fetch(url);
-        
-        // Check if we got HTML instead of text
-        const contentType = response.headers.get('content-type') || '';
         const text = await response.text();
         
-        // If the response is HTML, it's probably an error page
-        if (text.trim().startsWith('<!DOCTYPE html>') || text.trim().startsWith('<html')) {
-            console.warn('[Preview] Got HTML instead of text file – trying fallback');
-            
-            // Try to get the file via a different method
-            // For Cloudinary, we can add ?fl=attachment to force download
-            const downloadUrl = url.includes('cloudinary') ? url + '?fl=attachment' : url;
-            
+        // If we got HTML, fallback
+        if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
             container.innerHTML = `
                 <div style="text-align:center;padding:40px;">
                     <div style="font-size:48px;margin-bottom:16px;">📄</div>
-                    <h3 style="color:var(--text);">${previewFilename}</h3>
+                    <h3 style="color:var(--text);">${escapeHtml(previewFilename)}</h3>
                     <p style="color:var(--text-muted);margin:8px 0;">Cannot preview this file directly.</p>
-                    <div style="margin-top:16px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-                        <button class="modal-btn primary" onclick="downloadPreview()">⬇️ Download File</button>
-                        ${previewUrl ? `<button class="modal-btn secondary" onclick="window.open('${previewUrl}', '_blank')">📂 Open in New Tab</button>` : ''}
-                    </div>
+                    <p style="color:var(--text-muted);font-size:13px;margin-top:8px;">You can download this file from the attachments modal.</p>
                 </div>
             `;
             return;
         }
         
-        // If text is too long, truncate with note
+        // Truncate if too long
         let displayText = text;
-        if (text.length > 500000) { // 500KB limit
+        if (text.length > 500000) {
             displayText = text.slice(0, 500000) + '\n\n... (file truncated, download to view full content)';
         }
         
@@ -2977,10 +2925,35 @@ async function renderTextFile(url, container) {
             <div style="text-align:center;padding:40px;color:#ef4444;">
                 <div style="font-size:48px;">⚠️</div>
                 <p>Could not load text file: ${escapeHtml(err.message)}</p>
-                ${previewUrl ? `<button class="modal-btn primary" onclick="downloadPreview()" style="margin-top:16px;">⬇️ Download File</button>` : ''}
+                <p style="color:var(--text-muted);font-size:13px;margin-top:8px;">You can download this file from the attachments modal.</p>
             </div>
         `;
     }
+}
+
+// ─── CLOSE PREVIEW ───
+function closePreview() {
+    closeModal('modal-preview');
+    previewAttachment = null;
+    previewUrl = null;
+    previewFilename = '';
+}
+
+// ─── DOWNLOAD PREVIEW (kept but not used) ───
+function downloadPreview() {
+    if (!previewUrl || previewUrl === '#') {
+        toast('❌ No downloadable file available', 'error');
+        return;
+    }
+    const downloadUrl = previewUrl.includes('?') 
+        ? previewUrl + '&fl_attachment' 
+        : previewUrl + '?fl_attachment';
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = previewFilename || 'file';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
 
 // ─── CLOSE PREVIEW ───
