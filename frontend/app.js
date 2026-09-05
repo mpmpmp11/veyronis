@@ -2916,13 +2916,53 @@ async function renderPDF(url, container) {
 }
 
 // ─── RENDER TEXT FILE ───
+// ─── RENDER TEXT FILE ───
 async function renderTextFile(url, container) {
     try {
         const response = await fetch(url);
+        
+        // Check if we got HTML instead of text
+        const contentType = response.headers.get('content-type') || '';
         const text = await response.text();
-        container.innerHTML = `<pre>${escapeHtml(text)}</pre>`;
+        
+        // If the response is HTML, it's probably an error page
+        if (text.trim().startsWith('<!DOCTYPE html>') || text.trim().startsWith('<html')) {
+            console.warn('[Preview] Got HTML instead of text file – trying fallback');
+            
+            // Try to get the file via a different method
+            // For Cloudinary, we can add ?fl=attachment to force download
+            const downloadUrl = url.includes('cloudinary') ? url + '?fl=attachment' : url;
+            
+            container.innerHTML = `
+                <div style="text-align:center;padding:40px;">
+                    <div style="font-size:48px;margin-bottom:16px;">📄</div>
+                    <h3 style="color:var(--text);">${previewFilename}</h3>
+                    <p style="color:var(--text-muted);margin:8px 0;">Cannot preview this file directly.</p>
+                    <div style="margin-top:16px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                        <button class="modal-btn primary" onclick="downloadPreview()">⬇️ Download File</button>
+                        ${previewUrl ? `<button class="modal-btn secondary" onclick="window.open('${previewUrl}', '_blank')">📂 Open in New Tab</button>` : ''}
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        // If text is too long, truncate with note
+        let displayText = text;
+        if (text.length > 500000) { // 500KB limit
+            displayText = text.slice(0, 500000) + '\n\n... (file truncated, download to view full content)';
+        }
+        
+        container.innerHTML = `<pre>${escapeHtml(displayText)}</pre>`;
     } catch (err) {
-        container.innerHTML = `<p style="color:#ef4444;">Failed to load text: ${err.message}</p>`;
+        console.error('[Preview] Text load error:', err);
+        container.innerHTML = `
+            <div style="text-align:center;padding:40px;color:#ef4444;">
+                <div style="font-size:48px;">⚠️</div>
+                <p>Could not load text file: ${escapeHtml(err.message)}</p>
+                ${previewUrl ? `<button class="modal-btn primary" onclick="downloadPreview()" style="margin-top:16px;">⬇️ Download File</button>` : ''}
+            </div>
+        `;
     }
 }
 
