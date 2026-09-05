@@ -2816,44 +2816,34 @@ async function openPreview(attachmentId, filename, cloudinaryUrl, mimeType) {
     
     openModal('modal-preview');
     
-    // Determine file type
     const ext = filename.split('.').pop().toLowerCase();
     const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext);
     const isPDF = ext === 'pdf';
     const isText = ['txt', 'md', 'json', 'xml', 'css', 'js', 'py', 'html'].includes(ext);
-    const isDocx = ext === 'docx';
-    const isXlsx = ['xlsx', 'xls', 'csv'].includes(ext);
     
     try {
         if (isImage && cloudinaryUrl) {
-            // Show image directly
             content.innerHTML = `<img src="${cloudinaryUrl}" alt="${filename}" onerror="this.style.display='none'">`;
         } else if (isPDF && cloudinaryUrl) {
-            // Render PDF using pdf.js
-            await renderPDF(cloudinaryUrl, content);
+            // Use PDF.js if available, otherwise fallback to iframe
+            if (typeof pdfjsLib !== 'undefined') {
+                await renderPDF(cloudinaryUrl, content);
+            } else {
+                content.innerHTML = `<iframe src="${cloudinaryUrl}" style="width:100%;height:70vh;border:none;border-radius:8px;"></iframe>`;
+            }
         } else if (isText && cloudinaryUrl) {
-            // Fetch and display text
             await renderTextFile(cloudinaryUrl, content);
-        } else if (isDocx || isXlsx) {
-            // Show info + download option for Office files
-            content.innerHTML = `
-                <div style="text-align:center;padding:40px;">
-                    <div style="font-size:64px;margin-bottom:16px;">📄</div>
-                    <h3 style="color:var(--text);">${filename}</h3>
-                    <p style="color:var(--text-muted);margin:8px 0;">This file type (${ext}) cannot be previewed directly.</p>
-                    <button class="modal-btn primary" onclick="downloadPreview()" style="margin-top:16px;">
-                        ⬇️ Download File
-                    </button>
-                </div>
-            `;
         } else {
-            // Fallback: show filename + download
+            // Fallback: show info + both buttons
             content.innerHTML = `
                 <div style="text-align:center;padding:40px;">
-                    <div style="font-size:64px;margin-bottom:16px;">📎</div>
-                    <h3 style="color:var(--text);">${filename}</h3>
+                    <div style="font-size:48px;margin-bottom:16px;">📄</div>
+                    <h3 style="color:var(--text);">${escapeHtml(filename)}</h3>
                     <p style="color:var(--text-muted);margin:8px 0;">Preview not available for this file type.</p>
-                    ${cloudinaryUrl ? `<button class="modal-btn primary" onclick="downloadPreview()" style="margin-top:16px;">⬇️ Download File</button>` : ''}
+                    <div style="margin-top:16px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                        <button class="modal-btn primary" onclick="downloadPreview()">⬇️ Download File</button>
+                        <button class="modal-btn secondary" onclick="openPreviewPage()">📂 Open in Preview</button>
+                    </div>
                 </div>
             `;
         }
@@ -2862,11 +2852,37 @@ async function openPreview(attachmentId, filename, cloudinaryUrl, mimeType) {
         content.innerHTML = `
             <div style="text-align:center;padding:40px;color:#ef4444;">
                 <div style="font-size:48px;">⚠️</div>
-                <p>Could not load preview: ${err.message}</p>
-                ${cloudinaryUrl ? `<button class="modal-btn primary" onclick="downloadPreview()" style="margin-top:16px;">⬇️ Download File</button>` : ''}
+                <p>Could not load preview: ${escapeHtml(err.message)}</p>
+                <div style="margin-top:16px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                    <button class="modal-btn primary" onclick="downloadPreview()">⬇️ Download File</button>
+                    <button class="modal-btn secondary" onclick="openPreviewPage()">📂 Open in Preview</button>
+                </div>
             </div>
         `;
     }
+}
+
+// ─── DOWNLOAD PREVIEW (forces download) ───
+function downloadPreview() {
+    if (!previewUrl) {
+        toast('❌ No file to download', 'error');
+        return;
+    }
+    // Add fl_attachment to force download
+    const downloadUrl = previewUrl.includes('?') 
+        ? previewUrl + '&fl_attachment' 
+        : previewUrl + '?fl_attachment';
+    window.open(downloadUrl, '_blank');
+}
+
+// ─── OPEN DEDICATED PREVIEW PAGE ───
+function openPreviewPage() {
+    if (!previewAttachment) {
+        toast('❌ No file to preview', 'error');
+        return;
+    }
+    // Open the dedicated preview page
+    window.open(`${state.apiUrl}/preview/${previewAttachment}`, '_blank');
 }
 
 // ─── RENDER PDF ───
@@ -2915,7 +2931,6 @@ async function renderPDF(url, container) {
     }
 }
 
-// ─── RENDER TEXT FILE ───
 // ─── RENDER TEXT FILE ───
 async function renderTextFile(url, container) {
     try {

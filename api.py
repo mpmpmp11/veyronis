@@ -1,6 +1,7 @@
 """VEYRONIS API Server — Production Hardened + Cloudinary + Email + Admin + Feedback."""
 import os
 from pathlib import Path
+from fastapi.responses import HTMLResponse
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -1335,16 +1336,258 @@ async def get_preview(
     # (but we're using Cloudinary, so this is a fallback)
     return {"url": None, "filename": row["filename"], "mime_type": row["mime_type"]}
 
-@app.post("/admin/cleanup-attachments")
-async def cleanup_attachments(
+@app.get("/preview/{attachment_id}")
+async def preview_file(
+    attachment_id: int,
     current_user: dict = Depends(get_current_user_required)
 ):
-    """Admin only: delete attachments older than 48 hours."""
-    if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
-        raise HTTPException(403, detail="Admin access required")
+    """Render a dedicated preview page for a file."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT filename, cloudinary_url, file_type, mime_type FROM attachments WHERE id = %s AND user_id = %s",
+        (attachment_id, current_user["email"])
+    )
+    row = cursor.fetchone()
+    conn.close()
     
-    deleted = delete_old_attachments(Config.ATTACHMENT_RETENTION_HOURS)
-    return {"deleted": deleted, "retention_hours": Config.ATTACHMENT_RETENTION_HOURS}
+    if not row:
+        raise HTTPException(404, detail="File not found")
+    
+    filename = row["filename"]
+    url = row["cloudinary_url"]
+    mime_type = row["mime_type"] or ""
+    
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Preview – {filename}</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                background: #0a0a0c;
+                color: #f0f0f5;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                min-height: 100vh;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }
+            .preview-container {
+                max-width: 1000px;
+                width: 100%;
+                background: rgba(18, 18, 28, 0.85);
+                backdrop-filter: blur(24px);
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 16px;
+                padding: 30px;
+                box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+            }
+            .header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+                padding-bottom: 16px;
+                border-bottom: 1px solid rgba(255,255,255,0.06);
+            }
+            .filename {
+                font-size: 18px;
+                font-weight: 700;
+                color: #f0f0f5;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .filename span { color: #a78bfa; }
+            .actions {
+                display: flex;
+                gap: 10px;
+            }
+            .btn {
+                padding: 8px 18px;
+                border-radius: 8px;
+                border: none;
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                text-decoration: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .btn-primary {
+                background: linear-gradient(135deg, #a78bfa, #818cf8);
+                color: #fff;
+            }
+            .btn-primary:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 24px rgba(167, 139, 250, 0.3);
+            }
+            .btn-secondary {
+                background: rgba(255,255,255,0.06);
+                color: #a0a0b8;
+                border: 1px solid rgba(255,255,255,0.08);
+            }
+            .btn-secondary:hover {
+                background: rgba(255,255,255,0.12);
+                color: #f0f0f5;
+            }
+            .content {
+                min-height: 300px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(0,0,0,0.2);
+                border-radius: 12px;
+                overflow: hidden;
+                padding: 20px;
+            }
+            .content img {
+                max-width: 100%;
+                max-height: 70vh;
+                object-fit: contain;
+                border-radius: 8px;
+            }
+            .content iframe {
+                width: 100%;
+                height: 70vh;
+                border: none;
+                border-radius: 8px;
+                background: #fff;
+            }
+            .content pre {
+                width: 100%;
+                max-height: 70vh;
+                overflow: auto;
+                padding: 20px;
+                background: rgba(0,0,0,0.3);
+                border-radius: 8px;
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 14px;
+                line-height: 1.6;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                color: #e2e8f0;
+            }
+            .content .fallback {
+                text-align: center;
+                padding: 40px;
+                color: #6e6e8a;
+            }
+            .content .fallback .icon {
+                font-size: 64px;
+                margin-bottom: 16px;
+            }
+            .footer {
+                margin-top: 16px;
+                text-align: center;
+                font-size: 12px;
+                color: #6e6e8a;
+            }
+            .footer a {
+                color: #a78bfa;
+                text-decoration: none;
+            }
+            @media (max-width: 640px) {
+                .header {
+                    flex-direction: column;
+                    gap: 12px;
+                    align-items: flex-start;
+                }
+                .filename {
+                    font-size: 14px;
+                    white-space: normal;
+                    word-break: break-word;
+                }
+                .actions {
+                    width: 100%;
+                    justify-content: flex-start;
+                }
+                .btn {
+                    font-size: 12px;
+                    padding: 6px 14px;
+                }
+                .content {
+                    min-height: 200px;
+                    padding: 10px;
+                }
+                .content iframe {
+                    height: 50vh;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="preview-container">
+            <div class="header">
+                <div class="filename">📎 <span>{filename}</span></div>
+                <div class="actions">
+                    <a href="{url}?fl_attachment" class="btn btn-primary" download="{filename}">⬇️ Download</a>
+                    <a href="{url}" target="_blank" class="btn btn-secondary">📂 Open Original</a>
+                </div>
+            </div>
+            <div class="content" id="preview-content">
+                <div class="fallback">
+                    <div class="icon">📄</div>
+                    <p>Loading preview...</p>
+                </div>
+            </div>
+            <div class="footer">
+                <a href="/">← Back to VEYRONIS</a>
+            </div>
+        </div>
+        <script>
+            const url = "{url}";
+            const filename = "{filename}";
+            const mimeType = "{mime_type}";
+            const ext = filename.split('.').pop().toLowerCase();
+            
+            const content = document.getElementById('preview-content');
+            
+            if (['jpg','jpeg','png','gif','webp','svg','bmp'].includes(ext)) {{
+                content.innerHTML = `<img src="${{url}}" alt="${{filename}}" onerror="showFallback()">`;
+            }}
+            else if (ext === 'pdf') {{
+                content.innerHTML = `<iframe src="${{url}}" allowfullscreen></iframe>`;
+            }}
+            else if (['txt','md','json','xml','css','js','py','html','csv'].includes(ext)) {{
+                fetch(url)
+                    .then(r => r.text())
+                    .then(text => {{
+                        if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {{
+                            showFallback();
+                            return;
+                        }}
+                        content.innerHTML = `<pre>${{text}}</pre>`;
+                    }})
+                    .catch(() => showFallback());
+            }}
+            else {{
+                showFallback();
+            }}
+            
+            function showFallback() {{
+                content.innerHTML = `
+                    <div class="fallback">
+                        <div class="icon">📎</div>
+                        <p>This file type cannot be previewed directly.</p>
+                        <p style="font-size:13px;margin-top:8px;">Click <strong>Download</strong> to save it.</p>
+                    </div>
+                `;
+            }}
+        </script>
+    </body>
+    </html>
+    """.format(filename=filename, url=url, mime_type=mime_type)
+    
+    return HTMLResponse(content=html)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
