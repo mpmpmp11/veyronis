@@ -948,12 +948,9 @@ function renderAttachmentGrid(attachments) {
     attachments.forEach(att => {
         const url = att.cloudinary_url || '#';
         const isImage = att.file_type === 'image' || att.mime_type?.startsWith('image/');
-        const isDocument = !isImage;
         
-        // Generate thumbnail URL using Cloudinary transformations (if available)
         let thumbUrl = url;
         if (url !== '#' && url.includes('cloudinary')) {
-            // Add Cloudinary transformation for thumbnails
             thumbUrl = url.replace('/upload/', '/upload/w_150,h_150,c_fill/');
         }
         
@@ -961,14 +958,13 @@ function renderAttachmentGrid(attachments) {
         const label = att.filename.length > 20 ? att.filename.slice(0, 18) + '…' : att.filename;
         
         html += `
-            <div class="attachment-thumb" onclick="openLightbox('${escapeHtml(url)}', '${escapeHtml(att.filename)}')">
+            <div class="attachment-thumb" onclick="openPreview(${att.id}, '${escapeHtml(att.filename)}', '${escapeHtml(url)}', '${att.mime_type || ''}')">
                 ${isImage && url !== '#' ? 
                     `<img src="${thumbUrl}" alt="${escapeHtml(att.filename)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : 
                     `<div class="attachment-doc-icon">📄</div>`
                 }
                 <div class="attachment-thumb-label">${escapeHtml(label)}</div>
-                ${isImage && url !== '#' ? `<div class="attachment-thumb-badge">🖼️</div>` : ''}
-                ${isDocument ? `<div class="attachment-thumb-badge">📄</div>` : ''}
+                ${isImage ? `<div class="attachment-thumb-badge">🖼️</div>` : `<div class="attachment-thumb-badge">📄</div>`}
             </div>
         `;
     });
@@ -976,6 +972,7 @@ function renderAttachmentGrid(attachments) {
     html += '</div>';
     return html;
 }
+
 
 // ─── PRO UPGRADE ───
 function openUpgradeModal() { openModal('modal-upgrade'); }
@@ -2796,3 +2793,150 @@ handleEmailVerificationHash();
 });
 
 // ─── ADMIN STATUS CHECK (already in init) ───
+
+// ─── PREVIEW STATE ───
+let previewAttachment = null;
+let previewUrl = null;
+let previewFilename = '';
+
+// ─── OPEN PREVIEW ───
+async function openPreview(attachmentId, filename, cloudinaryUrl, mimeType) {
+    previewAttachment = attachmentId;
+    previewFilename = filename;
+    previewUrl = cloudinaryUrl;
+    
+    const modal = document.getElementById('modal-preview');
+    const title = document.getElementById('preview-filename');
+    const content = document.getElementById('preview-content');
+    
+    if (!modal || !content) return;
+    
+    title.textContent = filename;
+    content.innerHTML = '<div class="preview-loading"><div class="spinner"></div><span>Loading preview...</span></div>';
+    
+    openModal('modal-preview');
+    
+    // Determine file type
+    const ext = filename.split('.').pop().toLowerCase();
+    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext);
+    const isPDF = ext === 'pdf';
+    const isText = ['txt', 'md', 'json', 'xml', 'css', 'js', 'py', 'html'].includes(ext);
+    const isDocx = ext === 'docx';
+    const isXlsx = ['xlsx', 'xls', 'csv'].includes(ext);
+    
+    try {
+        if (isImage && cloudinaryUrl) {
+            // Show image directly
+            content.innerHTML = `<img src="${cloudinaryUrl}" alt="${filename}" onerror="this.style.display='none'">`;
+        } else if (isPDF && cloudinaryUrl) {
+            // Render PDF using pdf.js
+            await renderPDF(cloudinaryUrl, content);
+        } else if (isText && cloudinaryUrl) {
+            // Fetch and display text
+            await renderTextFile(cloudinaryUrl, content);
+        } else if (isDocx || isXlsx) {
+            // Show info + download option for Office files
+            content.innerHTML = `
+                <div style="text-align:center;padding:40px;">
+                    <div style="font-size:64px;margin-bottom:16px;">📄</div>
+                    <h3 style="color:var(--text);">${filename}</h3>
+                    <p style="color:var(--text-muted);margin:8px 0;">This file type (${ext}) cannot be previewed directly.</p>
+                    <button class="modal-btn primary" onclick="downloadPreview()" style="margin-top:16px;">
+                        ⬇️ Download File
+                    </button>
+                </div>
+            `;
+        } else {
+            // Fallback: show filename + download
+            content.innerHTML = `
+                <div style="text-align:center;padding:40px;">
+                    <div style="font-size:64px;margin-bottom:16px;">📎</div>
+                    <h3 style="color:var(--text);">${filename}</h3>
+                    <p style="color:var(--text-muted);margin:8px 0;">Preview not available for this file type.</p>
+                    ${cloudinaryUrl ? `<button class="modal-btn primary" onclick="downloadPreview()" style="margin-top:16px;">⬇️ Download File</button>` : ''}
+                </div>
+            `;
+        }
+    } catch (err) {
+        console.error('[Preview] Error:', err);
+        content.innerHTML = `
+            <div style="text-align:center;padding:40px;color:#ef4444;">
+                <div style="font-size:48px;">⚠️</div>
+                <p>Could not load preview: ${err.message}</p>
+                ${cloudinaryUrl ? `<button class="modal-btn primary" onclick="downloadPreview()" style="margin-top:16px;">⬇️ Download File</button>` : ''}
+            </div>
+        `;
+    }
+}
+
+// ─── RENDER PDF ───
+async function renderPDF(url, container) {
+    try {
+        const pdfjsLib = window.pdfjsLib;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.js';
+        
+        const loadingTask = pdfjsLib.getDocument(url);
+        const pdf = await loadingTask.promise;
+        
+        let html = '<div class="pdf-page-container">';
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const viewport = page.getViewport({ scale: 1.5 });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+            html += `<canvas height="${viewport.height}" width="${viewport.width}" style="max-width:100%;height:auto;"></canvas>`;
+            // Append canvas directly
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = `<div class="pdf-page-container">${html}</div>`;
+            container.innerHTML = tempDiv.innerHTML;
+            
+            // Re-attach canvas
+            const canvasEl = container.querySelectorAll('canvas');
+            const lastCanvas = canvasEl[canvasEl.length - 1];
+            if (lastCanvas) {
+                const ctx = lastCanvas.getContext('2d');
+                ctx.drawImage(canvas, 0, 0);
+            }
+        }
+        container.innerHTML = html;
+    } catch (err) {
+        console.error('[PDF Render] Error:', err);
+        container.innerHTML = `
+            <div style="text-align:center;padding:40px;color:#ef4444;">
+                <div style="font-size:48px;">📄</div>
+                <p>Could not render PDF: ${err.message}</p>
+                <button class="modal-btn primary" onclick="downloadPreview()" style="margin-top:16px;">⬇️ Download File</button>
+            </div>
+        `;
+    }
+}
+
+// ─── RENDER TEXT FILE ───
+async function renderTextFile(url, container) {
+    try {
+        const response = await fetch(url);
+        const text = await response.text();
+        container.innerHTML = `<pre>${escapeHtml(text)}</pre>`;
+    } catch (err) {
+        container.innerHTML = `<p style="color:#ef4444;">Failed to load text: ${err.message}</p>`;
+    }
+}
+
+// ─── CLOSE PREVIEW ───
+function closePreview() {
+    closeModal('modal-preview');
+    previewAttachment = null;
+    previewUrl = null;
+    previewFilename = '';
+}
+
+// ─── DOWNLOAD PREVIEW ───
+function downloadPreview() {
+    if (previewUrl) {
+        window.open(previewUrl, '_blank');
+    }
+}

@@ -12,10 +12,11 @@
     <link rel="stylesheet" href="/static/style.css?v=2.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.9.155/pdf.worker.min.js"></script>
     <base target="_blank">
 </head>
 <body>
-
     <!-- ============================================================
     AUTH SCREEN
     ============================================================ -->
@@ -370,6 +371,30 @@
     <div class="lightbox-content">
         <img id="lightbox-img" src="" alt="Full size">
         <div class="lightbox-filename" id="lightbox-filename"></div>
+    </div>
+</div>
+
+<!-- DOCUMENT PREVIEW MODAL -->
+<div id="modal-preview" class="modal-overlay hidden">
+    <div class="modal-backdrop" onclick="closePreview()"></div>
+    <div class="modal-card" style="max-width: 95vw; max-height: 95vh; width: 100%;">
+        <div class="modal-header">
+            <span class="modal-title" id="preview-filename" style="font-size:14px;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Document Preview</span>
+            <div style="display: flex; gap: 8px; flex-shrink:0;">
+                <button class="modal-btn secondary" onclick="downloadPreview()" style="font-size:12px;padding:6px 14px;">
+                    ⬇️ Download
+                </button>
+                <button class="modal-close" onclick="closePreview()">✕</button>
+            </div>
+        </div>
+        <div class="modal-body" id="preview-body" style="padding: 0; overflow: auto; background: var(--bg);">
+            <div id="preview-content" style="padding: 20px; min-height: 300px; display: flex; align-items: center; justify-content: center; color: var(--text-muted);">
+                <div class="preview-loading">
+                    <div class="spinner"></div>
+                    <span>Loading preview...</span>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 

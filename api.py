@@ -1309,6 +1309,31 @@ async def submit_feedback(
         send_feedback_email(admin, current_user["email"], message)
     return {"status": "Feedback sent"}
 
+@app.get("/preview/{attachment_id}")
+async def get_preview(
+    attachment_id: int,
+    current_user: dict = Depends(get_current_user_required)
+):
+    """Get file content for preview (text or binary)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT filename, cloudinary_url, file_type, mime_type FROM attachments WHERE id = %s AND user_id = %s",
+        (attachment_id, current_user["email"])
+    )
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row:
+        raise HTTPException(404, detail="Attachment not found")
+    
+    # If Cloudinary URL exists, redirect to it for images/PDFs
+    if row["cloudinary_url"]:
+        return {"url": row["cloudinary_url"], "filename": row["filename"], "mime_type": row["mime_type"]}
+    
+    # For documents stored locally, we'd need to fetch from storage
+    # (but we're using Cloudinary, so this is a fallback)
+    return {"url": None, "filename": row["filename"], "mime_type": row["mime_type"]}
 
 @app.post("/admin/cleanup-attachments")
 async def cleanup_attachments(
