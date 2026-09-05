@@ -585,6 +585,22 @@ def increment_usage(user_id: str, date: str) -> int:
         conn.commit()
     return row["count"] if row else 1
 
+def delete_old_attachments(hours: int = 48) -> int:
+    """Delete attachments older than X hours. Returns number deleted."""
+    from datetime import datetime, timedelta
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM attachments 
+                WHERE created_at < %s
+                RETURNING id
+            """, (cutoff,))
+            deleted = cur.rowcount
+        conn.commit()
+    return deleted
+
 
 # ─── INIT ───
 init_db()

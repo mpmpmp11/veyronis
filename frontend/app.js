@@ -905,7 +905,6 @@ async function loadAttachments() {
     container.innerHTML = '<p class="modal-empty">Loading...</p>';
 
     try {
-        // ✅ Use authenticatedFetch (adds JWT token)
         const res = await authenticatedFetch(`/attachments?conversation_id=${state.conversationId}`);
         const data = await res.json();
 
@@ -920,34 +919,48 @@ async function loadAttachments() {
             return;
         }
 
-        let html = '';
-        attachments.forEach(att => {
-            const url = att.cloudinary_url || '#';
-            const isImage = att.file_type === 'image';
-            const size = att.size ? (att.size > 1024*1024 ? (att.size/1024/1024).toFixed(1)+' MB' : (att.size/1024).toFixed(1)+' KB') : '';
-
-            const thumb = (isImage && url !== '#') ?
-                `<img src="${url}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--glass-border);cursor:zoom-in;" onclick="event.stopPropagation(); openLightbox('${url}')" alt="${escapeHtml(att.filename)}">` :
-                `<span style="font-size:24px;">📄</span>`;
-
-            html += `
-                <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:8px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius);">
-                    ${thumb}
-                    <div style="flex:1;min-width:0;">
-                        <div style="font-weight:600;font-size:14px;color:var(--text);word-break:break-word;">${escapeHtml(att.filename)}</div>
-                        <div style="font-size:12px;color:var(--text-muted);">${att.file_type||'document'} ${size ? '· '+size : ''}</div>
-                    </div>
-                    ${url !== '#' ? `<a href="${url}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-size:13px;font-weight:600;padding:4px 10px;border:1px solid var(--glass-border);border-radius:var(--radius-sm);flex-shrink:0;">Open</a>` : ''}
-                </div>
-            `;
-        });
-
-        container.innerHTML = html;
+        // Render thumbnail grid
+        container.innerHTML = renderAttachmentGrid(attachments);
 
     } catch (err) {
         handleError(err, 'Attachments');
         container.innerHTML = `<p class="modal-empty error">❌ ${escapeHtml(err.message)}</p>`;
     }
+}
+
+function renderAttachmentGrid(attachments) {
+    let html = '<div class="attachment-grid">';
+    
+    attachments.forEach(att => {
+        const url = att.cloudinary_url || '#';
+        const isImage = att.file_type === 'image' || att.mime_type?.startsWith('image/');
+        const isDocument = !isImage;
+        
+        // Generate thumbnail URL using Cloudinary transformations (if available)
+        let thumbUrl = url;
+        if (url !== '#' && url.includes('cloudinary')) {
+            // Add Cloudinary transformation for thumbnails
+            thumbUrl = url.replace('/upload/', '/upload/w_150,h_150,c_fill/');
+        }
+        
+        const icon = isImage ? '' : '📄';
+        const label = att.filename.length > 20 ? att.filename.slice(0, 18) + '…' : att.filename;
+        
+        html += `
+            <div class="attachment-thumb" onclick="openLightbox('${escapeHtml(url)}', '${escapeHtml(att.filename)}')">
+                ${isImage && url !== '#' ? 
+                    `<img src="${thumbUrl}" alt="${escapeHtml(att.filename)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">` : 
+                    `<div class="attachment-doc-icon">📄</div>`
+                }
+                <div class="attachment-thumb-label">${escapeHtml(label)}</div>
+                ${isImage && url !== '#' ? `<div class="attachment-thumb-badge">🖼️</div>` : ''}
+                ${isDocument ? `<div class="attachment-thumb-badge">📄</div>` : ''}
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    return html;
 }
 
 // ─── PRO UPGRADE ───
@@ -2319,16 +2332,22 @@ function initVoice() {
     };
 }
 // ─── LIGHTBOX ───
-function openLightbox(src) {
+function openLightbox(src, filename = '') {
     const lb = document.getElementById('img-lightbox');
     const img = document.getElementById('lightbox-img');
+    const nameEl = document.getElementById('lightbox-filename');
     if (!lb || !img) return;
+    
     img.src = src;
+    if (nameEl) nameEl.textContent = filename || '';
     lb.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
 }
+
 function closeLightbox() {
     const lb = document.getElementById('img-lightbox');
     if (lb) lb.classList.add('hidden');
+    document.body.style.overflow = '';
 }
 
 // ─── PWA ───

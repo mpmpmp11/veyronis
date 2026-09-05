@@ -364,12 +364,14 @@
     ============================================================ -->
     <div id="drag-overlay" class="drag-overlay">Drop file to upload</div>
 
-    <!-- ============================================================
-    LIGHTBOX
-    ============================================================ -->
-    <div id="img-lightbox" class="img-lightbox hidden" onclick="closeLightbox()">
+    <!-- LIGHTBOX --> UPDATED AT SEP 5, 2026
+<div id="img-lightbox" class="img-lightbox hidden" onclick="closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+    <div class="lightbox-content">
         <img id="lightbox-img" src="" alt="Full size">
+        <div class="lightbox-filename" id="lightbox-filename"></div>
     </div>
+</div>
 
     <!-- ============================================================
     MODAL SYSTEM

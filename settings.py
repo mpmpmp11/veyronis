@@ -68,6 +68,9 @@ class Config:
 
     ADMIN_EMAILS: str = os.getenv("ADMIN_EMAILS", "mishobazadze@gmail.com").strip()
 
+    # In Config class
+    ATTACHMENT_RETENTION_HOURS: int = int(os.getenv("ATTACHMENT_RETENTION_HOURS", "48"))
+
     @classmethod
     def get_model(cls, is_pro: bool = False, is_limited: bool = False) -> str:
         if is_limited:

@@ -7,6 +7,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
+from scheduler import start_scheduler
+start_scheduler()
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
@@ -27,7 +29,7 @@ from database import (
     set_verification_token, set_reset_token, get_user_by_reset_token,
     clear_reset_token, get_db,
     save_attachment, get_attachments,
-    get_archived_conversations, archive_conversation, unarchive_conversation,
+    get_archived_conversations, archive_conversation, unarchive_conversation, delete_old_attachments, 
 )
 from settings import Config
 import base64
@@ -1300,6 +1302,18 @@ async def submit_feedback(
     for admin in admin_emails:
         send_feedback_email(admin, current_user["email"], message)
     return {"status": "Feedback sent"}
+
+
+@app.post("/admin/cleanup-attachments")
+async def cleanup_attachments(
+    current_user: dict = Depends(get_current_user_required)
+):
+    """Admin only: delete attachments older than 48 hours."""
+    if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
+        raise HTTPException(403, detail="Admin access required")
+    
+    deleted = delete_old_attachments(Config.ATTACHMENT_RETENTION_HOURS)
+    return {"deleted": deleted, "retention_hours": Config.ATTACHMENT_RETENTION_HOURS}
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
