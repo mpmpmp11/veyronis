@@ -158,82 +158,100 @@
 
         <!-- MAIN CONTENT -->
         <main id="main">
-            <!-- TOP BAR -->
-            <header class="top-bar glass" id="top-bar">
-                <div class="top-left">
-                    <button class="top-icon round-icon" onclick="toggleSidebar()" title="Open sidebar">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <line x1="3" y1="6" x2="21" y2="6"/>
-                            <line x1="3" y1="12" x2="21" y2="12"/>
-                            <line x1="3" y1="18" x2="21" y2="18"/>
-                        </svg>
-                    </button>
-                </div>
-                <div class="top-center">
-                    <span class="brand-text">VEYRONIS</span>
-                </div>
-                <div class="top-right">
-                    <button class="top-icon round-icon admin-toggle" id="adminToggle" onclick="openAdminPanel()" title="Admin Panel" style="display:none;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                            <line x1="12" y1="19" x2="12" y2="23"/>
-                            <line x1="8" y1="23" x2="16" y2="23"/>
-                        </svg>
-                    </button>
-                    <button class="top-icon round-icon pro-btn" onclick="openUpgradeModal()" title="Upgrade to PRO">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                        </svg>
-                    </button>
-                    <button class="top-icon round-icon" onclick="cycleTheme()" title="Theme">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="5"/>
-                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-                        </svg>
-                    </button>
-                    <div class="more-wrap">
-                        <button class="top-icon round-icon more-btn" onclick="toggleMoreMenu()" title="More">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                                <circle cx="12" cy="5" r="2"/>
-                                <circle cx="12" cy="12" r="2"/>
-                                <circle cx="12" cy="19" r="2"/>
-                            </svg>
-                        </button>
-                        <div class="more-menu glass" id="more-menu">
-                            <button class="more-item" onclick="newChat(); closeMoreMenu();">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                New Chat
-                            </button>
-                            <button class="more-item" onclick="renameCurrentConv(); closeMoreMenu();">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                Rename
-                            </button>
-                            <button class="more-item" onclick="archiveCurrentConv(); closeMoreMenu();">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-                                Archive
-                            </button>
-                            <button class="more-item" onclick="openSearchModal(); closeMoreMenu();">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                                Search
-                            </button>
-                            <button class="more-item" onclick="deleteCurrentConv(); closeMoreMenu();">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                Delete
-                            </button>
-                            <button class="more-item" onclick="openAttachmentsModal(); closeMoreMenu();">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                                Attached Files
-                            </button>
-                            <button class="more-item" onclick="openExportModal(); closeMoreMenu();">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-                                Share
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </header>
+            
+      <!-- TOP BAR – Floating Glass Controls -->
+<header class="top-bar-floating" id="top-bar">
+    <div class="top-bar-floating-inner">
+        <!-- LEFT: Hamburger -->
+        <button class="glass-btn" onclick="toggleSidebar()" title="Chat History">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+        </button>
 
+        <!-- LEFT: Connected Pill (New Chat + More) -->
+        <div class="glass-pill" id="top-pill">
+            <button class="pill-btn" onclick="newChat()" title="New Chat">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                <span class="pill-label">New</span>
+            </button>
+            <div class="pill-divider"></div>
+            <button class="pill-btn" onclick="toggleMoreMenu()" title="More">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="5" cy="12" r="2"/>
+                    <circle cx="12" cy="12" r="2"/>
+                    <circle cx="19" cy="12" r="2"/>
+                </svg>
+                <span class="pill-label">More</span>
+            </button>
+        </div>
+
+        <!-- CENTER: Spacer (brand removed) -->
+        <div class="top-bar-spacer"></div>
+
+        <!-- RIGHT: PRO + Theme + Admin -->
+        <button class="glass-btn pro-glass-btn" onclick="openUpgradeModal()" title="Upgrade to PRO">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+        </button>
+        <button class="glass-btn" onclick="cycleTheme()" title="Toggle Theme">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <circle cx="12" cy="12" r="5"/>
+                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+        </button>
+        <button class="glass-btn admin-glass-btn" id="adminToggle" onclick="openAdminPanel()" title="Admin" style="display:none;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- More Menu Dropdown (moved from top-right) -->
+    <div class="more-menu glass" id="more-menu">
+        <button class="more-item" onclick="newChat(); closeMoreMenu();">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Chat
+        </button>
+        <button class="more-item" onclick="renameCurrentConv(); closeMoreMenu();">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Rename
+        </button>
+        <button class="more-item" onclick="archiveCurrentConv(); closeMoreMenu();">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+            Archive
+        </button>
+        <button class="more-item" onclick="openSearchModal(); closeMoreMenu();">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Search
+        </button>
+        <button class="more-item" onclick="deleteCurrentConv(); closeMoreMenu();">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Delete
+        </button>
+        <button class="more-item" onclick="openAttachmentsModal(); closeMoreMenu();">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            Attached Files
+        </button>
+        <button class="more-item" onclick="openExportModal(); closeMoreMenu();">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            Share
+        </button>
+        <button class="more-item" onclick="openUpgradeModal(); closeMoreMenu();">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Upgrade to PRO
+        </button>
+    </div>
+</header>
             <!-- CONNECTION STATUS -->
             <div class="conn-status-bar">
                 <div class="conn-status-wrap checking" id="conn-status-wrap">
