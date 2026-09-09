@@ -2991,3 +2991,48 @@ async function checkAdminStatus() {
         toggles.forEach(el => { if (el) { el.style.display = 'none'; el.style.removeProperty('display'); } });
     }
 }
+// ─── FLOATING BAR MORE MENU ───
+function toggleMoreMenu() {
+    const menu = document.getElementById('more-menu');
+    if (menu) {
+        menu.classList.toggle('open');
+    }
+}
+
+function closeMoreMenu() {
+    const menu = document.getElementById('more-menu');
+    if (menu) menu.classList.remove('open');
+}
+
+// ─── DESKTOP MORE MENU ───
+function toggleMoreMenuDesktop() {
+    const menu = document.getElementById('more-menu-desktop');
+    if (menu) {
+        menu.classList.toggle('open');
+    }
+}
+
+function closeMoreMenuDesktop() {
+    const menu = document.getElementById('more-menu-desktop');
+    if (menu) menu.classList.remove('open');
+}
+
+// ─── CLICK OUTSIDE TO CLOSE BOTH MENUS ───
+document.addEventListener('click', function(e) {
+    // Floating menu
+    const floatingMenu = document.getElementById('more-menu');
+    const floatingBtn = document.querySelector('.top-bar-floating .pill-btn[title="More"]');
+    if (floatingMenu && floatingMenu.classList.contains('open')) {
+        if (!floatingMenu.contains(e.target) && !floatingBtn?.contains(e.target)) {
+            floatingMenu.classList.remove('open');
+        }
+    }
+    // Desktop menu
+    const desktopMenu = document.getElementById('more-menu-desktop');
+    const desktopBtn = document.querySelector('.top-bar-desktop .more-btn');
+    if (desktopMenu && desktopMenu.classList.contains('open')) {
+        if (!desktopMenu.contains(e.target) && !desktopBtn?.contains(e.target)) {
+            desktopMenu.classList.remove('open');
+        }
+    }
+});
