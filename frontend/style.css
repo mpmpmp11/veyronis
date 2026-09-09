@@ -5194,3 +5194,276 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
         min-width: 180px;
     }
 }
+/* ─── REDESIGNED INPUT PILL ─── */
+
+.input-shell {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 8px 12px 16px;
+    z-index: 50;
+    background: linear-gradient(to top, var(--bg) 60%, transparent);
+    pointer-events: none;
+}
+
+.input-shell > * {
+    pointer-events: auto;
+}
+
+.input-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px 4px 10px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--glass-border-strong);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    max-width: 900px;
+    margin: 0 auto;
+    min-height: 44px;
+}
+
+.input-pill:focus-within {
+    border-color: rgba(167, 139, 250, 0.3);
+    box-shadow: 0 4px 24px rgba(167, 139, 250, 0.08);
+}
+
+.input-attach {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.input-attach:hover {
+    color: var(--text);
+    background: var(--glass-hover);
+}
+
+.input-field {
+    flex: 1;
+    min-width: 0;
+}
+
+.input-field #msg-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+    padding: 6px 0;
+    resize: none;
+    max-height: 120px;
+    min-height: 24px;
+    font-family: inherit;
+}
+
+.input-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.input-voice {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.input-voice:hover {
+    color: var(--text);
+    background: var(--glass-hover);
+}
+
+.input-voice.listening {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: #fff;
+    animation: micPulse 1.5s infinite;
+}
+
+.input-send {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 12px var(--accent-glow);
+}
+
+.input-send:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 20px var(--accent-glow-strong);
+}
+
+.input-send:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* ─── INPUT BOTTOM ROW ─── */
+.input-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 6px;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+    flex-wrap: wrap;
+    padding: 0 4px;
+}
+
+.pill-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 14px;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    height: 24px;
+}
+
+.pill-toggle:hover {
+    background: var(--glass-hover);
+    color: var(--text-secondary);
+}
+
+.simulation-toggle.active {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.08));
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+}
+
+.model-toggle.open {
+    background: rgba(167, 139, 250, 0.08);
+    border-color: rgba(167, 139, 250, 0.3);
+    color: var(--accent);
+}
+
+.input-disclaimer {
+    font-size: 9px;
+    color: var(--text-muted);
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    text-align: center;
+}
+
+.sim-limit-badge {
+    font-size: 7px;
+    font-weight: 700;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: var(--glass-bg);
+    color: var(--text-muted);
+    border: 1px solid var(--glass-border);
+}
+
+.sim-limit-badge.pro {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    border-color: rgba(34, 197, 94, 0.2);
+}
+
+/* ─── MOBILE ─── */
+@media (max-width: 768px) {
+    .input-pill {
+        padding: 3px 4px 3px 8px;
+        min-height: 40px;
+    }
+    .input-attach,
+    .input-voice {
+        width: 30px;
+        height: 30px;
+    }
+    .input-send {
+        width: 30px;
+        height: 30px;
+    }
+    .input-attach svg,
+    .input-voice svg,
+    .input-send svg {
+        width: 16px;
+        height: 16px;
+    }
+    .input-field #msg-input {
+        font-size: 14px;
+        max-height: 100px;
+    }
+}
+
+@media (max-width: 480px) {
+    .input-pill {
+        padding: 2px 3px 2px 6px;
+        min-height: 36px;
+        border-radius: 999px;
+    }
+    .input-attach,
+    .input-voice {
+        width: 26px;
+        height: 26px;
+    }
+    .input-send {
+        width: 26px;
+        height: 26px;
+    }
+    .input-attach svg,
+    .input-voice svg,
+    .input-send svg {
+        width: 14px;
+        height: 14px;
+    }
+    .input-field #msg-input {
+        font-size: 13px;
+        max-height: 80px;
+        min-height: 20px;
+    }
+    .input-bottom {
+        gap: 6px;
+    }
+    .pill-toggle {
+        font-size: 8px;
+        padding: 1px 6px;
+        height: 20px;
+    }
+    .input-disclaimer {
+        font-size: 8px;
+    }
+}

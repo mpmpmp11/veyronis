@@ -2931,13 +2931,6 @@ async function renderTextFile(url, container) {
     }
 }
 
-// ─── CLOSE PREVIEW ───
-function closePreview() {
-    closeModal('modal-preview');
-    previewAttachment = null;
-    previewUrl = null;
-    previewFilename = '';
-}
 
 // ─── DOWNLOAD PREVIEW (kept but not used) ───
 function downloadPreview() {
@@ -2962,15 +2955,6 @@ function closePreview() {
     previewAttachment = null;
     previewUrl = null;
     previewFilename = '';
-}
-// ─── DESKTOP MORE MENU ───
-function toggleMoreMenuDesktop() {
-    const menu = document.getElementById('more-menu-desktop');
-    if (menu) menu.classList.toggle('open');
-}
-function closeMoreMenuDesktop() {
-    const menu = document.getElementById('more-menu-desktop');
-    if (menu) menu.classList.remove('open');
 }
 
 // ─── UPDATED ADMIN STATUS (handles both bars) ───
