@@ -160,7 +160,8 @@ def init_db():
                     UNIQUE(user_id, date)
                 )
             """)
-
+            
+                
             # Simulation logs table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS simulation_logs (

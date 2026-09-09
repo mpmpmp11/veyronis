@@ -2963,3 +2963,31 @@ function closePreview() {
     previewUrl = null;
     previewFilename = '';
 }
+// ─── DESKTOP MORE MENU ───
+function toggleMoreMenuDesktop() {
+    const menu = document.getElementById('more-menu-desktop');
+    if (menu) menu.classList.toggle('open');
+}
+function closeMoreMenuDesktop() {
+    const menu = document.getElementById('more-menu-desktop');
+    if (menu) menu.classList.remove('open');
+}
+
+// ─── UPDATED ADMIN STATUS (handles both bars) ───
+// Replace your existing checkAdminStatus with this:
+async function checkAdminStatus() {
+    const toggleFloating = document.getElementById('adminToggle');
+    const toggleDesktop = document.getElementById('adminToggleDesktop');
+    const toggles = [toggleFloating, toggleDesktop].filter(el => el);
+
+    try {
+        const res = await authenticatedFetch('/admin/users');
+        if (res.ok) {
+            toggles.forEach(el => { if (el) el.style.display = 'flex'; });
+        } else {
+            toggles.forEach(el => { if (el) { el.style.display = 'none'; el.style.removeProperty('display'); } });
+        }
+    } catch (e) {
+        toggles.forEach(el => { if (el) { el.style.display = 'none'; el.style.removeProperty('display'); } });
+    }
+}
