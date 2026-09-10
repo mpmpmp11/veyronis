@@ -1428,12 +1428,15 @@ async function sendMessage() {
         input.value = '';
         input.style.height = 'auto';
         toast('✏️ Message updated. Regenerating response...', 'info');
-    } else {
-                if (hasImage && imageDataUrl) { addUserImageMsg(text, imageDataUrl, imageFilename || 'image.png'); removeImagePreview(); }
+        } else {
+        if (hasImage && imageDataUrl) {
+            addUserImageMsg(text, imageDataUrl, imageFilename || 'image.png');
+            removeImagePreview();
+        }
         if (text && !hasImage) addUserMsg(text);
         if (hasDoc) removeDocPreview();
-    }
         showEmpty(false);
+    }
     input.value = '';
     input.style.height = 'auto';
     function updateChatPadding() {
@@ -2191,8 +2194,10 @@ function showImagePreview(filename, dataUrl) {
     preview.className = 'image-preview';
     preview.id = 'img-preview';
     preview.innerHTML = `<img src="${dataUrl}" alt="preview"><span>${escapeHtml(filename)}</span><button class="remove-img" onclick="removeImagePreview()">×</button>`;
-    const glass = document.getElementById('input-glass');
-    if (glass) glass.insertBefore(preview, glass.firstChild);
+        const container = document.getElementById('input-pill')
+                   || document.getElementById('input-glass')
+                   || document.querySelector('.input-shell');
+    if (container) container.insertBefore(preview, container.firstChild);
 }
 function removeImagePreview() {
     state.pendingImageBase64 = null;
@@ -2303,8 +2308,10 @@ function showDocPreview(filename) {
     preview.className = 'doc-preview';
     preview.id = 'doc-preview';
     preview.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg><span>${escapeHtml(filename)}</span><button class="remove-doc" onclick="removeDocPreview()">×</button>`;
-    const glass = document.getElementById('input-glass');
-    if (glass) glass.insertBefore(preview, glass.firstChild);
+        const container = document.getElementById('input-pill')
+                   || document.getElementById('input-glass')
+                   || document.querySelector('.input-shell');
+    if (container) container.insertBefore(preview, container.firstChild);
 }
 function removeDocPreview() {
     state.pendingDocContent = null;
