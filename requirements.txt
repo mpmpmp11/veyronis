@@ -18,3 +18,4 @@ cloudinary>=1.33.0
 resend>=1.0.0
 psycopg2-binary
 APScheduler
+fish-audio-sdk>=1.0.0
