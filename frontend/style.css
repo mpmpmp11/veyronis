@@ -4628,10 +4628,23 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
     transform: translateY(0) scale(1) !important;
     pointer-events: auto !important;
 }
-/* ─── FIXED GAP BETWEEN MESSAGES AND INPUT BAR ─── */
+/* ─── GAP BETWEEN LAST MESSAGE ACTIONS AND INPUT BAR ─── */
 #messages {
-    padding-bottom: 120px !important;
+    padding-bottom: 160px !important;
 }
+
+@media (max-width: 768px) {
+    #messages {
+        padding-bottom: 200px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    #messages {
+        padding-bottom: 220px !important;
+    }
+}
+
 /* ─── FORCE MODALS ON MOBILE ─── */
 .modal-overlay {
     display: none !important;
