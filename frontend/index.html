@@ -179,7 +179,7 @@
                             </svg>
                         </button>
                         <div class="pill-divider"></div>
-                        <button class="pill-btn" onclick="toggleMoreMenu()" title="More">
+                        <button class="pill-btn" onclick="toggleMoreMenu(event)" title="More">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                                 <circle cx="5" cy="12" r="2"/>
                                 <circle cx="12" cy="12" r="2"/>
@@ -213,31 +213,31 @@
 
                 <!-- More Menu Dropdown (floating) -->
                 <div class="more-menu glass" id="more-menu">
-                    <button class="more-item" onclick="newChat(); closeMoreMenu();">
+                    <button class="more-item" onclick="event.stopPropagation(); newChat(); closeMoreMenu();">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         New Chat
                     </button>
-                    <button class="more-item" onclick="renameCurrentConv(); closeMoreMenu();">
+                    <button class="more-item" onclick="event.stopPropagation(); renameCurrentConv(); closeMoreMenu();">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         Rename
                     </button>
-                    <button class="more-item" onclick="archiveCurrentConv(); closeMoreMenu();">
+                    <button class="more-item" onclick="event.stopPropagation(); archiveCurrentConv(); closeMoreMenu();">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
                         Archive
                     </button>
-                    <button class="more-item" onclick="openSearchModal(); closeMoreMenu();">
+                    <button class="more-item" onclick="event.stopPropagation(); openSearchModal(); closeMoreMenu();">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                         Search
                     </button>
-                    <button class="more-item" onclick="deleteCurrentConv(); closeMoreMenu();">
+                    <button class="more-item" onclick="event.stopPropagation(); deleteCurrentConv(); closeMoreMenu();">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                         Delete
                     </button>
-                    <button class="more-item" onclick="openAttachmentsModal(); closeMoreMenu();">
+                    <button class="more-item" onclick="event.stopPropagation(); openAttachmentsModal(); closeMoreMenu();">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                         Attached Files
                     </button>
-                    <button class="more-item" onclick="openExportModal(); closeMoreMenu();">
+                    <button class="more-item" onclick="event.stopPropagation(); openExportModal(); closeMoreMenu();">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                         Share
                     </button>
@@ -281,7 +281,7 @@
                         </svg>
                     </button>
                     <div class="more-wrap">
-                        <button class="top-icon round-icon more-btn" onclick="toggleMoreMenuDesktop()" title="More">
+                        <button class="top-icon round-icon more-btn" onclick="toggleMoreMenuDesktop(event)" title="More">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                                 <circle cx="12" cy="5" r="2"/>
                                 <circle cx="12" cy="12" r="2"/>
@@ -289,31 +289,31 @@
                             </svg>
                         </button>
                         <div class="more-menu glass" id="more-menu-desktop">
-                            <button class="more-item" onclick="newChat(); closeMoreMenuDesktop();">
+                            <button class="more-item" onclick="event.stopPropagation(); newChat(); closeMoreMenuDesktop();">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                                 New Chat
                             </button>
-                            <button class="more-item" onclick="renameCurrentConv(); closeMoreMenuDesktop();">
+                            <button class="more-item" onclick="event.stopPropagation(); renameCurrentConv(); closeMoreMenuDesktop();">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                 Rename
                             </button>
-                            <button class="more-item" onclick="archiveCurrentConv(); closeMoreMenuDesktop();">
+                            <button class="more-item" onclick="event.stopPropagation(); archiveCurrentConv(); closeMoreMenuDesktop();">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
                                 Archive
                             </button>
-                            <button class="more-item" onclick="openSearchModal(); closeMoreMenuDesktop();">
+                            <button class="more-item" onclick="event.stopPropagation(); openSearchModal(); closeMoreMenuDesktop();">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                                 Search
                             </button>
-                            <button class="more-item" onclick="deleteCurrentConv(); closeMoreMenuDesktop();">
+                            <button class="more-item" onclick="event.stopPropagation(); deleteCurrentConv(); closeMoreMenuDesktop();">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                 Delete
                             </button>
-                            <button class="more-item" onclick="openAttachmentsModal(); closeMoreMenuDesktop();">
+                            <button class="more-item" onclick="event.stopPropagation(); openAttachmentsModal(); closeMoreMenuDesktop();">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                                 Attached Files
                             </button>
-                            <button class="more-item" onclick="openExportModal(); closeMoreMenuDesktop();">
+                            <button class="more-item" onclick="event.stopPropagation(); openExportModal(); closeMoreMenuDesktop();">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                                 Share
                             </button>
@@ -352,153 +352,92 @@
                 </div>
             </div>
 
-           <!-- INPUT COMPOSER – Redesigned Glass Pill -->
-<div class="input-shell">
-    <div class="input-pill glass-strong" id="input-pill">
-        <!-- LEFT: Attach -->
-        <button class="input-attach" onclick="toggleAttach()" title="Attach files">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <path d="M12 5v14M5 12h14"/>
-            </svg>
-        </button>
+            <!-- ============================================================
+            INPUT COMPOSER – Redesigned Glass Pill
+            ============================================================ -->
+            <div class="input-shell">
+                <div class="input-pill glass-strong" id="input-pill">
+                    <!-- LEFT: Attach -->
+                    <button class="input-attach" onclick="toggleAttach()" title="Attach files">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                    </button>
 
-        <!-- CENTER: Text Input -->
-        <div class="input-field">
-            <textarea id="msg-input" rows="1" placeholder="Message VEYRONIS..." autocomplete="off"></textarea>
-        </div>
-
-        <!-- RIGHT: Voice + Send -->
-        <div class="input-actions">
-            <button class="input-voice" id="mic-btn" onclick="toggleMic()" title="Voice">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                    <line x1="12" y1="19" x2="12" y2="23"/>
-                    <line x1="8" y1="23" x2="16" y2="23"/>
-                </svg>
-            </button>
-            <button class="input-send" id="send-btn" onclick="sendMessage()" title="Send">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-                    <line x1="22" y1="2" x2="11" y2="13"/>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                </svg>
-            </button>
-        </div>
-    </div>
-
-    <!-- BOTTOM ROW: Model + Hindsight + Disclaimer -->
-    <div class="input-bottom">
-        <button class="pill-toggle model-toggle" id="model-toggle" onclick="toggleModelMenu()">
-            <span id="model-label">Instant</span>
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-        <button class="pill-toggle simulation-toggle" id="sim-toggle" onclick="toggleSimulationMode()">
-            <span class="sim-icon">🔮</span>
-            <span>Hindsight</span>
-            <span class="sim-limit-badge" id="sim-badge">1/1</span>
-        </button>
-        <div class="input-disclaimer" id="input-disclaimer">
-            Free: 0/20 today · VEYRONIS can make mistakes
-        </div>
-    </div>
-
-    <!-- Model Menu Dropdown -->
-    <div class="model-menu glass" id="model-menu">
-        <button class="model-row glass" onclick="pickModel(event, 'instant','Instant')">
-            <div class="model-row-name">Instant</div>
-            <div class="model-row-desc">Fast responses</div>
-        </button>
-        <button class="model-row glass" onclick="pickModel(event, 'smart','Smart')">
-            <div class="model-row-name">Smart</div>
-            <div class="model-row-desc">Deeper reasoning</div>
-        </button>
-        <button class="model-row glass" onclick="pickModel(event, 'genius','Genius')">
-            <div class="model-row-name">Genius</div>
-            <div class="model-row-desc">Maximum capability</div>
-        </button>
-        <button class="model-row glass research-row" onclick="pickModel(event, 'research','Research')">
-            <div class="model-row-name">🔬 Research</div>
-            <div class="model-row-desc">Deep research report</div>
-        </button>
-    </div>
-
-    <!-- Attach Popup -->
-    <div class="attach-pop glass" id="attach-pop">
-        <div class="attach-item" onclick="triggerDocumentUpload()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-            Document
-            <span id="doc-remaining" style="font-size:10px;color:var(--text-muted);margin-left:auto;">3 left</span>
-        </div>
-        <div class="attach-item" onclick="triggerImageUpload()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            Image
-            <span id="image-remaining" style="font-size:10px;color:var(--text-muted);margin-left:auto;">3 left</span>
-        </div>
-    </div>
-</div>
-
-                    <!-- ─── OPTIONS ROW ─── -->
-                    <div class="composer-options">
-                        <button class="model-toggle glass-toggle" id="model-toggle" onclick="toggleModelMenu()">
-                            <span id="model-label">Instant</span>
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                                <polyline points="6 9 12 15 18 9"/>
-                            </svg>
-                        </button>
-                        <button class="simulation-toggle glass-toggle" id="sim-toggle" onclick="toggleSimulationMode()" title="Toggle VEYRONIS HINDSIGHT">
-                            <span class="sim-icon">🔮</span>
-                            <span>Hindsight</span>
-                            <span class="sim-limit-badge" id="sim-badge">1/1</span>
-                        </button>
-                        <div style="flex:1;"></div>
+                    <!-- CENTER: Text Input -->
+                    <div class="input-field">
+                        <textarea id="msg-input" rows="1" placeholder="Message VEYRONIS..." autocomplete="off"></textarea>
                     </div>
 
-                    <!-- ─── MODEL MENU ─── -->
-                    <div class="model-menu glass" id="model-menu">
-                        <button class="model-row glass" onclick="pickModel(event, 'instant','Instant')">
-                            <div class="model-row-name">Instant</div>
-                            <div class="model-row-desc">Fast responses</div>
-                        </button>
-                        <button class="model-row glass" onclick="pickModel(event, 'smart','Smart')">
-                            <div class="model-row-name">Smart</div>
-                            <div class="model-row-desc">Deeper reasoning</div>
-                        </button>
-                        <button class="model-row glass" onclick="pickModel(event, 'genius','Genius')">
-                            <div class="model-row-name">Genius</div>
-                            <div class="model-row-desc">Maximum capability</div>
-                        </button>
-                        <button class="model-row glass research-row" onclick="pickModel(event, 'research','Research')">
-                            <div class="model-row-name">🔬 Research</div>
-                            <div class="model-row-desc">Deep research report</div>
-                        </button>
-                    </div>
-
-                    <!-- ─── ATTACH POPUP ─── -->
-                    <div class="attach-pop glass" id="attach-pop">
-                        <div class="attach-item" onclick="triggerDocumentUpload()">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-                                <polyline points="13 2 13 9 20 9"/>
+                    <!-- RIGHT: Voice + Send -->
+                    <div class="input-actions">
+                        <button class="input-voice" id="mic-btn" onclick="toggleMic()" title="Voice">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                <line x1="12" y1="19" x2="12" y2="23"/>
+                                <line x1="8" y1="23" x2="16" y2="23"/>
                             </svg>
-                            Document
-                        </div>
-                        <div class="attach-item" onclick="triggerImageUpload()">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                                <circle cx="8.5" cy="8.5" r="1.5"/>
-                                <polyline points="21 15 16 10 5 21"/>
+                        </button>
+                        <button class="input-send" id="send-btn" onclick="sendMessage()" title="Send">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
                             </svg>
-                            Image
-                        </div>
+                        </button>
                     </div>
                 </div>
 
-                <!-- ─── DISCLAIMER ─── -->
-                <div class="input-disclaimer" id="input-disclaimer">
-                    Free: 0/20 today · VEYRONIS can make mistakes
+                <!-- BOTTOM ROW: Model + Hindsight + Disclaimer -->
+                <div class="input-bottom">
+                    <button class="pill-toggle model-toggle" id="model-toggle" onclick="toggleModelMenu()">
+                        <span id="model-label">Instant</span>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <button class="pill-toggle simulation-toggle" id="sim-toggle" onclick="toggleSimulationMode()">
+                        <span class="sim-icon">🔮</span>
+                        <span>Hindsight</span>
+                        <span class="sim-limit-badge" id="sim-badge">1/1</span>
+                    </button>
+                    <div class="input-disclaimer" id="input-disclaimer">
+                        Free: 0/20 today · VEYRONIS can make mistakes
+                    </div>
+                </div>
+
+                <!-- Model Menu Dropdown -->
+                <div class="model-menu glass" id="model-menu">
+                    <button class="model-row glass" onclick="pickModel(event, 'instant','Instant')">
+                        <div class="model-row-name">Instant</div>
+                        <div class="model-row-desc">Fast responses</div>
+                    </button>
+                    <button class="model-row glass" onclick="pickModel(event, 'smart','Smart')">
+                        <div class="model-row-name">Smart</div>
+                        <div class="model-row-desc">Deeper reasoning</div>
+                    </button>
+                    <button class="model-row glass" onclick="pickModel(event, 'genius','Genius')">
+                        <div class="model-row-name">Genius</div>
+                        <div class="model-row-desc">Maximum capability</div>
+                    </button>
+                    <button class="model-row glass research-row" onclick="pickModel(event, 'research','Research')">
+                        <div class="model-row-name">🔬 Research</div>
+                        <div class="model-row-desc">Deep research report</div>
+                    </button>
+                </div>
+
+                <!-- Attach Popup -->
+                <div class="attach-pop glass" id="attach-pop">
+                    <div class="attach-item" onclick="triggerDocumentUpload()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                        Document
+                        <span id="doc-remaining" style="font-size:10px;color:var(--text-muted);margin-left:auto;">3 left</span>
+                    </div>
+                    <div class="attach-item" onclick="triggerImageUpload()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        Image
+                        <span id="image-remaining" style="font-size:10px;color:var(--text-muted);margin-left:auto;">3 left</span>
+                    </div>
                 </div>
             </div>
-
         </main>
     </div>
 

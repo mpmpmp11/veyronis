@@ -759,10 +759,12 @@ function newChat() {
 }
 
 // ─── MORE MENU ───
-function toggleMoreMenu() {
+function toggleMoreMenu(event) {
+    if (event) event.stopPropagation();
     const menu = document.getElementById('more-menu');
     if (menu) menu.classList.toggle('open');
 }
+
 function closeMoreMenu() {
     const menu = document.getElementById('more-menu');
     if (menu) menu.classList.remove('open');
@@ -2989,11 +2991,10 @@ function closeMoreMenu() {
 }
 
 // ─── DESKTOP MORE MENU ───
-function toggleMoreMenuDesktop() {
+function toggleMoreMenuDesktop(event) {
+    if (event) event.stopPropagation();
     const menu = document.getElementById('more-menu-desktop');
-    if (menu) {
-        menu.classList.toggle('open');
-    }
+    if (menu) menu.classList.toggle('open');
 }
 
 function closeMoreMenuDesktop() {
