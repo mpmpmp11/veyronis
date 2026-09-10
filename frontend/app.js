@@ -2240,6 +2240,16 @@ function toggleMic() {
     }
 }
 
+function stopVoiceInput() {
+    if (state.recognition && state.isListening) {
+        try {
+            state.recognition.stop();
+        } catch (err) {
+            console.error('[Voice] Stop error:', err);
+        }
+    }
+}
+
 function initVoice() {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
         console.warn('[Voice] Speech recognition not supported');
@@ -2255,28 +2265,31 @@ function initVoice() {
 
     let finalTranscript = '';
 
-    state.recognition.onstart = () => {
+       state.recognition.onstart = () => {
         console.log('[Voice] Started');
         state.isListening = true;
         finalTranscript = '';
         const btn = document.getElementById('mic-btn');
+        const stopBtn = document.getElementById('voice-stop-btn');
         if (btn) {
             btn.classList.add('listening');
             btn.innerHTML = '<div class="voice-wave"><div></div><div></div><div></div></div>';
         }
+        if (stopBtn) stopBtn.classList.remove('hidden');
         const ta = document.getElementById('msg-input');
         if (ta) {
-            ta.placeholder = '🎤 Listening... Speak now';
+            ta.placeholder = '🎤 Listening... Speak, then tap stop';
             ta.value = '';
             ta.style.height = 'auto';
         }
         updateSendButton();
     };
 
-    state.recognition.onend = () => {
+        state.recognition.onend = () => {
         console.log('[Voice] Ended');
         state.isListening = false;
         const btn = document.getElementById('mic-btn');
+        const stopBtn = document.getElementById('voice-stop-btn');
         if (btn) {
             btn.classList.remove('listening');
             btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2286,6 +2299,7 @@ function initVoice() {
                 <line x1="8" y1="23" x2="16" y2="23"/>
             </svg>`;
         }
+        if (stopBtn) stopBtn.classList.add('hidden');
         const ta = document.getElementById('msg-input');
         if (ta) {
             ta.placeholder = 'Message VEYRONIS...';
@@ -2294,7 +2308,7 @@ function initVoice() {
                 ta.style.height = 'auto';
                 ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
                 updateSendButton();
-                setTimeout(() => sendMessage(), 400);
+                // ✅ NO auto-send – user edits and sends manually
             }
         }
     };
