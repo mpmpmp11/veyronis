@@ -1337,18 +1337,23 @@ function thumbDown(id) {
     toast('👎 Thanks for the feedback!', 'success');
 }
 
-// ─── SPEAK (TTS) ───
+// ─── SPEAK (TTS) with Fish Audio ───
+let currentAudio = null;
+
 function stopSpeaking() {
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+    }
     state.isSpeaking = false;
     state.speakingId = null;
-    state.currentUtterance = null;
     document.querySelectorAll('.speak-btn').forEach(btn => {
         btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
         btn.classList.remove('speaking');
     });
 }
-function toggleSpeak(id) {
+
+async function toggleSpeak(id) {
     const btn = document.getElementById('speak-' + id);
     if (!btn) return;
     if (state.isSpeaking && state.speakingId === id) { stopSpeaking(); return; }
@@ -1361,13 +1366,31 @@ function toggleSpeak(id) {
     state.isSpeaking = true;
     btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>`;
     btn.classList.add('speaking');
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.1;
-    utterance.onend = () => { state.isSpeaking = false; state.speakingId = null; if (btn) { btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`; btn.classList.remove('speaking'); } };
-    utterance.onerror = () => { state.isSpeaking = false; state.speakingId = null; if (btn) { btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`; btn.classList.remove('speaking'); } };
-    state.currentUtterance = utterance;
-    window.speechSynthesis.speak(utterance);
+    try {
+        const res = await fetch(`${state.apiUrl}/tts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        });
+        if (!res.ok) throw new Error('TTS request failed');
+        const audioBlob = await res.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        if (currentAudio) currentAudio.pause();
+        currentAudio = new Audio(audioUrl);
+        currentAudio.onended = () => {
+            state.isSpeaking = false;
+            state.speakingId = null;
+            btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`;
+            btn.classList.remove('speaking');
+        };
+        currentAudio.onerror = () => { toast('❌ Audio failed', 'error'); stopSpeaking(); };
+        currentAudio.play();
+    } catch (err) {
+        handleError(err, 'TTS');
+        stopSpeaking();
+    }
 }
+
 
 // ─── SEND MESSAGE ───
 async function sendMessage() {
