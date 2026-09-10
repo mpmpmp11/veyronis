@@ -629,7 +629,9 @@ function loadConversations() {
             document.getElementById('conv-list-week').innerHTML = week.join('') || '';
             if (convs.length && !state.conversationId && !state.isNewChat) {
                 switchConversation(convs[0].id);
-            } else if (!convs.length) { showEmpty(true); }
+            } else if (!convs.length && !state.conversationId) {
+                showEmpty(true);
+            }
             state.isNewChat = false;
         })
         .catch(err => {
@@ -665,7 +667,6 @@ function makeConvItem(c) {
 }
 
 function switchConversation(id) {
-    // Check if archived
     const convItem = document.querySelector(`.conv-item[data-id="${id}"]`);
     if (convItem && convItem.classList.contains('archived')) {
         toast('📂 This chat is archived. Please restore it to access.', 'info');
@@ -673,13 +674,13 @@ function switchConversation(id) {
     }
 
     state.conversationId = parseInt(id);
-    // Show skeleton
+    showEmpty(false);   // ✅ hide immediately when switching into a chat
     document.getElementById('messages').innerHTML = `
         <div class="skeleton"><div class="skeleton-line"></div><div class="skeleton-line medium"></div></div>
         <div class="skeleton"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
     `;
     loadHistory();
-    loadConversations(); // highlight
+    loadConversations();
     closeSidebar();
 }
 
@@ -774,7 +775,7 @@ function newChat() {
     state.conversationId = null;
     state.isNewChat = true;
     document.getElementById('messages').innerHTML = '';
-    showEmpty(true);
+    showEmpty(true);   // ✅ only shows because conversationId is null and no .msg elements
     loadConversations();
     closeSidebar();
 }
@@ -1158,9 +1159,21 @@ async function loadHistory() {
 }
 
 function showEmpty(show) {
-    let emptyState = document.getElementById('empty-state');
+    const emptyState = document.getElementById('empty-state');
     if (!emptyState) return;
+
     if (show) {
+        // NEVER show empty state if:
+        // 1. Any .msg element already exists in #messages
+        // 2. We're inside an active conversation
+        const messagesContainer = document.getElementById('messages');
+        const hasMessages = messagesContainer && messagesContainer.querySelector('.msg');
+        const inActiveChat = !!state.conversationId;
+
+        if (hasMessages || inActiveChat) {
+            emptyState.style.display = 'none';
+            return;
+        }
         emptyState.style.display = 'flex';
     } else {
         emptyState.style.display = 'none';
@@ -1398,8 +1411,7 @@ async function sendMessage() {
         text = text ? `${docHeader}\n\n${state.pendingDocContent}\n\n${text}` : `${docHeader}\n\n${state.pendingDocContent}`;
     }
     const imageBase64 = state.pendingImageBase64;
-    const imageDataUrl = state.pendingImageDataUrl;
-    const imageFilename = state.pendingImageFilename;
+    const imageDataUrl = state.pendingImage
 
     if (state.editingId) {
         const bubble = document.querySelector('#' + state.editingId + ' .msg-bubble');
