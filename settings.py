@@ -72,7 +72,8 @@ class Config:
     ATTACHMENT_RETENTION_HOURS: int = int(os.getenv("ATTACHMENT_RETENTION_HOURS", "48"))
 
     FISH_API_KEY: str = os.getenv("FISH_API_KEY", "").strip()
-
+    FISH_VOICE_ID: str = os.getenv("FISH_VOICE_ID", "933563129e564b19a115bedd57b7406a").strip()
+    
     @classmethod
     def get_model(cls, is_pro: bool = False, is_limited: bool = False) -> str:
         if is_limited:

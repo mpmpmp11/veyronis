@@ -26,6 +26,7 @@ const state = {
     abortController: null,
     ttsEnabled: localStorage.getItem('veyronis_tts') !== 'false',
     autoTts: localStorage.getItem('veyronis_auto_tts') === 'true',
+        fishVoiceId: localStorage.getItem('veyronis_voice') || '933563129e564b19a115bedd57b7406a',
     speakingId: null,
     isSpeaking: false,
     currentUtterance: null,
@@ -1367,7 +1368,7 @@ async function toggleSpeak(id) {
         const res = await fetch(`${state.apiUrl}/tts`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text })
+            body: JSON.stringify({ text: text, voice_id: state.fishVoiceId })
         });
         if (!res.ok) throw new Error('TTS request failed');
         const audioBlob = await res.blob();
@@ -2639,6 +2640,8 @@ function initSettings() {
     });
     const autoTtsToggle = document.getElementById('auto-tts-toggle');
     if (autoTtsToggle) autoTtsToggle.checked = state.autoTts;
+        const voiceSelect = document.getElementById('voice-select');
+    if (voiceSelect) voiceSelect.value = state.fishVoiceId;
 }
 function initTextarea() {
     const ta = document.getElementById('msg-input');
@@ -3251,4 +3254,9 @@ async function updateAttachLimits() {
     } catch (e) {
         console.error('[Attach limits]', e);
     }
+}
+function pickVoice(voiceId) {
+    state.fishVoiceId = voiceId;
+    localStorage.setItem('veyronis_voice', voiceId);
+    toast('🎙️ Voice updated!', 'success');
 }

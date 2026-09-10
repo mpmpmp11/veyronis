@@ -2775,7 +2775,9 @@ body::before {
   display: flex;
   flex-direction: column;
   animation: fadeIn 0.25s ease;
+  overflow: hidden;
 }
+
 .settings-panel.hidden { display: none !important; }
 
 .settings-header {
@@ -2884,12 +2886,20 @@ body::before {
   display: flex;
   flex-direction: column;
   background: var(--bg);
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-width: 100%;
+  width: 100%;
+
 }
 .settings-sub {
   transform: translateX(100%);
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 10;
+  overflow-x: hidden;
+  will-change: transform;
 }
+
 .settings-sub.active { transform: translateX(0); }
 .settings-sub.hidden { display: none !important; }
 

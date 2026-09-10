@@ -897,6 +897,28 @@
                             </label>
                         </div>
                     </div>
+                    <div class="settings-row-static" style="flex-direction: column; align-items: stretch; gap: 10px; padding: 14px 16px;">
+    <label style="font-size: 13px; font-weight: 700; color: var(--text);">Read-Aloud Voice</label>
+    <select id="voice-select" onchange="pickVoice(this.value)" style="width:100%; padding:12px 14px; border-radius: var(--radius); border: 1px solid var(--glass-border-strong); background: var(--surface); color: var(--text); font-size: 14px; font-family: inherit; cursor: pointer; outline: none;">
+        <optgroup label="Female">
+            <option value="933563129e564b19a115bedd57b7406a">Aria — Clear & Natural (Default)</option>
+            <option value="b545c585f631496c914815291da4e893">Nova — Warm</option>
+            <option value="c2623f0c075b4492ac367989aee1576f">Paula — Calm</option>
+            <option value="5567200c7d8341738f0892bbacd3be3c">Claire — French</option>
+            <option value="5161d41404314212af1254556477c17d">Yuki — Japanese</option>
+        </optgroup>
+        <optgroup label="Male">
+            <option value="536d3a5e000945adb7038665781a4aca">Ethan — Friendly & Professional</option>
+            <option value="c5f56a6cc2ec4fa8920cb4c5889a3fb7">Atlas — Deep</option>
+            <option value="bf322df2096a46f18c579d0baa36f41d">Adrian — Narrator</option>
+            <option value="802e3bc2b27e49c2995d23ef70e6ac89">Max — Energetic</option>
+            <option value="35199d5438854f5d9157c500479ab684">Mateo — Spanish</option>
+        </optgroup>
+    </select>
+    <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5;">
+        Used for all Read Aloud buttons. Tap 🔊 on any AI message to hear it.
+    </div>
+</div>
                     <button class="settings-logout" style="background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border:none;" onclick="saveChatPreferences()">Save Preferences</button>
                 </div>
             </div>
