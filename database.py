@@ -161,6 +161,17 @@ def init_db():
                 )
             """)
             
+                        # Upload logs table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS upload_logs (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    image_count INTEGER DEFAULT 0,
+                    doc_count INTEGER DEFAULT 0,
+                    UNIQUE(user_id, date)
+                )
+            """)
                 
             # Simulation logs table
             cur.execute("""

@@ -1429,7 +1429,7 @@ async function sendMessage() {
         input.style.height = 'auto';
         toast('✏️ Message updated. Regenerating response...', 'info');
     } else {
-        if (hasImage && imageDataUrl) { addUserImageMsg(input.value.trim(), imageDataUrl, imageFilename || 'image.png'); removeImagePreview(); }
+                if (hasImage && imageDataUrl) { addUserImageMsg(text, imageDataUrl, imageFilename || 'image.png'); removeImagePreview(); }
         if (text && !hasImage) addUserMsg(text);
         if (hasDoc) removeDocPreview();
     }
