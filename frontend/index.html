@@ -1037,6 +1037,60 @@
             </div>
         </div>
     </div>
+    <!-- LIMIT REACHED MODAL -->
+    <div id="modal-limit" class="modal-overlay hidden">
+        <div class="modal-backdrop" onclick="closeLimitModal()"></div>
+        <div class="modal-card" style="max-width: 420px;">
+            <div class="modal-header">
+                <span class="modal-title" id="limit-modal-title">⚠️ Limit Reached</span>
+                <button class="modal-close" onclick="closeLimitModal()">✕</button>
+            </div>
+            <div class="modal-body" style="text-align: center; padding: 24px;">
+                <div id="limit-modal-icon" style="font-size: 56px; margin-bottom: 12px;">⏳</div>
+                <h3 id="limit-modal-heading" style="font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 8px;">You've hit your daily limit</h3>
+                <p id="limit-modal-message" style="color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+                    Free users get 20 messages per day.
+                </p>
+                <div id="limit-modal-countdown-wrap" style="display: none; margin: 20px 0;">
+                    <div style="font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">
+                        Resets in
+                    </div>
+                    <div style="display: flex; justify-content: center; gap: 8px;">
+                        <div style="background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px 16px; min-width: 62px;">
+                            <div id="cd-hours" style="font-size: 22px; font-weight: 800; color: var(--accent);">00</div>
+                            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Hours</div>
+                        </div>
+                        <div style="background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px 16px; min-width: 62px;">
+                            <div id="cd-minutes" style="font-size: 22px; font-weight: 800; color: var(--accent);">00</div>
+                            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Minutes</div>
+                        </div>
+                        <div style="background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px 16px; min-width: 62px;">
+                            <div id="cd-seconds" style="font-size: 22px; font-weight: 800; color: var(--accent);">00</div>
+                            <div style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Seconds</div>
+                        </div>
+                    </div>
+                </div>
+                <div id="limit-modal-uploads" style="display: none; margin: 20px 0; padding: 12px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 10px; text-align: left;">
+                    <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.8;">
+                        📸 Images today: <strong id="lim-images-used" style="color: var(--text);">0/3</strong><br>
+                        📄 Documents today: <strong id="lim-docs-used" style="color: var(--text);">0/3</strong>
+                    </div>
+                </div>
+                <button class="modal-btn primary" onclick="closeLimitModal(); openUpgradeModal();" style="width: 100%; padding: 12px; font-size: 14px;">
+                    ⭐ Upgrade to PRO — Unlimited
+                </button>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="closeLimitModal()" style="width: 100%;">
+                    Maybe Later
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js?v=2.0"></script>
+</body>
+</html>
 
     <!-- ============================================================
     SCRIPTS

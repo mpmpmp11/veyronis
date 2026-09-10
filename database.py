@@ -603,6 +603,43 @@ def delete_old_attachments(hours: int = 48) -> int:
         conn.commit()
     return deleted
 
+# ─── UPLOAD LIMITS ───
+
+def get_upload_counts(user_id: str, date: str) -> dict:
+    """Get today's upload counts for a user."""
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT image_count, doc_count FROM upload_logs WHERE user_id = %s AND date = %s",
+                (user_id, date)
+            )
+            row = cur.fetchone()
+    if row:
+        return {"images": row["image_count"], "docs": row["doc_count"]}
+    return {"images": 0, "docs": 0}
+
+
+def increment_upload_count(user_id: str, date: str, file_type: str) -> dict:
+    """Increment upload count for a user. Returns updated counts."""
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            if file_type == "image":
+                cur.execute("""
+                    INSERT INTO upload_logs (user_id, date, image_count, doc_count)
+                    VALUES (%s, %s, 1, 0)
+                    ON CONFLICT(user_id, date) DO UPDATE SET image_count = upload_logs.image_count + 1
+                    RETURNING image_count, doc_count
+                """, (user_id, date))
+            else:
+                cur.execute("""
+                    INSERT INTO upload_logs (user_id, date, image_count, doc_count)
+                    VALUES (%s, %s, 0, 1)
+                    ON CONFLICT(user_id, date) DO UPDATE SET doc_count = upload_logs.doc_count + 1
+                    RETURNING image_count, doc_count
+                """, (user_id, date))
+            row = cur.fetchone()
+        conn.commit()
+    return {"images": row["image_count"], "docs": row["doc_count"]}
 
 # ─── INIT ───
 init_db()

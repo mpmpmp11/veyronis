@@ -1398,6 +1398,11 @@ async function sendMessage() {
     const hasImage = !!state.pendingImageBase64;
     const hasDoc = !!state.pendingDocContent;
     if (!state.editingId && !text && !hasImage && !hasDoc) return;
+        // ✅ Check message limit before sending
+    if (!state.user?.is_pro && state.user?.remaining !== undefined && state.user.remaining <= 0) {
+        showLimitModal('messages', '', state.user.reset_at);
+        return;
+    }
 
     if (state.simulationMode && text && !hasImage && !hasDoc) {
         await runHindsightSimulation(text);
@@ -2123,7 +2128,41 @@ function pickModel(event, id, label) {
 function toggleAttach() {
     const pop = document.getElementById('attach-pop');
     if (pop) pop.classList.toggle('open');
+    if (pop && pop.classList.contains('open')) {
+        updateAttachLimits();
+    }
 }
+
+function triggerImageUpload() {
+    // ✅ Check limits first
+    checkUploadLimits('image').then(ok => {
+        if (!ok) return;
+        _doImageUpload();
+    });
+}
+
+function _doImageUpload() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) { toast('📎 Image too large. Max 5MB.', 'error'); return; }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            state.pendingImageBase64 = ev.target.result.split(',')[1];
+            state.pendingImageDataUrl = ev.target.result;
+            state.pendingImageFilename = file.name;
+            showImagePreview(file.name, ev.target.result);
+            document.getElementById('attach-pop').classList.remove('open');
+            updateSendButton();
+        };
+        reader.readAsDataURL(file);
+    };
+    input.click();
+}
+
 function triggerImageUpload() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -2162,6 +2201,19 @@ function removeImagePreview() {
     const existing = document.getElementById('img-preview');
     if (existing) existing.remove();
     updateSendButton();
+}
+function triggerDocumentUpload() {
+    // ✅ Check limits first
+    checkUploadLimits('document').then(ok => {
+        if (!ok) return;
+        _doDocumentUpload();
+    });
+}
+
+function _doDocumentUpload() {
+    const input = document.createElement('input');
+    // ... rest of your existing triggerDocumentUpload body (starting from input.type = 'file')
+    // ... everything else stays the same
 }
 
 function triggerDocumentUpload() {
@@ -3076,3 +3128,120 @@ document.addEventListener('click', function(e) {
         }
     }
 });
+// ─── LIMIT MODAL ───
+let countdownInterval = null;
+
+function showLimitModal(type, message, resetAt) {
+    const modal = document.getElementById('modal-limit');
+    const title = document.getElementById('limit-modal-title');
+    const icon = document.getElementById('limit-modal-icon');
+    const heading = document.getElementById('limit-modal-heading');
+    const msg = document.getElementById('limit-modal-message');
+    const countdownWrap = document.getElementById('limit-modal-countdown-wrap');
+    const uploadsWrap = document.getElementById('limit-modal-uploads');
+
+    // Reset visibility
+    countdownWrap.style.display = 'none';
+    uploadsWrap.style.display = 'none';
+
+    if (type === 'messages') {
+        title.textContent = '⏳ Daily Message Limit';
+        icon.textContent = '💬';
+        heading.textContent = "You've used all 20 messages today";
+        msg.textContent = 'Your free messages reset at midnight UTC.';
+        countdownWrap.style.display = 'block';
+        startCountdown(resetAt);
+    } else if (type === 'image') {
+        title.textContent = '📸 Image Limit Reached';
+        icon.textContent = '📸';
+        heading.textContent = "You've used all 3 image uploads today";
+        msg.textContent = 'Free users get 3 images per day. Upgrade to PRO for unlimited.';
+        uploadsWrap.style.display = 'block';
+        updateUploadDisplay();
+    } else if (type === 'document') {
+        title.textContent = '📄 Document Limit Reached';
+        icon.textContent = '📄';
+        heading.textContent = "You've used all 3 document uploads today";
+        msg.textContent = 'Free users get 3 documents per day. Upgrade to PRO for unlimited.';
+        uploadsWrap.style.display = 'block';
+        updateUploadDisplay();
+    }
+
+    openModal('modal-limit');
+}
+
+function closeLimitModal() {
+    closeModal('modal-limit');
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+}
+
+function updateUploadDisplay() {
+    const uploads = state.user?.uploads_today || { images: 0, docs: 0 };
+    const imgEl = document.getElementById('lim-images-used');
+    const docEl = document.getElementById('lim-docs-used');
+    if (imgEl) imgEl.textContent = `${uploads.images}/3`;
+    if (docEl) docEl.textContent = `${uploads.docs}/3`;
+}
+
+function startCountdown(resetAtIso) {
+    if (countdownInterval) clearInterval(countdownInterval);
+    const target = new Date(resetAtIso).getTime();
+
+    function tick() {
+        const now = Date.now();
+        let diff = Math.max(0, Math.floor((target - now) / 1000));
+        const h = String(Math.floor(diff / 3600)).padStart(2, '0');
+        diff -= Math.floor(diff / 3600) * 3600;
+        const m = String(Math.floor(diff / 60)).padStart(2, '0');
+        const s = String(diff - Math.floor(diff / 60) * 60).padStart(2, '0');
+        document.getElementById('cd-hours').textContent = h;
+        document.getElementById('cd-minutes').textContent = m;
+        document.getElementById('cd-seconds').textContent = s;
+    }
+    tick();
+    countdownInterval = setInterval(tick, 1000);
+}
+
+// ─── UPLOAD LIMITS UI ───
+async function checkUploadLimits(type) {
+    // type: 'image' or 'document'
+    if (state.user?.is_pro) return true; // PRO = unlimited
+
+    try {
+        const res = await authenticatedFetch('/upload-limits');
+        const data = await res.json();
+        const remaining = type === 'image' ? data.remaining_images : data.remaining_docs;
+
+        if (remaining <= 0) {
+            showLimitModal(type === 'image' ? 'image' : 'document');
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.error('[Upload limit check]', e);
+        return true; // fail open
+    }
+}
+
+async function updateAttachLimits() {
+    if (!state.user || state.user.is_pro) {
+        const docEl = document.getElementById('doc-remaining');
+        const imgEl = document.getElementById('image-remaining');
+        if (docEl) docEl.textContent = '';
+        if (imgEl) imgEl.textContent = '';
+        return;
+    }
+    try {
+        const res = await authenticatedFetch('/upload-limits');
+        const data = await res.json();
+        const docEl = document.getElementById('doc-remaining');
+        const imgEl = document.getElementById('image-remaining');
+        if (docEl) docEl.textContent = `${data.remaining_docs} left`;
+        if (imgEl) imgEl.textContent = `${data.remaining_images} left`;
+    } catch (e) {
+        console.error('[Attach limits]', e);
+    }
+}

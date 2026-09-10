@@ -29,7 +29,8 @@ from database import (
     delete_user, get_user_by_verification_token, verify_user,
     set_verification_token, set_reset_token, get_user_by_reset_token,
     clear_reset_token, get_db,
-    save_attachment, get_attachments,
+    save_attachment, get_attachments, get_upload_counts,
+    increment_upload_count,
     get_archived_conversations, archive_conversation, unarchive_conversation, delete_old_attachments, 
 )
 from settings import Config
@@ -361,6 +362,18 @@ async def get_me(current_user: dict = Depends(get_current_user_required)):
         today = str(date.today())
         usage = get_usage_count(current_user["email"], today) if not user["is_pro"] else None
         remaining = max(0, 20 - usage) if usage is not None else None
+
+        # Compute next reset time (midnight UTC)
+        from datetime import datetime as dt, timedelta
+        now = dt.utcnow()
+        tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        reset_at_iso = tomorrow.isoformat() + "Z"
+
+        # Upload counts (only for free users)
+        upload_counts = {"images": 0, "docs": 0}
+        if not user["is_pro"]:
+            upload_counts = get_upload_counts(current_user["email"], today)
+
         return {
             "user": {
                 "id": user["id"],
@@ -370,13 +383,15 @@ async def get_me(current_user: dict = Depends(get_current_user_required)):
                 "usage": usage,
                 "remaining": remaining,
                 "is_verified": bool(user.get("is_verified", False)),
-                "display_id": user.get("display_id")
+                "display_id": user.get("display_id"),
+                "reset_at": reset_at_iso,
+                "uploads_today": upload_counts,
             }
         }
     except Exception as e:
         print(f"[ME ERROR] {e}")
         raise HTTPException(500, detail="😕 Could not retrieve user info. Please try again.")
-
+    
 @app.post("/upgrade")
 async def upgrade_to_pro(current_user: dict = Depends(get_current_user_required)):
     try:
@@ -1129,6 +1144,26 @@ async def execute_code(request: Request):
     except Exception as e:
         print(f"[EXECUTE ERROR] {e}")
         raise HTTPException(500, detail="😕 Code execution failed. Please try again.")
+
+@app.get("/upload-limits")
+async def get_upload_limits(current_user: dict = Depends(get_current_user_required)):
+    """Get remaining uploads for today (images + documents)."""
+    if current_user["is_pro"]:
+        return {
+            "images": 999, "docs": 999,
+            "remaining_images": 999, "remaining_docs": 999,
+            "is_pro": True
+        }
+    today = str(date.today())
+    counts = get_upload_counts(current_user["email"], today)
+    return {
+        "images": 3,
+        "docs": 3,
+        "remaining_images": max(0, 3 - counts["images"]),
+        "remaining_docs": max(0, 3 - counts["docs"]),
+        "is_pro": False
+    }
+
 
 from fastapi import Response
 from fishaudio import FishAudio
