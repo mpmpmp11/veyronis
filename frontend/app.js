@@ -159,9 +159,14 @@ function updateUsageDisplay() {
     if (!disclaimer) return;
     if (state.user?.is_pro) {
         disclaimer.innerHTML = 'PRO MODE <span style="color:#fbbf24">★</span> · Unlimited messages';
+        return;
+    }
+    const remaining = state.user?.remaining;
+    if (remaining === undefined || remaining === null) {
+        disclaimer.textContent = `Free tier · VEYRONIS can make mistakes`;
     } else {
-        const remaining = state.user?.remaining !== undefined ? state.user.remaining : 20;
-        disclaimer.textContent = `Free: ${20 - remaining}/${20} today · VEYRONIS can make mistakes`;
+        const used = Math.max(0, 20 - remaining);
+        disclaimer.textContent = `Free: ${used}/20 today · VEYRONIS can make mistakes`;
     }
 }
 
@@ -210,7 +215,10 @@ async function handleLogin() {
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value.trim();
     const errorEl = document.getElementById('login-error');
-    if (!email || !password) { errorEl.textContent = '📝 Please enter email and password'; return; }
+    if (!email || !password) {
+        errorEl.textContent = '📝 Please enter email and password';
+        return;
+    }
     showLoading('Logging in...');
     try {
         const res = await fetch(`${state.apiUrl}/login`, {
@@ -220,7 +228,11 @@ async function handleLogin() {
         });
         const data = await res.json();
         hideLoading();
-        if (!res.ok) { const err = new Error(data.detail || 'Login failed'); err.status = res.status; throw err; }
+        if (!res.ok) {
+            const err = new Error(data.detail || 'Login failed');
+            err.status = res.status;
+            throw err;
+        }
         state.token = data.access_token;
         state.user = data.user;
         state.userId = data.user.email;
@@ -232,7 +244,10 @@ async function handleLogin() {
         document.getElementById('app').classList.remove('hidden');
         initApp();
         toast('🎉 Welcome back, ' + data.user.email + '!', 'success');
-        setTimeout(checkAdminStatus, 500);
+        setTimeout(() => {
+            checkAdminStatus();
+            refreshUserInfo();
+        }, 500);
     } catch (err) {
         hideLoading();
         handleError(err, 'Login');
@@ -240,23 +255,27 @@ async function handleLogin() {
             errorEl.textContent = '🔐 Invalid email or password. Please try again.';
         } else {
             errorEl.textContent = '😕 Login failed. Please try again.';
-            setTimeout(() => {
-    refreshUserInfo();
-    updateUsageDisplay(); // ✅ force update
-}, 300);
         }
     }
 }
-
 
 
 async function handleRegister() {
     const email = document.getElementById('register-email').value.trim();
     const password = document.getElementById('register-password').value.trim();
     const errorEl = document.getElementById('register-error');
-    if (!email || !password) { errorEl.textContent = '📝 Please enter email and password'; return; }
-    if (password.length < 6) { errorEl.textContent = '🔑 Password must be at least 6 characters'; return; }
-    if (!email.includes('@') || !email.includes('.')) { errorEl.textContent = '📧 Please enter a valid email address'; return; }
+    if (!email || !password) {
+        errorEl.textContent = '📝 Please enter email and password';
+        return;
+    }
+    if (password.length < 6) {
+        errorEl.textContent = '🔑 Password must be at least 6 characters';
+        return;
+    }
+    if (!email.includes('@') || !email.includes('.')) {
+        errorEl.textContent = '📧 Please enter a valid email address';
+        return;
+    }
     showLoading('Creating account...');
     try {
         const res = await fetch(`${state.apiUrl}/register`, {
@@ -266,7 +285,11 @@ async function handleRegister() {
         });
         const data = await res.json();
         hideLoading();
-        if (!res.ok) { const err = new Error(data.detail || 'Registration failed'); err.status = res.status; throw err; }
+        if (!res.ok) {
+            const err = new Error(data.detail || 'Registration failed');
+            err.status = res.status;
+            throw err;
+        }
         state.token = data.access_token;
         state.user = data.user;
         state.userId = data.user.email;
@@ -278,12 +301,10 @@ async function handleRegister() {
         document.getElementById('app').classList.remove('hidden');
         initApp();
         toast('🎉 Account created! Welcome to VEYRONIS!', 'success');
-        setTimeout(checkAdminStatus, 500);
-        // Force refresh user info after registration
-setTimeout(() => {
-    refreshUserInfo();
-}, 300); updateUsageDisplay();
-
+        setTimeout(() => {
+            checkAdminStatus();
+            refreshUserInfo();
+        }, 500);
     } catch (err) {
         hideLoading();
         handleError(err, 'Register');
@@ -307,7 +328,7 @@ function checkAuth() {
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
         initApp();
-        setTimeout(checkAdminStatus, 500);
+        setTimeout(() => { checkAdminStatus(); refreshUserInfo(); }, 500);
         return true;
     }
     return false;
@@ -358,8 +379,8 @@ function handleGoogleCallback() {
             document.getElementById('auth-screen').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             initApp();
-            toast('🎉 Welcome ' + name + '! Logged in with Google!', 'success');
-            setTimeout(checkAdminStatus, 500);
+                        toast('🎉 Welcome ' + name + '! Logged in with Google!', 'success');
+            setTimeout(() => { checkAdminStatus(); refreshUserInfo(); }, 500);
         }
     } else if (status === 'error') {
         const message = params.get('message') || 'Google login failed';
