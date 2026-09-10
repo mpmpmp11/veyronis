@@ -1158,29 +1158,13 @@ async function loadHistory() {
 }
 
 function showEmpty(show) {
-    const container = document.getElementById('messages');
     let emptyState = document.getElementById('empty-state');
+    if (!emptyState) return;
     if (show) {
-        if (!emptyState) {
-            const el = document.createElement('div');
-            el.id = 'empty-state';
-            el.className = 'empty-state';
-            el.innerHTML = `
-                <div class="empty-brand">VEYRONIS</div>
-                <div class="empty-hint">How can I help you today?</div>
-                <div class="chips">
-                    <button class="chip glass-chip" onclick="quickSend('Explain quantum physics like I am 15')">🔬 Quantum Physics</button>
-                    <button class="chip glass-chip" onclick="quickSend('Help me outline an essay about climate change')">📝 Essay Outline</button>
-                    <button class="chip glass-chip" onclick="quickSend('Solve step by step: 2x² + 5x - 3 = 0')">🧮 Math Solver</button>
-                    <button class="chip glass-chip" onclick="quickSend('Write a Python script that fetches weather data')">💻 Python Code</button>
-                    <button class="chip glass-chip" onclick="quickSend('Create flashcards about the French Revolution')">📇 Flashcards</button>
-                    <button class="chip glass-chip" onclick="quickSend('Draw me a majestic dragon')">🎨 Image Gen</button>
-                    <button class="chip glass-chip" onclick="quickSend('What happens if I procrastinate on my final project until the last week?')">🔮 Hindsight</button>
-                </div>
-            `;
-            container.insertBefore(el, container.firstChild);
-        } else { emptyState.style.display = 'flex'; }
-    } else { if (emptyState) emptyState.remove(); }
+        emptyState.style.display = 'flex';
+    } else {
+        emptyState.style.display = 'none';
+    }
 }
 
 function quickSend(text) {
@@ -1432,6 +1416,7 @@ async function sendMessage() {
         if (text && !hasImage) addUserMsg(text);
         if (hasDoc) removeDocPreview();
     }
+        showEmpty(false);
     input.value = '';
     input.style.height = 'auto';
     function updateChatPadding() {
