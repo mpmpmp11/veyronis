@@ -1428,14 +1428,12 @@ async function sendMessage() {
     const hasImage = !!state.pendingImageBase64;
     const hasDoc = !!state.pendingDocContent;
     if (!state.editingId && !text && !hasImage && !hasDoc) return;
-        // ✅ Check message limit before sending
-      // ✅ Message limit check — FREE only
+
+    // ✅ Message limit check — FREE only
     if (!state.user?.is_pro) {
         if (state.user?.remaining !== undefined && state.user.remaining <= 0) {
-            // Check if it's actually past midnight UTC — if so, refresh instead of blocking
             const resetAt = state.user.reset_at ? new Date(state.user.reset_at).getTime() : 0;
             if (resetAt && Date.now() >= resetAt) {
-                // Limit should have reset — refresh and let user try again
                 refreshUserInfo();
                 toast('✨ Your daily limit just reset! Try sending again.', 'success');
                 return;
@@ -1456,8 +1454,10 @@ async function sendMessage() {
         const docHeader = `Document: "${state.pendingDocFilename}"`;
         text = text ? `${docHeader}\n\n${state.pendingDocContent}\n\n${text}` : `${docHeader}\n\n${state.pendingDocContent}`;
     }
+
     const imageBase64 = state.pendingImageBase64;
-    const imageDataUrl = state.pendingImage
+    const imageDataUrl = state.pendingImageDataUrl;
+    const imageFilename = state.pendingImageFilename;
 
     if (state.editingId) {
         const bubble = document.querySelector('#' + state.editingId + ' .msg-bubble');
@@ -1469,7 +1469,7 @@ async function sendMessage() {
         input.value = '';
         input.style.height = 'auto';
         toast('✏️ Message updated. Regenerating response...', 'info');
-        } else {
+    } else {
         if (hasImage && imageDataUrl) {
             addUserImageMsg(text, imageDataUrl, imageFilename || 'image.png');
             removeImagePreview();
@@ -1480,15 +1480,7 @@ async function sendMessage() {
     }
     input.value = '';
     input.style.height = 'auto';
-    function updateChatPadding() {
-    // ─── Fixed gap – no dynamic change ───
-    // const messages = document.getElementById('messages');
-    // const inputShell = document.querySelector('.input-shell');
-    // if (!messages || !inputShell) return;
-    // const inputHeight = inputShell.offsetHeight;
-    // const paddingBottom = Math.max(inputHeight + 24, 120);
-    // messages.style.paddingBottom = paddingBottom + 'px';
-}
+
     const sendBtn = document.getElementById('send-btn');
     if (sendBtn) sendBtn.disabled = true;
     const aiId = addAiShell();
@@ -1525,12 +1517,16 @@ async function sendMessage() {
             custom_instructions: state.customInstructions,
             response_style: state.responseStyle
         };
+        const _headers = { 'Content-Type': 'application/json' };
+        if (state.token) _headers['Authorization'] = `Bearer ${state.token}`;
+
         const response = await fetch(`${state.apiUrl}/chat/stream`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: _headers,
             signal: controller.signal,
             body: JSON.stringify(requestBody)
         });
+
         clearTimeout(timeoutId);
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
@@ -1570,9 +1566,15 @@ async function sendMessage() {
                         if (textEl) { renderMarkdown(textEl, fullResponse); renderCitations(aiId, state.citations[aiId]); }
                         if (data.conversation_id && !state.conversationId) { state.conversationId = data.conversation_id; loadConversations(); }
                         if (data.tier === 'pro') setProUi();
-                        else { state.msgCount++; const disclaimer = document.getElementById('input-disclaimer'); if (disclaimer) disclaimer.textContent = `Free: ${state.msgCount}/20 today · VEYRONIS can make mistakes`; }
-                        if (state.autoTts && state.ttsEnabled) { setTimeout(() => { const speakBtn = document.getElementById('speak-' + aiId); if (speakBtn) toggleSpeak(aiId); }, 400); }
+
+                        // ✅ optimistic decrement for instant UI
+                        if (!state.user?.is_pro && state.user?.remaining !== undefined && state.user.remaining > 0) {
+                            state.user.remaining -= 1;
+                            updateUsageDisplay();
+                        }
                         refreshUserInfo();
+
+                        if (state.autoTts && state.ttsEnabled) { setTimeout(() => { const speakBtn = document.getElementById('speak-' + aiId); if (speakBtn) toggleSpeak(aiId); }, 400); }
                     } else if (data.type === 'error') throw new Error(data.content);
                 } catch (e) { if (e instanceof SyntaxError) continue; throw e; }
             }
@@ -1648,7 +1650,7 @@ function regenerateMsg(aiId) {
     const controller = new AbortController();
     state.abortController = controller;
     const timeoutId = setTimeout(() => controller.abort(), 60000);
-    fetch(`${state.apiUrl}/chat/stream`, {
+        fetch(`${state.apiUrl}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
