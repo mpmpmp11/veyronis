@@ -44,6 +44,35 @@ const state = {
     adminUsers: []
 };
 
+// ─── SPLASH SCREEN (mobile only) ───
+(function initSplash() {
+    // Skip on desktop
+    if (window.innerWidth >= 768) return;
+
+    const startSplash = () => {
+        const splash = document.getElementById('splash-screen');
+        if (!splash) return;
+
+        // Show splash
+        splash.classList.remove('hidden');
+
+        // Hide after 3 seconds
+        setTimeout(() => {
+            splash.classList.add('hidden');
+            // Fully remove from DOM after fade
+            setTimeout(() => {
+                if (splash.parentNode) splash.remove();
+            }, 700);
+        }, 3000);
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startSplash);
+    } else {
+        startSplash();
+    }
+})();
+
 const THEMES = ['dark', 'light', 'veyronis'];
 let currentTheme = localStorage.getItem('veyronis_theme') || 'dark';
 document.documentElement.setAttribute('data-theme', currentTheme);
@@ -1400,9 +1429,20 @@ async function sendMessage() {
     const hasDoc = !!state.pendingDocContent;
     if (!state.editingId && !text && !hasImage && !hasDoc) return;
         // ✅ Check message limit before sending
-    if (!state.user?.is_pro && state.user?.remaining !== undefined && state.user.remaining <= 0) {
-        showLimitModal('messages', '', state.user.reset_at);
-        return;
+      // ✅ Message limit check — FREE only
+    if (!state.user?.is_pro) {
+        if (state.user?.remaining !== undefined && state.user.remaining <= 0) {
+            // Check if it's actually past midnight UTC — if so, refresh instead of blocking
+            const resetAt = state.user.reset_at ? new Date(state.user.reset_at).getTime() : 0;
+            if (resetAt && Date.now() >= resetAt) {
+                // Limit should have reset — refresh and let user try again
+                refreshUserInfo();
+                toast('✨ Your daily limit just reset! Try sending again.', 'success');
+                return;
+            }
+            showLimitModal('messages', '', state.user.reset_at);
+            return;
+        }
     }
 
     if (state.simulationMode && text && !hasImage && !hasDoc) {
@@ -3108,10 +3148,24 @@ function closeMoreMenu() {
 }
 
 // ─── DESKTOP MORE MENU ───
-function toggleMoreMenuDesktop(event) {
-    if (event) event.stopPropagation();
-    const menu = document.getElementById('more-menu-desktop');
-    if (menu) menu.classList.toggle('open');
+function toggleMoreMenu(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const menu = document.getElementById('more-menu');
+    if (!menu) return;
+    const willOpen = !menu.classList.contains('open');
+
+    // Close desktop menu if open (only one at a time)
+    const desktopMenu = document.getElementById('more-menu-desktop');
+    if (desktopMenu) desktopMenu.classList.remove('open');
+
+    if (willOpen) {
+        menu.classList.add('open');
+    } else {
+        menu.classList.remove('open');
+    }
 }
 
 function closeMoreMenuDesktop() {
@@ -3125,7 +3179,9 @@ document.addEventListener('click', function(e) {
     const floatingMenu = document.getElementById('more-menu');
     const floatingBtn = document.querySelector('.top-bar-floating .pill-btn[title="More"]');
     if (floatingMenu && floatingMenu.classList.contains('open')) {
-        if (!floatingMenu.contains(e.target) && !floatingBtn?.contains(e.target)) {
+        const insideMenu = floatingMenu.contains(e.target);
+        const onButton = floatingBtn && (floatingBtn === e.target || floatingBtn.contains(e.target));
+        if (!insideMenu && !onButton) {
             floatingMenu.classList.remove('open');
         }
     }
@@ -3133,11 +3189,14 @@ document.addEventListener('click', function(e) {
     const desktopMenu = document.getElementById('more-menu-desktop');
     const desktopBtn = document.querySelector('.top-bar-desktop .more-btn');
     if (desktopMenu && desktopMenu.classList.contains('open')) {
-        if (!desktopMenu.contains(e.target) && !desktopBtn?.contains(e.target)) {
+        const insideMenu = desktopMenu.contains(e.target);
+        const onButton = desktopBtn && (desktopBtn === e.target || desktopBtn.contains(e.target));
+        if (!insideMenu && !onButton) {
             desktopMenu.classList.remove('open');
         }
     }
 });
+
 // ─── LIMIT MODAL ───
 let countdownInterval = null;
 
@@ -3197,19 +3256,34 @@ function updateUploadDisplay() {
 }
 
 function startCountdown(resetAtIso) {
+    if (!resetAtIso) return;
     if (countdownInterval) clearInterval(countdownInterval);
     const target = new Date(resetAtIso).getTime();
 
     function tick() {
         const now = Date.now();
         let diff = Math.max(0, Math.floor((target - now) / 1000));
+
+        // ✅ Countdown finished — close modal and refresh user
+        if (diff <= 0) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+            closeLimitModal();
+            toast('✨ Daily limit reset! You have 20 new messages.', 'success');
+            refreshUserInfo();
+            return;
+        }
+
         const h = String(Math.floor(diff / 3600)).padStart(2, '0');
         diff -= Math.floor(diff / 3600) * 3600;
         const m = String(Math.floor(diff / 60)).padStart(2, '0');
         const s = String(diff - Math.floor(diff / 60) * 60).padStart(2, '0');
-        document.getElementById('cd-hours').textContent = h;
-        document.getElementById('cd-minutes').textContent = m;
-        document.getElementById('cd-seconds').textContent = s;
+        const hEl = document.getElementById('cd-hours');
+        const mEl = document.getElementById('cd-minutes');
+        const sEl = document.getElementById('cd-seconds');
+        if (hEl) hEl.textContent = h;
+        if (mEl) mEl.textContent = m;
+        if (sEl) sEl.textContent = s;
     }
     tick();
     countdownInterval = setInterval(tick, 1000);

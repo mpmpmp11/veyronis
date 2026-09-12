@@ -5680,3 +5680,39 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
         display: none !important;
     }
 }
+/* ─── SPLASH SCREEN (mobile only) ─── */
+#splash-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #050508;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.6s ease, visibility 0.6s ease;
+}
+
+#splash-screen.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    display: none;
+}
+
+#splash-screen:not(.hidden) {
+    display: flex;
+}
+
+.splash-video {
+    width: 100vw;
+    height: 100vh;
+    object-fit: contain;
+    background: #050508;
+}
+
+/* Only show on screens smaller than 768px */
+@media (min-width: 768px) {
+    #splash-screen {
+        display: none !important;
+    }
+}

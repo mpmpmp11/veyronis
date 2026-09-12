@@ -821,13 +821,12 @@ async def upload_document(
     file: UploadFile = File(...),
     conversation_id: Optional[int] = None,
     request: Request = None,
-    current_user: dict = Depends(get_current_user_required)  # ← Force auth
+    current_user: dict = Depends(get_current_user_required)
 ):
     client_ip = request.client.host if request else "unknown"
     if not _check_rate_limit(client_ip, max_requests=10, window_seconds=60):
         raise HTTPException(429, detail="⏳ Too many uploads. Please slow down.")
 
-    # Use authenticated user's email
     user_id = current_user["email"]
     print(f"[UPLOAD] user: {user_id}, conv: {conversation_id}, file: {file.filename}")
 
@@ -835,15 +834,26 @@ async def upload_document(
         content = await file.read()
         cloudinary_url = None
 
-        # Check file size
+        # ─── Check file size ───
         if len(content) > 10 * 1024 * 1024:
             raise HTTPException(400, detail="📎 File too large. Maximum size is 10MB.")
 
-        # Check file extension
+        # ─── Check file extension ───
         allowed_extensions = ('.pdf', '.docx', '.txt', '.md', '.csv', '.xlsx', '.xls')
         if not any(file.filename.lower().endswith(ext) for ext in allowed_extensions):
             raise HTTPException(400, detail="📎 Unsupported file type. Please upload PDF, DOCX, TXT, MD, CSV, or Excel.")
 
+        # ─── Check upload limits for free users ───
+        is_image = file.content_type and file.content_type.startswith("image/")
+        today = str(date.today())
+        if not current_user["is_pro"]:
+            counts = get_upload_counts(current_user["email"], today)
+            if is_image and counts["images"] >= 3:
+                raise HTTPException(429, detail="📸 Daily image limit reached (3/day). Upgrade to PRO for unlimited.")
+            if not is_image and counts["docs"] >= 3:
+                raise HTTPException(429, detail="📄 Daily document limit reached (3/day). Upgrade to PRO for unlimited.")
+
+        # ─── Cloudinary upload ───
         if Config.cloudinary_ready():
             try:
                 upload_result = cloudinary.uploader.upload(
@@ -861,11 +871,13 @@ async def upload_document(
                 print(f"[CLOUDINARY ERROR] {e}")
                 cloudinary_url = None
 
+        # ─── Extract text ───
         text = DocumentParser.extract_text(content, file.filename)
 
+        # ─── Gemini analysis (only for PRO users) ───
         gemini_analysis = None
         try:
-            if Config.gemini_ready() and orchestrator.gemini_agent:
+            if current_user["is_pro"] and Config.gemini_ready() and orchestrator.gemini_agent:
                 gemini_analysis = orchestrator.gemini_agent.generate_document_response(
                     content, file.filename,
                     prompt="Analyze this document thoroughly. Provide a concise summary, key points, main arguments, important data, and notable sections."
@@ -873,11 +885,11 @@ async def upload_document(
         except Exception as e:
             print(f"[VEYRONIS] Gemini doc analysis failed: {e}")
 
-        # If no conversation_id, create one
+        # ─── Ensure conversation exists ───
         if not conversation_id:
             conversation_id = create_conversation(user_id, title=file.filename)
 
-        file_type = "image" if file.content_type and file.content_type.startswith("image/") else "document"
+        file_type = "image" if is_image else "document"
         attach_id = save_attachment(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -888,6 +900,10 @@ async def upload_document(
             mime_type=file.content_type
         )
         print(f"[UPLOAD] Saved attachment id: {attach_id}")
+
+        # ─── Increment upload count for free users ───
+        if not current_user["is_pro"]:
+            increment_upload_count(user_id, today, file_type)
 
         response = {
             "filename": file.filename,
