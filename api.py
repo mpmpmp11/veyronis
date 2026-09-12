@@ -1242,12 +1242,13 @@ async def text_to_speech(request: dict):
                 "Content-Type": "application/json",
             },
             json={
-                "text": text,
-                "reference_id": voice_id,
-                "format": "mp3",
-                "mp3_bitrate": 128,
-                "latency": "normal",
-            },
+    "text": text,
+    "reference_id": voice_id,
+    "model": "s2.1-pro-free",   # ✅ free tier — no API credit needed
+    "format": "mp3",
+    "mp3_bitrate": 128,
+    "latency": "normal",
+},
             timeout=60,
         )
         if resp.status_code != 200:
