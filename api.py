@@ -1263,26 +1263,26 @@ async def text_to_speech(request: dict):
 
 @app.get("/api/voice/streaming-token")
 async def get_streaming_token(current_user: dict = Depends(get_current_user_required)):
-    """Generate a temporary AssemblyAI streaming token (safe for browsers)."""
-    if not Config.ASSEMBLYAI_API_KEY:
-        raise HTTPException(503, detail="AssemblyAI not configured.")
+    """Generate a temporary Deepgram token (safe for browsers)."""
+    if not Config.DEEPGRAM_API_KEY:
+        raise HTTPException(503, detail="Deepgram not configured.")
 
     try:
-        resp = requests.get(
-            "https://streaming.assemblyai.com/v3/token",
-            params={"expires_in_seconds": 300},
-            headers={"Authorization": Config.ASSEMBLYAI_API_KEY},
+        resp = requests.post(
+            "https://api.deepgram.com/v1/auth/token",
+            headers={"Authorization": f"Token {Config.DEEPGRAM_API_KEY}"},
+            json={"ttl_seconds": 300},
             timeout=10
         )
         if resp.status_code != 200:
-            print(f"[ASSEMBLYAI TOKEN ERROR] {resp.status_code}: {resp.text[:300]}")
+            print(f"[DEEPGRAM TOKEN ERROR] {resp.status_code}: {resp.text[:300]}")
             raise HTTPException(500, detail="Failed to create streaming token.")
         data = resp.json()
-        return {"token": data.get("token")}
+        return {"token": data.get("access_token")}
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[ASSEMBLYAI TOKEN EXCEPTION] {e}")
+        print(f"[DEEPGRAM TOKEN EXCEPTION] {e}")
         raise HTTPException(500, detail="Failed to create streaming token.")
 
 

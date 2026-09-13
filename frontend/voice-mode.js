@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════
-// VEYRONIS VOICE MODE — AssemblyAI + Groq + Fish Audio
+// VEYRONIS VOICE MODE — Deepgram + Groq + Fish Audio
 // ═══════════════════════════════════════════════════════
 
 const voiceMode = (() => {
-    let assemblyWS = null;
+    let sttWS = null;
     let audioContext = null;
     let mediaStream = null;
     let muted = false;
@@ -31,12 +31,12 @@ const voiceMode = (() => {
         el.classList.toggle('visible', !!text);
     };
 
-    // ─── FETCH STREAMING TOKEN FROM BACKEND ───
+    // ─── FETCH STREAMING TOKEN ───
     async function fetchKeys() {
         const res = await authenticatedFetch('/api/voice/streaming-token');
         if (!res.ok) throw new Error('Failed to get streaming token');
         const data = await res.json();
-        return { assemblyai_key: data.token };
+        return { deepgram_token: data.token };
     }
 
     // ─── AUDIO CAPTURE ───
@@ -56,12 +56,11 @@ const voiceMode = (() => {
         const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
 
         processor.onaudioprocess = e => {
-            if (muted || !connected || !assemblyWS || assemblyWS.readyState !== WebSocket.OPEN) return;
+            if (muted || !connected || !sttWS || sttWS.readyState !== WebSocket.OPEN) return;
             const input = e.inputBuffer.getChannelData(0);
             const pcm16 = floatTo16BitPCM(input);
-            const b64 = arrayBufferToBase64(pcm16.buffer);
             try {
-                assemblyWS.send(JSON.stringify({ audio_data: b64 }));
+                sttWS.send(pcm16.buffer);
             } catch (err) {}
         };
 
@@ -82,29 +81,23 @@ const voiceMode = (() => {
         return new Int16Array(buffer);
     }
 
-    function arrayBufferToBase64(buffer) {
-        let binary = '';
-        const bytes = new Uint8Array(buffer);
-        for (let i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        return btoa(binary);
-    }
-
-    // ─── ASSEMBLYAI WEBSOCKET (v3 + Whisper for Georgian) ───
-    async function connectAssemblyAI(token) {
-        const url = `wss://streaming.assemblyai.com/v3/ws?token=${token}&speech_model=whisper-rt&language_code=ka`;
-        console.log('[Voice] Connecting to AssemblyAI (Whisper, Georgian)...');
+    // ─── DEEPGRAM WEBSOCKET (Nova-3 for Georgian) ───
+    async function connectDeepgram(token) {
+        const url = `wss://api.deepgram.com/v1/listen?model=nova-3&language=ka&encoding=linear16&sample_rate=16000&interim_results=true&smart_format=true&endpointing=300`;
+        console.log('[Voice] Connecting to Deepgram (Nova-3, Georgian)...');
 
         return new Promise((resolve, reject) => {
-            assemblyWS = new WebSocket(url);
+            sttWS = new WebSocket(url, ['token', token]);
 
-            assemblyWS.onopen = () => {
-                console.log('[Voice] AssemblyAI WS opened');
+            sttWS.onopen = () => {
+                console.log('[Voice] Deepgram WS opened');
+                connected = true;
+                setState('listening', 'Listening...');
+                setStatus('Speak now');
                 resolve();
             };
 
-            assemblyWS.onmessage = event => {
+            sttWS.onmessage = event => {
                 let data;
                 try {
                     data = JSON.parse(event.data);
@@ -112,41 +105,38 @@ const voiceMode = (() => {
                     return;
                 }
 
-                if (data.type === 'SessionBegins' || data.type === 'session.ready') {
-                    console.log('[Voice] AssemblyAI session started');
-                    connected = true;
-                    setState('listening', 'Listening...');
-                    setStatus('Speak now');
+                if (data.type === 'SpeechStarted') {
+                    setStatus('Listening...');
                 }
 
-                if ((data.type === 'PartialTranscript' || data.type === 'transcript.partial') && data.text) {
-                    showTranscript('user', data.text);
-                }
+                const alt = data.channel?.alternatives?.[0];
+                if (alt && alt.transcript) {
+                    const transcript = alt.transcript.trim();
+                    const isFinal = data.is_final;
 
-                if ((data.type === 'FinalTranscript' || data.type === 'transcript.final') && data.text) {
-                    const text = data.text.trim();
-                    showTranscript('user', text);
-                    console.log('[Voice] Final transcript:', text);
-                    if (text) {
-                        setState('thinking', 'Thinking...');
-                        setStatus('Processing...');
-                        processUserSpeech(text);
+                    if (transcript) {
+                        if (isFinal) {
+                            showTranscript('user', transcript);
+                            console.log('[Voice] Final transcript:', transcript);
+                            if (transcript) {
+                                setState('thinking', 'Thinking...');
+                                setStatus('Processing...');
+                                processUserSpeech(transcript);
+                            }
+                        } else {
+                            showTranscript('user', transcript);
+                        }
                     }
-                }
-
-                if (data.error) {
-                    console.error('[Voice] AssemblyAI error:', data.error);
-                    setStatus('STT error: ' + JSON.stringify(data.error));
                 }
             };
 
-            assemblyWS.onerror = err => {
-                console.error('[Voice] AssemblyAI WS error:', err);
+            sttWS.onerror = err => {
+                console.error('[Voice] Deepgram WS error:', err);
                 reject(err);
             };
 
-            assemblyWS.onclose = e => {
-                console.log('[Voice] AssemblyAI closed:', e.code, e.reason);
+            sttWS.onclose = e => {
+                console.log('[Voice] Deepgram closed:', e.code, e.reason);
                 connected = false;
                 if (e.code !== 1000) {
                     setStatus('Disconnected: ' + (e.reason || e.code));
@@ -261,7 +251,6 @@ const voiceMode = (() => {
         const overlay = $('voice-mode-overlay');
         if (!overlay) return;
 
-        // Create conversation if needed
         if (!state.conversationId) {
             try {
                 const headers = { 'Content-Type': 'application/json' };
@@ -289,7 +278,7 @@ const voiceMode = (() => {
             const keys = await fetchKeys();
             setStatus('Connecting...');
             await startAudioCapture();
-            await connectAssemblyAI(keys.assemblyai_key);
+            await connectDeepgram(keys.deepgram_token);
         } catch (err) {
             console.error('[Voice] Open failed:', err);
             setStatus('Failed: ' + err.message);
@@ -299,11 +288,11 @@ const voiceMode = (() => {
     }
 
     function close() {
-        if (assemblyWS && assemblyWS.readyState === WebSocket.OPEN) {
-            try { assemblyWS.send(JSON.stringify({ terminate_session: true })); } catch (e) {}
-            assemblyWS.close();
+        if (sttWS && sttWS.readyState === WebSocket.OPEN) {
+            try { sttWS.send(JSON.stringify({ type: 'CloseStream' })); } catch (e) {}
+            sttWS.close();
         }
-        assemblyWS = null;
+        sttWS = null;
         if (mediaStream) {
             mediaStream.getTracks().forEach(t => t.stop());
             mediaStream = null;

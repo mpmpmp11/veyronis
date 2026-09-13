@@ -77,6 +77,8 @@ class Config:
     ASSEMBLYAI_API_KEY: str = os.getenv("ASSEMBLYAI_API_KEY", "").strip()
     TTS_AI_API_KEY: str = os.getenv("TTS_AI_API_KEY", "").strip()
 
+    DEEPGRAM_API_KEY: str = os.getenv("DEEPGRAM_API_KEY", "").strip()
+
     
     @classmethod
     def get_model(cls, is_pro: bool = False, is_limited: bool = False) -> str:
