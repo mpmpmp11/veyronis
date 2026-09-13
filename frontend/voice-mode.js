@@ -99,7 +99,7 @@ const voiceMode = (() => {
         for (let i = 0; i < binary.length; i++) {
             bytes[i] = binary.charCodeAt(i);
         }
-        return bytes.arrayBuffer ? bytes.arrayBuffer() : bytes.buffer;
+        return bytes.buffer;
     }
 
     // ─── WEBSOCKET ───
@@ -140,7 +140,8 @@ const voiceMode = (() => {
     function sendSetupMessage() {
         const setup = {
             setup: {
-                model: "models/gemini-2.0-flash-live-001",
+                // ✅ Current stable Live API model
+                model: "models/gemini-3.1-flash-live-preview",
                 generationConfig: {
                     responseModalities: ["AUDIO"],
                     speechConfig: {
