@@ -19,16 +19,19 @@ const voiceMode = (() => {
 
     // ─── UI HELPERS ───
     const $ = id => document.getElementById(id);
+
     const setState = (state, label) => {
         const orb = $('voice-orb');
         if (orb) orb.className = 'voice-orb state-' + state;
         const labelEl = $('voice-state-label');
         if (labelEl) labelEl.textContent = label || state;
     };
+
     const setStatus = text => {
         const el = $('voice-status');
         if (el) el.textContent = text || '';
     };
+
     const showTranscript = (role, text) => {
         const el = role === 'user' ? $('voice-user-text') : $('voice-ai-text');
         if (!el) return;
@@ -53,6 +56,7 @@ const voiceMode = (() => {
         const source = audioContext.createMediaStreamSource(mediaStream);
         const bufferSize = 4096;
         const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+
         processor.onaudioprocess = e => {
             if (muted || !connected || !ws || ws.readyState !== WebSocket.OPEN) return;
             const input = e.inputBuffer.getChannelData(0);
@@ -60,8 +64,14 @@ const voiceMode = (() => {
             const b64 = arrayBufferToBase64(pcm16.buffer);
             sendAudioChunk(b64);
         };
+
         source.connect(processor);
-        processor.connect(audioContext.destination);
+
+        // ✅ Silent gain to prevent mic feedback while keeping the processor alive
+        const silentGain = audioContext.createGain();
+        silentGain.gain.value = 0;
+        processor.connect(silentGain);
+        silentGain.connect(audioContext.destination);
     }
 
     function floatTo16BitPCM(float32Array) {
@@ -94,10 +104,13 @@ const voiceMode = (() => {
 
     // ─── WEBSOCKET ───
     function connectWebSocket() {
-        const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${sessionToken}`;
+        // ✅ v1alpha + access_token (ephemeral token format)
+        const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?access_token=${sessionToken}`;
+        console.log('[Voice] Connecting to:', url.replace(sessionToken, '***'));
         ws = new WebSocket(url);
 
         ws.onopen = () => {
+            console.log('[Voice] WebSocket opened');
             setStatus('Connected. Sending setup...');
             sendSetupMessage();
         };
@@ -105,9 +118,10 @@ const voiceMode = (() => {
         ws.onmessage = async event => {
             try {
                 const data = JSON.parse(event.data);
+                console.log('[Voice] Server:', data);
                 handleServerMessage(data);
             } catch (e) {
-                console.error('[Voice] Parse error:', e);
+                console.error('[Voice] Parse error:', e, event.data);
             }
         };
 
@@ -116,16 +130,18 @@ const voiceMode = (() => {
             setStatus('Connection error');
         };
 
-        ws.onclose = () => {
+        ws.onclose = (e) => {
+            console.log('[Voice] WebSocket closed:', e.code, e.reason);
             connected = false;
-            setStatus('Disconnected');
+            setStatus('Disconnected: ' + (e.reason || e.code));
         };
     }
 
     function sendSetupMessage() {
         const setup = {
             setup: {
-                model: "models/gemini-2.5-flash-native-audio-preview-12-2025",
+                // ✅ Stable model name
+                model: "models/gemini-2.0-flash-live-001",
                 generationConfig: {
                     responseModalities: ["AUDIO"],
                     speechConfig: {
@@ -156,6 +172,7 @@ PERSONALITY:
                 }
             }
         };
+        console.log('[Voice] Sending setup:', setup);
         ws.send(JSON.stringify(setup));
     }
 
@@ -174,6 +191,7 @@ PERSONALITY:
     // ─── MESSAGE HANDLING ───
     function handleServerMessage(data) {
         if (data.setupComplete) {
+            console.log('[Voice] Setup complete');
             connected = true;
             setState('listening', 'Listening...');
             setStatus('Speak now');
@@ -185,7 +203,9 @@ PERSONALITY:
         if (data.serverContent) {
             const sc = data.serverContent;
 
+            // Interruption
             if (sc.interrupted) {
+                console.log('[Voice] Interrupted');
                 stopPlayback();
                 playbackQueue = [];
                 setState('listening', 'Listening...');
@@ -193,6 +213,7 @@ PERSONALITY:
                 return;
             }
 
+            // Model turn with audio
             if (sc.modelTurn && sc.modelTurn.parts) {
                 for (const part of sc.modelTurn.parts) {
                     if (part.inlineData && part.inlineData.data) {
@@ -205,17 +226,21 @@ PERSONALITY:
                 if (!isPlaying) setState('speaking', 'Speaking...');
             }
 
+            // Input transcription
             if (sc.inputTranscription && sc.inputTranscription.text) {
                 const cur = $('voice-user-text')?.textContent || '';
                 showTranscript('user', cur + sc.inputTranscription.text);
             }
 
+            // Output transcription
             if (sc.outputTranscription && sc.outputTranscription.text) {
                 const cur = $('voice-ai-text')?.textContent || '';
                 showTranscript('ai', cur + sc.outputTranscription.text);
             }
 
+            // Turn complete
             if (sc.turnComplete) {
+                console.log('[Voice] Turn complete');
                 if (!isPlaying) {
                     setState('listening', 'Listening...');
                     setStatus('Speak now');
@@ -224,7 +249,7 @@ PERSONALITY:
         }
     }
 
-    // ─── AUDIO PLAYBACK ───
+    // ─── AUDIO PLAYBACK QUEUE ───
     function queueAudioChunk(base64Audio) {
         playbackQueue.push(base64Audio);
         if (!isPlaying) processPlaybackQueue();
@@ -245,6 +270,7 @@ PERSONALITY:
             for (let i = 0; i < pcm16.length; i++) {
                 float32[i] = pcm16[i] / 32768;
             }
+
             if (!playbackContext) {
                 playbackContext = new (window.AudioContext || window.webkitAudioContext)({
                     sampleRate: OUTPUT_SAMPLE_RATE
@@ -253,16 +279,20 @@ PERSONALITY:
             if (playbackContext.state === 'suspended') {
                 await playbackContext.resume();
             }
+
             const buffer = playbackContext.createBuffer(1, float32.length, OUTPUT_SAMPLE_RATE);
             buffer.getChannelData(0).set(float32);
+
             const source = playbackContext.createBufferSource();
             source.buffer = buffer;
             source.connect(playbackContext.destination);
             currentSource = source;
+
             source.onended = () => {
                 currentSource = null;
                 processPlaybackQueue();
             };
+
             source.start(0);
         } catch (e) {
             console.error('[Voice] Playback error:', e);
@@ -283,6 +313,31 @@ PERSONALITY:
     async function open() {
         const overlay = $('voice-mode-overlay');
         if (!overlay) return;
+
+        // ✅ Create a new Voice Chat conversation if not already in one
+        if (!state.conversationId) {
+            try {
+                const headers = { 'Content-Type': 'application/json' };
+                if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+                const convRes = await fetch(`${state.apiUrl}/conversations`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        user_id: state.userId,
+                        title: 'Voice Chat'
+                    })
+                });
+                if (convRes.ok) {
+                    const convData = await convRes.json();
+                    state.conversationId = convData.id;
+                    if (typeof loadConversations === 'function') loadConversations();
+                    console.log('[Voice] Created Voice Chat conversation:', convData.id);
+                }
+            } catch (e) {
+                console.warn('[Voice] Could not create conversation:', e);
+            }
+        }
+
         overlay.classList.remove('hidden');
         setState('idle', 'Starting...');
         setStatus('Requesting microphone...');
@@ -295,6 +350,7 @@ PERSONALITY:
             }
             const tokenData = await res.json();
             sessionToken = tokenData.token;
+            console.log('[Voice] Got ephemeral token');
             setStatus('Connecting...');
             await startAudioCapture();
             connectWebSocket();
