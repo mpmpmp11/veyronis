@@ -1263,9 +1263,10 @@ async def text_to_speech(request: dict):
 
 @app.get("/api/voice/streaming-token")
 async def get_streaming_token(current_user: dict = Depends(get_current_user_required)):
-    """Generate a temporary Deepgram token (safe for browsers)."""
+    """Return Deepgram key for the voice session."""
     if not Config.DEEPGRAM_API_KEY:
         raise HTTPException(503, detail="Deepgram not configured.")
+    return {"token": Config.DEEPGRAM_API_KEY}
 
     try:
         resp = requests.post(
