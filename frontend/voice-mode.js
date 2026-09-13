@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// VEYRONIS VOICE MODE — AssemblyAI + Groq + TTS.ai
+// VEYRONIS VOICE MODE — AssemblyAI + Groq + Fish Audio
 // ═══════════════════════════════════════════════════════
 
 const voiceMode = (() => {
@@ -31,11 +31,12 @@ const voiceMode = (() => {
         el.classList.toggle('visible', !!text);
     };
 
-    // ─── FETCH KEYS FROM BACKEND ───
+    // ─── FETCH STREAMING TOKEN FROM BACKEND ───
     async function fetchKeys() {
-        const res = await authenticatedFetch('/api/voice/get-keys');
-        if (!res.ok) throw new Error('Failed to fetch voice keys');
-        return await res.json();
+        const res = await authenticatedFetch('/api/voice/streaming-token');
+        if (!res.ok) throw new Error('Failed to get streaming token');
+        const data = await res.json();
+        return { assemblyai_key: data.token };
     }
 
     // ─── AUDIO CAPTURE ───
@@ -90,11 +91,10 @@ const voiceMode = (() => {
         return btoa(binary);
     }
 
-    // ─── ASSEMBLYAI WEBSOCKET ───
-    async function connectAssemblyAI(apiKey) {
-        // ✅ Token in URL (browser WS can't send auth after open)
-        const url = `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&language_code=ka&token=${apiKey}`;
-        console.log('[Voice] Connecting to AssemblyAI (Georgian)...');
+    // ─── ASSEMBLYAI WEBSOCKET (v3 + Whisper for Georgian) ───
+    async function connectAssemblyAI(token) {
+        const url = `wss://streaming.assemblyai.com/v3/ws?token=${token}&speech_model=whisper-rt&language_code=ka`;
+        console.log('[Voice] Connecting to AssemblyAI (Whisper, Georgian)...');
 
         return new Promise((resolve, reject) => {
             assemblyWS = new WebSocket(url);
@@ -112,18 +112,18 @@ const voiceMode = (() => {
                     return;
                 }
 
-                if (data.message_type === 'SessionBegins') {
+                if (data.type === 'SessionBegins' || data.type === 'session.ready') {
                     console.log('[Voice] AssemblyAI session started');
                     connected = true;
                     setState('listening', 'Listening...');
                     setStatus('Speak now');
                 }
 
-                if (data.message_type === 'PartialTranscript' && data.text) {
+                if ((data.type === 'PartialTranscript' || data.type === 'transcript.partial') && data.text) {
                     showTranscript('user', data.text);
                 }
 
-                if (data.message_type === 'FinalTranscript' && data.text) {
+                if ((data.type === 'FinalTranscript' || data.type === 'transcript.final') && data.text) {
                     const text = data.text.trim();
                     showTranscript('user', text);
                     console.log('[Voice] Final transcript:', text);
@@ -136,7 +136,7 @@ const voiceMode = (() => {
 
                 if (data.error) {
                     console.error('[Voice] AssemblyAI error:', data.error);
-                    setStatus('STT error: ' + data.error);
+                    setStatus('STT error: ' + JSON.stringify(data.error));
                 }
             };
 
@@ -226,7 +226,7 @@ const voiceMode = (() => {
         }
     }
 
-    // ─── TEXT-TO-SPEECH ───
+    // ─── TEXT-TO-SPEECH (Fish Audio) ───
     async function speakText(text) {
         try {
             const res = await authenticatedFetch('/api/voice/tts-georgian', {
