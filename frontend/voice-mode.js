@@ -67,7 +67,7 @@ const voiceMode = (() => {
 
         source.connect(processor);
 
-        // ✅ Silent gain to prevent mic feedback while keeping the processor alive
+        // Silent gain to prevent mic feedback while keeping the processor alive
         const silentGain = audioContext.createGain();
         silentGain.gain.value = 0;
         processor.connect(silentGain);
@@ -99,13 +99,13 @@ const voiceMode = (() => {
         for (let i = 0; i < binary.length; i++) {
             bytes[i] = binary.charCodeAt(i);
         }
-        return bytes.buffer;
+        return bytes.arrayBuffer ? bytes.arrayBuffer() : bytes.buffer;
     }
 
     // ─── WEBSOCKET ───
     function connectWebSocket() {
-        // ✅ v1alpha + access_token (ephemeral token format)
-        const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?access_token=${sessionToken}`;
+        // v1alpha + BidiGenerateContentConstrained + access_token (ephemeral token format)
+        const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${sessionToken}`;
         console.log('[Voice] Connecting to:', url.replace(sessionToken, '***'));
         ws = new WebSocket(url);
 
@@ -140,7 +140,6 @@ const voiceMode = (() => {
     function sendSetupMessage() {
         const setup = {
             setup: {
-                // ✅ Stable model name
                 model: "models/gemini-2.0-flash-live-001",
                 generationConfig: {
                     responseModalities: ["AUDIO"],
@@ -160,6 +159,10 @@ CRITICAL LANGUAGE RULE:
 - If they speak English, respond ONLY in English.
 - Never mix languages. Never translate.
 
+GREETING RULE:
+- On the very first turn, greet the user warmly and briefly.
+- Ask how you can help them today.
+
 STYLE:
 - Brief, conversational, natural — like a smart friend.
 - 1-3 short sentences unless asked for detail.
@@ -172,8 +175,26 @@ PERSONALITY:
                 }
             }
         };
-        console.log('[Voice] Sending setup:', setup);
+        console.log('[Voice] Sending setup');
         ws.send(JSON.stringify(setup));
+    }
+
+    // ✅ Trigger the AI to speak first
+    function sendGreeting() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const greeting = {
+            clientContent: {
+                turns: [{
+                    role: "user",
+                    parts: [{
+                        text: "Say a short warm hello to the user and ask how you can help them today. Keep it under 15 words."
+                    }]
+                }],
+                turnComplete: true
+            }
+        };
+        console.log('[Voice] Sending greeting trigger');
+        ws.send(JSON.stringify(greeting));
     }
 
     function sendAudioChunk(base64Audio) {
@@ -193,10 +214,12 @@ PERSONALITY:
         if (data.setupComplete) {
             console.log('[Voice] Setup complete');
             connected = true;
-            setState('listening', 'Listening...');
-            setStatus('Speak now');
+            setState('thinking', 'Greeting...');
+            setStatus('Connecting...');
             showTranscript('user', '');
             showTranscript('ai', '');
+            // ✅ Trigger AI greeting
+            sendGreeting();
             return;
         }
 
@@ -314,7 +337,7 @@ PERSONALITY:
         const overlay = $('voice-mode-overlay');
         if (!overlay) return;
 
-        // ✅ Create a new Voice Chat conversation if not already in one
+        // Create a new Voice Chat conversation if not already in one
         if (!state.conversationId) {
             try {
                 const headers = { 'Content-Type': 'application/json' };
