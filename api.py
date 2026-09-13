@@ -1279,7 +1279,7 @@ async def get_voice_session_token(
 
         client = genai.Client(
             api_key=Config.GOOGLE_API_KEY,
-            http_options={"api_version": "v1alpha"}
+            http_options={"api_version": "v1alpha"}   # ✅ MUST be v1alpha for ephemeral tokens
         )
 
         now = datetime.datetime.now(tz=datetime.timezone.utc)
@@ -1288,6 +1288,14 @@ async def get_voice_session_token(
                 "uses": 1,
                 "expire_time": now + datetime.timedelta(minutes=30),
                 "new_session_expire_time": now + datetime.timedelta(minutes=1),
+                # ✅ Lock the token to the exact model Live API will use
+                "live_connect_constraints": {
+                    "model": "models/gemini-2.5-flash-native-audio-preview-12-2025",
+                    "config": {
+                        "session_resumption": {},
+                        "response_modalities": ["AUDIO"],
+                    },
+                },
             }
         )
         return {"token": token.name, "expires_in": 1800}

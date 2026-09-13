@@ -105,7 +105,7 @@ const voiceMode = (() => {
     // ─── WEBSOCKET ───
     function connectWebSocket() {
         // v1beta + BidiGenerateContentConstrained + access_token (ephemeral token format)
-        const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${sessionToken}`;
+const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${sessionToken}`;
         console.log('[Voice] Connecting to:', url.replace(sessionToken, '***'));
         ws = new WebSocket(url);
 
