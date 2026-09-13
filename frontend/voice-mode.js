@@ -104,8 +104,8 @@ const voiceMode = (() => {
 
     // ─── WEBSOCKET ───
     function connectWebSocket() {
-        // v1alpha + BidiGenerateContentConstrained + access_token (ephemeral token format)
-        const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${sessionToken}`;
+        // v1beta + BidiGenerateContentConstrained + access_token (ephemeral token format)
+        const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${sessionToken}`;
         console.log('[Voice] Connecting to:', url.replace(sessionToken, '***'));
         ws = new WebSocket(url);
 
@@ -141,7 +141,7 @@ const voiceMode = (() => {
         const setup = {
             setup: {
                 // ✅ Current stable Live API model
-                model: "models/gemini-3.1-flash-live-preview",
+                model: "models/gemini-2.5-flash-native-audio-preview-12-2025",
                 generationConfig: {
                     responseModalities: ["AUDIO"],
                     speechConfig: {
