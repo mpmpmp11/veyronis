@@ -1260,7 +1260,43 @@ async def text_to_speech(request: dict):
     except Exception as e:
         print(f"[FISH TTS EXCEPTION] {e}")
         raise HTTPException(500, detail="🎤 TTS generation failed.")
-    
+
+
+@app.get("/api/voice/session-token")
+async def get_voice_session_token(
+    current_user: dict = Depends(get_current_user_required)
+):
+    """Generate a short-lived ephemeral token for Gemini Live API."""
+    if not Config.GOOGLE_API_KEY:
+        raise HTTPException(503, detail="🎤 Voice mode not configured.")
+
+    if not _check_rate_limit(f"voice_{current_user['email']}", max_requests=5, window_seconds=60):
+        raise HTTPException(429, detail="⏳ Too many voice sessions. Please wait.")
+
+    try:
+        from google import genai
+        import datetime
+
+        client = genai.Client(
+            api_key=Config.GOOGLE_API_KEY,
+            http_options={"api_version": "v1alpha"}
+        )
+
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        token = client.auth_tokens.create(
+            config={
+                "uses": 1,
+                "expire_time": now + datetime.timedelta(minutes=30),
+                "new_session_expire_time": now + datetime.timedelta(minutes=1),
+            }
+        )
+        return {"token": token.name, "expires_in": 1800}
+    except Exception as e:
+        print(f"[VOICE TOKEN ERROR] {e}")
+        traceback.print_exc()
+        raise HTTPException(500, detail="🎤 Could not start voice session.")
+
+
 @app.get("/health")
 async def health():
     groq_ok = bool(Config.GROQ_API_KEY)
@@ -1709,6 +1745,7 @@ async def preview_file(
     """
     
     return HTMLResponse(content=html)
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
