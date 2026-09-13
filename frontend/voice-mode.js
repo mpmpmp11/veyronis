@@ -137,20 +137,21 @@ const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelang
         };
     }
 
-    function sendSetupMessage() {
+       function sendSetupMessage() {
         const setup = {
             setup: {
-                // ✅ Current stable Live API model
                 model: "models/gemini-2.5-flash-native-audio-preview-12-2025",
-                generationConfig: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: "Aoede" }
+                generation_config: {
+                    response_modalities: ["AUDIO"],
+                    speech_config: {
+                        voice_config: {
+                            prebuilt_voice_config: {
+                                voice_name: "Aoede"
+                            }
                         }
                     }
                 },
-                systemInstruction: {
+                system_instruction: {
                     parts: [{
                         text: `You are VEYRONIS, a friendly intelligent AI voice assistant for students.
 
@@ -176,26 +177,8 @@ PERSONALITY:
                 }
             }
         };
-        console.log('[Voice] Sending setup');
+        console.log('[Voice] Sending setup (snake_case):', setup);
         ws.send(JSON.stringify(setup));
-    }
-
-    // ✅ Trigger the AI to speak first
-    function sendGreeting() {
-        if (!ws || ws.readyState !== WebSocket.OPEN) return;
-        const greeting = {
-            clientContent: {
-                turns: [{
-                    role: "user",
-                    parts: [{
-                        text: "Say a short warm hello to the user and ask how you can help them today. Keep it under 15 words."
-                    }]
-                }],
-                turnComplete: true
-            }
-        };
-        console.log('[Voice] Sending greeting trigger');
-        ws.send(JSON.stringify(greeting));
     }
 
     function sendAudioChunk(base64Audio) {

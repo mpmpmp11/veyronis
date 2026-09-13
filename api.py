@@ -1278,9 +1278,9 @@ async def get_voice_session_token(
         import datetime
 
         client = genai.Client(
-            api_key=Config.GOOGLE_API_KEY,
-            http_options={"api_version": "v1alpha"}   # ✅ MUST be v1alpha for ephemeral tokens
-        )
+    api_key=Config.GOOGLE_API_KEY,
+    http_options={"api_version": "v1beta"}
+)
 
         now = datetime.datetime.now(tz=datetime.timezone.utc)
         token = client.auth_tokens.create(
