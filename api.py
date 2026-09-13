@@ -1261,7 +1261,53 @@ async def text_to_speech(request: dict):
         print(f"[FISH TTS EXCEPTION] {e}")
         raise HTTPException(500, detail="🎤 TTS generation failed.")
 
+@app.get("/api/voice/get-keys")
+async def get_voice_keys(current_user: dict = Depends(get_current_user_required)):
+    """Fetch voice API keys for the frontend."""
+    if not Config.ASSEMBLYAI_API_KEY or not Config.TTS_AI_API_KEY:
+        raise HTTPException(503, detail="Voice mode not configured.")
+    return {
+        "assemblyai_key": Config.ASSEMBLYAI_API_KEY,
+        "tts_ai_key": Config.TTS_AI_API_KEY,
+    }
 
+
+@app.post("/api/voice/tts-georgian")
+async def tts_georgian(request: dict, current_user: dict = Depends(get_current_user_required)):
+    """Generate Georgian speech via TTS.ai."""
+    text = (request.get("text") or "").strip()
+    if not text:
+        raise HTTPException(400, detail="No text provided.")
+    if not Config.TTS_AI_API_KEY:
+        raise HTTPException(503, detail="TTS.ai not configured.")
+
+    if len(text) > 3000:
+        text = text[:3000]
+
+    try:
+        resp = requests.post(
+            "https://api.tts.ai/v1/tts",
+            headers={
+                "Authorization": f"Bearer {Config.TTS_AI_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "text": text,
+                "voice": "piper-natia-georgian",
+                "format": "mp3"
+            },
+            timeout=30
+        )
+        if resp.status_code != 200:
+            print(f"[TTS.AI ERROR] {resp.status_code}: {resp.text[:300]}")
+            raise HTTPException(500, detail="TTS generation failed.")
+        return Response(content=resp.content, media_type="audio/mpeg")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[TTS.AI EXCEPTION] {e}")
+        raise HTTPException(500, detail="TTS generation failed.")
+    
 @app.get("/api/voice/session-token")
 async def get_voice_session_token(
     current_user: dict = Depends(get_current_user_required)

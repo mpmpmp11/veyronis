@@ -73,6 +73,10 @@ class Config:
 
     FISH_API_KEY: str = os.getenv("FISH_API_KEY", "").strip()
     FISH_VOICE_ID: str = os.getenv("FISH_VOICE_ID", "933563129e564b19a115bedd57b7406a").strip()
+
+    ASSEMBLYAI_API_KEY: str = os.getenv("ASSEMBLYAI_API_KEY", "").strip()
+    TTS_AI_API_KEY: str = os.getenv("TTS_AI_API_KEY", "").strip()
+
     
     @classmethod
     def get_model(cls, is_pro: bool = False, is_limited: bool = False) -> str:
