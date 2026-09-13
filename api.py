@@ -1261,95 +1261,74 @@ async def text_to_speech(request: dict):
         print(f"[FISH TTS EXCEPTION] {e}")
         raise HTTPException(500, detail="🎤 TTS generation failed.")
 
-@app.get("/api/voice/get-keys")
-async def get_voice_keys(current_user: dict = Depends(get_current_user_required)):
-    """Fetch voice API keys for the frontend."""
-    if not Config.ASSEMBLYAI_API_KEY or not Config.TTS_AI_API_KEY:
-        raise HTTPException(503, detail="Voice mode not configured.")
-    return {
-        "assemblyai_key": Config.ASSEMBLYAI_API_KEY,
-        "tts_ai_key": Config.TTS_AI_API_KEY,
-    }
+@app.get("/api/voice/streaming-token")
+async def get_streaming_token(current_user: dict = Depends(get_current_user_required)):
+    """Generate a temporary AssemblyAI streaming token (safe for browsers)."""
+    if not Config.ASSEMBLYAI_API_KEY:
+        raise HTTPException(503, detail="AssemblyAI not configured.")
+
+    try:
+        resp = requests.get(
+            "https://streaming.assemblyai.com/v3/token",
+            params={"expires_in_seconds": 300},
+            headers={"Authorization": Config.ASSEMBLYAI_API_KEY},
+            timeout=10
+        )
+        if resp.status_code != 200:
+            print(f"[ASSEMBLYAI TOKEN ERROR] {resp.status_code}: {resp.text[:300]}")
+            raise HTTPException(500, detail="Failed to create streaming token.")
+        data = resp.json()
+        return {"token": data.get("token")}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ASSEMBLYAI TOKEN EXCEPTION] {e}")
+        raise HTTPException(500, detail="Failed to create streaming token.")
 
 
 @app.post("/api/voice/tts-georgian")
 async def tts_georgian(request: dict, current_user: dict = Depends(get_current_user_required)):
-    """Generate Georgian speech via TTS.ai."""
+    """Generate Georgian speech via Fish Audio (already integrated)."""
     text = (request.get("text") or "").strip()
     if not text:
         raise HTTPException(400, detail="No text provided.")
-    if not Config.TTS_AI_API_KEY:
-        raise HTTPException(503, detail="TTS.ai not configured.")
+    if not Config.FISH_API_KEY:
+        raise HTTPException(503, detail="Fish Audio not configured.")
 
+    text = sanitize_for_tts(text)
+    if not text:
+        raise HTTPException(400, detail="Nothing speakable after cleaning.")
     if len(text) > 3000:
         text = text[:3000]
 
+    voice_id = request.get("voice_id") or Config.FISH_VOICE_ID
+
     try:
         resp = requests.post(
-            "https://api.tts.ai/v1/tts",
+            "https://api.fish.audio/v1/tts",
             headers={
-                "Authorization": f"Bearer {Config.TTS_AI_API_KEY}",
-                "Content-Type": "application/json"
+                "Authorization": f"Bearer {Config.FISH_API_KEY}",
+                "Content-Type": "application/json",
+                "model": "s2.1-pro-free",
             },
             json={
                 "text": text,
-                "voice": "piper-natia-georgian",
-                "format": "mp3"
+                "reference_id": voice_id,
+                "format": "mp3",
+                "mp3_bitrate": 128,
+                "latency": "normal",
             },
-            timeout=30
+            timeout=60,
         )
         if resp.status_code != 200:
-            print(f"[TTS.AI ERROR] {resp.status_code}: {resp.text[:300]}")
-            raise HTTPException(500, detail="TTS generation failed.")
+            print(f"[FISH VOICE TTS ERROR] {resp.status_code}: {resp.text[:300]}")
+            raise HTTPException(500, detail="Voice TTS failed.")
         return Response(content=resp.content, media_type="audio/mpeg")
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[TTS.AI EXCEPTION] {e}")
-        raise HTTPException(500, detail="TTS generation failed.")
-    
-@app.get("/api/voice/session-token")
-async def get_voice_session_token(
-    current_user: dict = Depends(get_current_user_required)
-):
-    """Generate a short-lived ephemeral token for Gemini Live API."""
-    if not Config.GOOGLE_API_KEY:
-        raise HTTPException(503, detail="🎤 Voice mode not configured.")
-
-    if not _check_rate_limit(f"voice_{current_user['email']}", max_requests=5, window_seconds=60):
-        raise HTTPException(429, detail="⏳ Too many voice sessions. Please wait.")
-
-    try:
-        from google import genai
-        import datetime
-
-        client = genai.Client(
-    api_key=Config.GOOGLE_API_KEY,
-    http_options={"api_version": "v1beta"}
-)
-
-        now = datetime.datetime.now(tz=datetime.timezone.utc)
-        token = client.auth_tokens.create(
-            config={
-                "uses": 1,
-                "expire_time": now + datetime.timedelta(minutes=30),
-                "new_session_expire_time": now + datetime.timedelta(minutes=1),
-                # ✅ Lock the token to the exact model Live API will use
-                "live_connect_constraints": {
-                    "model": "models/gemini-2.5-flash-native-audio-preview-12-2025",
-                    "config": {
-                        "session_resumption": {},
-                        "response_modalities": ["AUDIO"],
-                    },
-                },
-            }
-        )
-        return {"token": token.name, "expires_in": 1800}
-    except Exception as e:
-        print(f"[VOICE TOKEN ERROR] {e}")
-        traceback.print_exc()
-        raise HTTPException(500, detail="🎤 Could not start voice session.")
-
+        print(f"[FISH VOICE TTS EXCEPTION] {e}")
+        raise HTTPException(500, detail="Voice TTS failed.")
 
 @app.get("/health")
 async def health():
