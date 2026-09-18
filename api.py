@@ -34,7 +34,7 @@ from database import (
     clear_reset_token, get_db,
     save_attachment, get_attachments, get_upload_counts,
     increment_upload_count,
-    get_archived_conversations, archive_conversation, unarchive_conversation, delete_old_attachments, 
+    get_archived_conversations, archive_conversation, unarchive_conversation, delete_old_attachments,
 )
 from settings import Config
 import base64
@@ -131,11 +131,9 @@ async def get_current_user_from_token_or_query(
     token: Optional[str] = None
 ):
     """Get current user from either Authorization header or query parameter 'token'."""
-    # First check Authorization header
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
-    # If not, fall back to query param
     if not token:
         token = request.query_params.get("token")
     if not token:
@@ -250,7 +248,7 @@ def add_free_request(client_ip: str):
 # ─── REQUEST MODELS ───
 class ChatRequest(BaseModel):
     message: str = ""
-    pro_code: str = ""  # kept for backward compatibility but ignored
+    pro_code: str = ""
     user_id: str = ""
     mode: str = "chat"
     model_mode: str = "instant"
@@ -259,6 +257,7 @@ class ChatRequest(BaseModel):
     image: Optional[str] = None
     custom_instructions: Optional[str] = None
     response_style: Optional[str] = None
+    voice_mode: bool = False
 
 class ChatResponse(BaseModel):
     response: str
@@ -307,7 +306,6 @@ async def register(req: RegisterRequest, request: Request):
         user_id = create_user(req.email, hashed)
         token = create_access_token({"sub": str(user_id)})
 
-        # Send verification email
         if Config.email_ready():
             verification_token = secrets.token_urlsafe(32)
             expires = datetime.utcnow() + timedelta(hours=24)
@@ -317,7 +315,6 @@ async def register(req: RegisterRequest, request: Request):
             if not success:
                 print(f"[VEYRONIS] Verification email failed to send for {req.email}")
 
-        # Fetch user to get display_id
         user = get_user_by_id(user_id)
         return TokenResponse(
             access_token=token,
@@ -366,13 +363,11 @@ async def get_me(current_user: dict = Depends(get_current_user_required)):
         usage = get_usage_count(current_user["email"], today) if not user["is_pro"] else None
         remaining = max(0, 20 - usage) if usage is not None else None
 
-        # Compute next reset time (midnight UTC)
         from datetime import datetime as dt, timedelta
         now = dt.utcnow()
         tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         reset_at_iso = tomorrow.isoformat() + "Z"
 
-        # Upload counts (only for free users)
         upload_counts = {"images": 0, "docs": 0}
         if not user["is_pro"]:
             upload_counts = get_upload_counts(current_user["email"], today)
@@ -394,7 +389,7 @@ async def get_me(current_user: dict = Depends(get_current_user_required)):
     except Exception as e:
         print(f"[ME ERROR] {e}")
         raise HTTPException(500, detail="😕 Could not retrieve user info. Please try again.")
-    
+
 @app.post("/upgrade")
 async def upgrade_to_pro(current_user: dict = Depends(get_current_user_required)):
     try:
@@ -425,7 +420,6 @@ async def forgot_password(request: Request):
 
         user = get_user_by_email(email)
         if not user:
-            # Security: don't reveal if email exists
             return {"message": "📧 If this email exists, a reset link has been sent."}
 
         token = secrets.token_urlsafe(32)
@@ -482,12 +476,10 @@ async def reset_password(request: Request):
 
 @app.get("/verify-email")
 async def verify_email(token: str):
-    """Redirects to frontend with token in URL hash."""
     return RedirectResponse(f"{Config.APP_BASE_URL}/#email-verified?token={token}")
 
 @app.get("/api/verify-email")
 async def api_verify_email(token: str):
-    """JSON endpoint for frontend to verify email."""
     user = get_user_by_verification_token(token)
     if not user:
         raise HTTPException(400, detail="Invalid or expired verification link.")
@@ -620,7 +612,7 @@ async def export_conversation(
 async def search_messages(
     q: str,
     current_user: dict = Depends(get_current_user_required),
-    conn = Depends(get_db)   # ✅ Use dependency injection
+    conn = Depends(get_db)
 ):
     if not q or len(q.strip()) < 2:
         raise HTTPException(400, detail="📝 Please enter at least 2 characters to search.")
@@ -661,7 +653,6 @@ async def search_messages(
                 "messages": []
             }
         content = row["content"]
-        # Highlight the search term
         idx = content.lower().find(q.lower())
         if idx != -1:
             start = max(0, idx - 50)
@@ -809,13 +800,13 @@ async def list_attachments(
 ):
     user_email = current_user["email"]
     print(f"[ATTACHMENTS] user={user_email}, conv={conversation_id}")
-    
+
     attachments = get_attachments(user_email, conversation_id)
     print(f"[ATTACHMENTS] found {len(attachments)} rows")
-    
+
     return {"attachments": attachments}
 
-# ─── UPLOAD ENDPOINT (With Cloudinary + attachment saving) ───
+# ─── UPLOAD ENDPOINT ───
 
 @app.post("/upload")
 async def upload_document(
@@ -835,16 +826,13 @@ async def upload_document(
         content = await file.read()
         cloudinary_url = None
 
-        # ─── Check file size ───
         if len(content) > 10 * 1024 * 1024:
             raise HTTPException(400, detail="📎 File too large. Maximum size is 10MB.")
 
-        # ─── Check file extension ───
         allowed_extensions = ('.pdf', '.docx', '.txt', '.md', '.csv', '.xlsx', '.xls')
         if not any(file.filename.lower().endswith(ext) for ext in allowed_extensions):
             raise HTTPException(400, detail="📎 Unsupported file type. Please upload PDF, DOCX, TXT, MD, CSV, or Excel.")
 
-        # ─── Check upload limits for free users ───
         is_image = file.content_type and file.content_type.startswith("image/")
         today = str(date.today())
         if not current_user["is_pro"]:
@@ -854,7 +842,6 @@ async def upload_document(
             if not is_image and counts["docs"] >= 3:
                 raise HTTPException(429, detail="📄 Daily document limit reached (3/day). Upgrade to PRO for unlimited.")
 
-        # ─── Cloudinary upload ───
         if Config.cloudinary_ready():
             try:
                 upload_result = cloudinary.uploader.upload(
@@ -872,10 +859,8 @@ async def upload_document(
                 print(f"[CLOUDINARY ERROR] {e}")
                 cloudinary_url = None
 
-        # ─── Extract text ───
         text = DocumentParser.extract_text(content, file.filename)
 
-        # ─── Gemini analysis (only for PRO users) ───
         gemini_analysis = None
         try:
             if current_user["is_pro"] and Config.gemini_ready() and orchestrator.gemini_agent:
@@ -886,7 +871,6 @@ async def upload_document(
         except Exception as e:
             print(f"[VEYRONIS] Gemini doc analysis failed: {e}")
 
-        # ─── Ensure conversation exists ───
         if not conversation_id:
             conversation_id = create_conversation(user_id, title=file.filename)
 
@@ -902,7 +886,6 @@ async def upload_document(
         )
         print(f"[UPLOAD] Saved attachment id: {attach_id}")
 
-        # ─── Increment upload count for free users ───
         if not current_user["is_pro"]:
             increment_upload_count(user_id, today, file_type)
 
@@ -925,7 +908,7 @@ async def upload_document(
         print(f"[UPLOAD ERROR] {e}")
         traceback.print_exc()
         raise HTTPException(500, detail="😕 Upload failed. Please try again.")
-    
+
 # ─── CHAT ENDPOINTS ───
 
 @app.post("/chat", response_model=ChatResponse)
@@ -943,7 +926,6 @@ async def chat(
         if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
             raise HTTPException(429, detail="⏳ You're moving too fast! Please wait a moment.")
 
-        # Determine user and pro status
         if current_user:
             user_id = current_user["email"]
             is_pro = current_user["is_pro"]
@@ -1002,7 +984,8 @@ async def chat(
         result = orchestrator.process_pipeline(
             msg, mode=request.mode, user_id=user_id, conversation_id=conversation_id,
             image_b64=request.image, model_mode=request.model_mode, ai_model=request.ai_model,
-            custom_instructions=request.custom_instructions, response_style=request.response_style
+            custom_instructions=request.custom_instructions, response_style=request.response_style,
+            voice_mode=request.voice_mode
         )
         save_message(user_id, "assistant", result["response"], conversation_id=conversation_id)
         if not is_pro:
@@ -1039,7 +1022,6 @@ async def chat_stream(
                 yield f"data: {json.dumps({'type': 'error', 'content': '⏳ You\'re moving too fast! Please wait a moment.'})}\n\n"
             return StreamingResponse(rate_limit_error(), media_type="text/event-stream")
 
-        # Determine user and pro status
         if current_user:
             user_id = current_user["email"]
             is_pro = current_user["is_pro"]
@@ -1111,7 +1093,7 @@ async def chat_stream(
                     effective_query, mode=request.mode, user_id=user_id, conversation_id=conversation_id,
                     image_b64=request.image if has_image else None, model_mode=request.model_mode,
                     ai_model=request.ai_model, custom_instructions=request.custom_instructions,
-                    response_style=request.response_style
+                    response_style=request.response_style, voice_mode=request.voice_mode
                 ):
                     if event_type == "token":
                         full_response += content
@@ -1166,7 +1148,6 @@ async def execute_code(request: Request):
 
 @app.get("/upload-limits")
 async def get_upload_limits(current_user: dict = Depends(get_current_user_required)):
-    """Get remaining uploads for today (images + documents)."""
     if current_user["is_pro"]:
         return {
             "images": 999, "docs": 999,
@@ -1183,7 +1164,6 @@ async def get_upload_limits(current_user: dict = Depends(get_current_user_requir
         "is_pro": False
     }
 
-
 from fastapi import Response
 from fishaudio import FishAudio
 from fishaudio.utils import save
@@ -1191,7 +1171,6 @@ import io
 
 # --- Fish Audio TTS Endpoint ---
 def sanitize_for_tts(text: str) -> str:
-    """Strip emojis, markdown, and non-speakable symbols."""
     if not text:
         return ""
     emoji_pattern = re.compile(
@@ -1263,13 +1242,10 @@ async def text_to_speech(request: dict):
         raise HTTPException(500, detail="🎤 TTS generation failed.")
 
 # ═══════════════════════════════════════════════════════
-# VOICE MODE — Deepgram Token + Edge-TTS
+# VOICE MODE — ElevenLabs Token + Edge-TTS
 # ═══════════════════════════════════════════════════════
 
-import re
-
 GEORGIAN_RE = re.compile(r'[\u10A0-\u10FF]')
-
 
 @app.get("/api/voice/streaming-token")
 async def get_streaming_token(current_user: dict = Depends(get_current_user_required)):
@@ -1304,33 +1280,99 @@ def _detect_voice(text: str) -> str:
         return "ka-GE-EkaNeural"
     return "en-US-ChristopherNeural"
 
-
 def _clean_for_tts(text: str) -> str:
-    """Strip markdown, code blocks, and emojis."""
+    """Aggressively clean text so Edge-TTS never chokes."""
     if not text:
         return ""
-    text = re.sub(r'```[\s\S]*?```', '', text)
+
+    # 1. Remove code blocks
+    text = re.sub(r'```[\s\S]*?```', ' ', text)
     text = re.sub(r'`([^`]*)`', r'\1', text)
+
+    # 2. Remove URLs
+    text = re.sub(r'https?://\S+', '', text)
+    text = re.sub(r'www\.\S+', '', text)
+
+    # 3. Strip markdown bold/italic/strikethrough
+    text = re.sub(r'\*\*\*([^*]+)\*\*\*', r'\1', text)
     text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
     text = re.sub(r'\*([^*]+)\*', r'\1', text)
-    text = re.sub(r'#{1,6}\s*', '', text)
+    text = re.sub(r'__([^_]+)__', r'\1', text)
+    text = re.sub(r'_([^_]+)_', r'\1', text)
+    text = re.sub(r'~~([^~]+)~~', r'\1', text)
+
+    # 4. Remove markdown headers
+    text = re.sub(r'^\s*#{1,6}\s*', '', text, flags=re.MULTILINE)
+
+    # 5. Remove bullet/numbered list markers
+    text = re.sub(r'^\s*[\-\*•·‣◦]\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\s*\d+[.)]\s+', '', text, flags=re.MULTILINE)
+
+    # 6. Remove markdown links, keep text
     text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+
+    # 7. Remove emojis
     emoji_pat = re.compile(
         "["
-        "\U0001F600-\U0001F64F"
         "\U0001F300-\U0001F5FF"
+        "\U0001F600-\U0001F64F"
         "\U0001F680-\U0001F6FF"
-        "\U0001F1E0-\U0001F1FF"
-        "\U00002700-\U000027BF"
+        "\U0001F700-\U0001F77F"
+        "\U0001F780-\U0001F7FF"
+        "\U0001F800-\U0001F8FF"
         "\U0001F900-\U0001F9FF"
-        "\U00002600-\U000026FF"
         "\U0001FA00-\U0001FAFF"
-        "]+", flags=re.UNICODE
+        "\U0001F1E0-\U0001F1FF"
+        "\U00002600-\U000026FF"
+        "\U00002700-\U000027BF"
+        "\U0001F000-\U0001F0FF"
+        "\U00002B00-\U00002BFF"
+        "\U00002190-\U000021FF"
+        "\U0000FE00-\U0000FE0F"
+        "\U0000200D"
+        "]+",
+        flags=re.UNICODE
     )
-    text = emoji_pat.sub("", text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+    text = emoji_pat.sub(' ', text)
 
+    # 8. Remove invisible noise
+    text = re.sub(r'[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]', '', text)
+
+    # 9. Replace em-dashes and ellipses
+    text = text.replace('—', ', ').replace('–', ', ')
+    text = text.replace('…', ', ').replace('...', ', ')
+
+    # 10. Replace symbols that break TTS
+    text = text.replace('&', ' and ')
+    text = text.replace('&amp;', ' and ')
+    text = text.replace('@', ' at ')
+    text = text.replace('#', ' ')
+    text = text.replace('%', ' percent ')
+    text = text.replace('+', ' plus ')
+    text = text.replace('=', ' equals ')
+    text = text.replace('~', ' ')
+    text = text.replace('^', ' ')
+    text = text.replace('|', ', ')
+    text = text.replace('\\', ' ')
+    text = text.replace('/', ' or ')
+    text = text.replace('[', ' ').replace(']', ' ')
+    text = text.replace('{', ' ').replace('}', ' ')
+    text = text.replace('<', ' ').replace('>', ' ')
+
+    # 11. Collapse whitespace and stray punctuation
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\s+([.,!?;:])', r'\1', text)
+    text = re.sub(r'([.,!?;:])\1+', r'\1', text)
+    text = re.sub(r'^[\s.,!?;:]+', '', text)
+    text = text.strip()
+
+    # 12. Hard cap at 1500 chars, ending at a sentence
+    if len(text) > 1500:
+        cut = text[:1500]
+        last_punct = max(cut.rfind('.'), cut.rfind('!'), cut.rfind('?'))
+        text = cut[:last_punct + 1] if last_punct > 0 else cut
+
+    return text
 
 @app.post("/api/voice/tts-georgian")
 async def tts_georgian(
@@ -1345,8 +1387,6 @@ async def tts_georgian(
     text = _clean_for_tts(raw_text)
     if not text:
         raise HTTPException(400, detail="Nothing speakable after cleaning.")
-    if len(text) > 3000:
-        text = text[:3000]
 
     voice = _detect_voice(text)
     print(f"[EDGE-TTS] voice={voice}, chars={len(text)}")
@@ -1365,11 +1405,6 @@ async def tts_georgian(
         media_type="audio/mpeg",
         headers={"Content-Disposition": "inline; filename=tts.mp3"}
     )
-
-
-
-
-
 
 @app.get("/health")
 async def health():
@@ -1407,7 +1442,6 @@ async def admin_list_users(
     current_user: dict = Depends(get_current_user_required),
     conn = Depends(get_db)
 ):
-    """List all users with their status (admin only)"""
     if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -1422,7 +1456,6 @@ async def admin_list_users(
 
     result = []
     for user in users:
-        # ✅ FIX: use email (text) not id (integer)
         cursor.execute(
             "SELECT COUNT(*) FROM messages WHERE user_id = %s",
             (user["email"],)
@@ -1451,7 +1484,6 @@ async def admin_ban_user(
     current_user: dict = Depends(get_current_user_required),
     conn = Depends(get_db)
 ):
-    """Ban a user (admin only)"""
     if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -1488,7 +1520,6 @@ async def admin_unban_user(
     current_user: dict = Depends(get_current_user_required),
     conn = Depends(get_db)
 ):
-    """Unban a user (admin only)"""
     if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -1513,7 +1544,6 @@ async def admin_list_reports(
     current_user: dict = Depends(get_current_user_required),
     conn = Depends(get_db)
 ):
-    """List all reports (admin only)"""
     if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -1541,7 +1571,6 @@ async def admin_review_report(
     current_user: dict = Depends(get_current_user_required),
     conn = Depends(get_db)
 ):
-    """Review a report (admin only)"""
     if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -1567,7 +1596,6 @@ async def submit_feedback(
     request: dict,
     current_user: dict = Depends(get_current_user_required)
 ):
-    """Send user feedback to admin via email."""
     if not Config.email_ready():
         raise HTTPException(503, detail="Email service not configured")
     message = request.get("message", "").strip()
@@ -1586,21 +1614,20 @@ async def preview_file(
     current_user: dict = Depends(get_current_user_from_token_or_query),
     conn = Depends(get_db)
 ):
-    """Render a dedicated preview page for a file."""
     cursor = conn.cursor()
     cursor.execute(
         "SELECT filename, cloudinary_url, mime_type FROM attachments WHERE id = %s AND user_id = %s",
         (attachment_id, current_user["email"])
     )
     row = cursor.fetchone()
-    
+
     if not row:
         raise HTTPException(404, detail="File not found")
-    
+
     filename = row["filename"]
     url = row["cloudinary_url"]
     mime_type = row["mime_type"] or ""
-    
+
     if not url:
         html = f"""
         <!DOCTYPE html>
@@ -1615,8 +1642,7 @@ async def preview_file(
         </html>
         """
         return HTMLResponse(content=html)
-    
-    # Build the full HTML page (same as before)
+
     html = f"""
     <!DOCTYPE html>
     <html>
@@ -1781,7 +1807,7 @@ async def preview_file(
             const filename = "{filename}";
             const ext = filename.split('.').pop().toLowerCase();
             const content = document.getElementById('preview-content');
-            
+
             function showFallback() {{
                 content.innerHTML = `
                     <div class="fallback">
@@ -1791,7 +1817,7 @@ async def preview_file(
                     </div>
                 `;
             }}
-            
+
             if (['jpg','jpeg','png','gif','webp','svg','bmp'].includes(ext)) {{
                 content.innerHTML = `<img src="${{url}}" alt="${{filename}}" onerror="showFallback()">`;
             }}
@@ -1817,7 +1843,7 @@ async def preview_file(
     </body>
     </html>
     """
-    
+
     return HTMLResponse(content=html)
 
 

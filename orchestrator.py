@@ -23,6 +23,17 @@ LANGUAGE_RULE = (
     "If the user switches language, you switch too.\n\n"
 )
 
+VOICE_MODE_RULE = (
+    "\n\nYOU ARE IN VOICE CALL MODE:\n"
+    "- Keep answers SHORT: 1-3 sentences for simple questions. Max 4-5 sentences unless the user explicitly asks for detail.\n"
+    "- NO emojis. NO markdown. NO bullet points. NO numbered lists. NO asterisks. NO hashes.\n"
+    "- Speak like a warm friend on a phone call, not a written article.\n"
+    "- If you don't know something recent or factual, use the web search context provided. "
+    "If still unsure, briefly say 'I'm not sure' — do not guess or invent.\n"
+    "- Never say 'as an AI' or 'I'm just a language model'.\n"
+    "- Prefer plain conversational sentences with natural punctuation.\n"
+)
+
 
 class CentralOrchestrator:
     def __init__(self) -> None:
@@ -515,7 +526,7 @@ class CentralOrchestrator:
         self.memory.save_context(query, cleaned)
         yield ("done", cleaned)
 
-    def process_pipeline(self, user_query: str, mode: str = "chat", user_id: str = "default", conversation_id: int = None, image_b64: str = None, model_mode: str = "instant", ai_model: str = "groq", custom_instructions: str = None, response_style: str = None) -> dict:
+    def process_pipeline(self, user_query: str, mode: str = "chat", user_id: str = "default", conversation_id: int = None, image_b64: str = None, model_mode: str = "instant", ai_model: str = "groq", custom_instructions: str = None, response_style: str = None, voice_mode: bool = False) -> dict:
         if mode == "canvas":
             history = self._get_history(user_id, user_query, conversation_id)
             system_prompt = "You are VEYRONIS Canvas, an AI that helps users create visualizations on a whiteboard."
@@ -560,6 +571,8 @@ class CentralOrchestrator:
             "REASONING:\n"
             "- For complex questions, wrap step-by-step thinking in <think_reasoning> tags before answering"
         )
+        if voice_mode:
+            system_prompt += VOICE_MODE_RULE
         system_prompt = self._inject_personality(system_prompt, custom_instructions, response_style)
 
         user_lower = user_query.lower().strip()
@@ -617,7 +630,7 @@ class CentralOrchestrator:
         except Exception as e:
             return {"response": f"Gemini failed: {str(e)}. Falling back to Groq.", "reasoning": None, "citations": []}
 
-    def process_pipeline_stream(self, user_query: str, mode: str = "chat", user_id: str = "default", conversation_id: int = None, image_b64: str = None, model_mode: str = "instant", ai_model: str = "groq", custom_instructions: str = None, response_style: str = None):
+    def process_pipeline_stream(self, user_query: str, mode: str = "chat", user_id: str = "default", conversation_id: int = None, image_b64: str = None, model_mode: str = "instant", ai_model: str = "groq", custom_instructions: str = None, response_style: str = None, voice_mode: bool = False):
         if mode == "canvas":
             history = self._get_history(user_id, user_query, conversation_id)
             system_prompt = "You are VEYRONIS Canvas, an AI that helps users create visualizations on a whiteboard."
@@ -675,6 +688,8 @@ class CentralOrchestrator:
             "REASONING:\n"
             "- For complex questions, wrap step-by-step thinking in <think_reasoning> tags before answering"
         )
+        if voice_mode:
+            system_prompt += VOICE_MODE_RULE
         system_prompt = self._inject_personality(system_prompt, custom_instructions, response_style)
 
         user_lower = user_query.lower().strip()
@@ -741,7 +756,7 @@ class CentralOrchestrator:
 
         result = self.process_pipeline(
             user_query, mode, user_id, conversation_id, image_b64, model_mode, ai_model,
-            custom_instructions, response_style
+            custom_instructions, response_style, voice_mode
         )
 
         yield ("reasoning", result.get("reasoning", "Processing..."))

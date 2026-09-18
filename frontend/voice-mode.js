@@ -353,8 +353,8 @@ const voiceMode = (() => {
         setState('thinking', 'Thinking...');
         setStatus('Processing...');
         processUserSpeech(text, myGen);
-    }
-
+        voice_mode: true
+}
     // ─── PROCESS USER SPEECH → GROQ ───
     async function processUserSpeech(text, myGen) {
         isProcessing = true;
@@ -663,7 +663,7 @@ const voiceMode = (() => {
     }
 
 
-    
+
 
     return { open, close, toggleMute };
 })();

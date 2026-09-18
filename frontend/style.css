@@ -6088,3 +6088,74 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
     max-width: 100%;
     transition: opacity 0.25s ease;
 }
+/* ─── VOICE MODE: subtitle styling ─── */
+
+#voice-user-text,
+#voice-ai-text {
+    display: block;
+    max-width: 640px;
+    margin: 0 auto 12px;
+    padding: 14px 22px;
+    border-radius: 18px;
+    font-size: 17px;
+    line-height: 1.55;
+    letter-spacing: 0.2px;
+    text-align: center;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    font-weight: 500;
+}
+
+#voice-user-text.visible,
+#voice-ai-text.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+#voice-user-text {
+    color: rgba(240, 240, 245, 0.65);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-style: italic;
+    font-size: 15px;
+}
+
+#voice-ai-text {
+    color: #ffffff;
+    background: rgba(167, 139, 250, 0.09);
+    border: 1px solid rgba(167, 139, 250, 0.22);
+    box-shadow: 0 8px 32px rgba(167, 139, 250, 0.12),
+                inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    font-weight: 600;
+    font-size: 17px;
+}
+
+@media (max-width: 768px) {
+    #voice-user-text,
+    #voice-ai-text {
+        max-width: 92%;
+        font-size: 15px;
+        padding: 10px 16px;
+        border-radius: 14px;
+        margin-bottom: 10px;
+    }
+    #voice-user-text { font-size: 13.5px; }
+    #voice-ai-text { font-size: 15.5px; }
+}
+
+@media (max-width: 480px) {
+    #voice-user-text,
+    #voice-ai-text {
+        max-width: 96%;
+        padding: 8px 14px;
+        border-radius: 12px;
+    }
+    #voice-ai-text { font-size: 14.5px; }
+    #voice-user-text { font-size: 13px; }
+}
