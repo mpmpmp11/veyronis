@@ -5966,3 +5966,49 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
     .voice-transcript { top: 24px; font-size: 13px; }
     .voice-status { bottom: 32px; left: 24px; font-size: 11px; }
 }
+/* ─── VOICE ORB — additional states ─── */
+
+/* TRANSCRIBING — interim text arriving, still listening */
+.voice-orb.state-transcribing {
+    box-shadow: 0 0 100px rgba(34, 197, 94, 0.5), 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+.voice-orb.state-transcribing .voice-orb-inner {
+    background: linear-gradient(135deg, #22c55e, #16a34a, #15803d);
+    animation: orbTranscribePulse 1s ease-in-out infinite;
+}
+@keyframes orbTranscribePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+}
+
+/* INTERRUPTED — brief flash when user barges in */
+.voice-orb.state-interrupted {
+    box-shadow: 0 0 100px rgba(239, 68, 68, 0.5), 0 24px 80px rgba(0, 0, 0, 0.5);
+    animation: orbInterruptFlash 0.5s ease-out;
+}
+@keyframes orbInterruptFlash {
+    0% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+/* ERROR */
+.voice-orb.state-error {
+    box-shadow: 0 0 100px rgba(239, 68, 68, 0.45), 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+.voice-orb.state-error .voice-orb-inner {
+    background: linear-gradient(135deg, #ef4444, #b91c1c, #7f1d1d);
+}
+
+/* Transcript — proper wrapping for long Georgian text */
+#voice-user-text, #voice-ai-text {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    max-width: 100%;
+}
+
+/* Interim transcript (user) — visually dimmer while not committed */
+#voice-user-text:not(.finalized) {
+    opacity: 0.7;
+    font-style: italic;
+}
