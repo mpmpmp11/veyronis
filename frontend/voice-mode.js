@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// VEYRONIS VOICE MODE — Deepgram + Groq + Edge-TTS
+// VEYRONIS VOICE MODE — ElevenLabs Scribe + Groq + Edge-TTS
 // ═══════════════════════════════════════════════════════
 
 const voiceMode = (() => {
@@ -34,13 +34,15 @@ const voiceMode = (() => {
         el.classList.toggle('visible', !!text);
     };
 
+    // ─── FETCH SINGLE-USE TOKEN FROM BACKEND ───
     async function fetchKeys() {
         const res = await authenticatedFetch('/api/voice/streaming-token');
         if (!res.ok) throw new Error('Failed to get streaming token');
         const data = await res.json();
-        return { deepgram_key: data.token };
+        return { token: data.token };
     }
 
+    // ─── AUDIO CAPTURE (16kHz mono PCM16) ───
     async function startAudioCapture() {
         audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -59,7 +61,14 @@ const voiceMode = (() => {
             if (muted || !connected || !sttWS || sttWS.readyState !== WebSocket.OPEN) return;
             const input = e.inputBuffer.getChannelData(0);
             const pcm16 = floatTo16BitPCM(input);
-            try { sttWS.send(pcm16.buffer); } catch (err) {}
+            const b64 = arrayBufferToBase64(pcm16.buffer);
+            try {
+                // ElevenLabs expects JSON with input_audio_chunk
+                sttWS.send(JSON.stringify({
+                    message_type: 'input_audio_chunk',
+                    audio_base_64: b64
+                }));
+            } catch (err) {}
         };
 
         source.connect(processor);
@@ -79,26 +88,36 @@ const voiceMode = (() => {
         return new Int16Array(buffer);
     }
 
-    async function connectDeepgram(apiKey) {
-        const url = `wss://api.deepgram.com/v1/listen?` +
-            `model=nova-3` +
-            `&language=ka` +
-            `&encoding=linear16` +
-            `&sample_rate=16000` +
-            `&interim_results=true` +
-            `&smart_format=true` +
-            `&punctuate=true` +
-            `&endpointing=2500` +
-            `&utterance_end_ms=2500` +
-            `&vad_events=true`;
+    function arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+    }
 
-        console.log('[Voice] Connecting to Deepgram...');
+    // ─── ELEVENLABS WEBSOCKET ───
+    async function connectElevenLabs(token) {
+        // Build URL with all query params
+        const params = new URLSearchParams({
+            model_id: 'scribe_v2_realtime',
+            token: token,
+            audio_format: 'pcm_16000',
+            language_code: 'kat',       // Georgian ISO 639-3
+            commit_strategy: 'vad',     // Auto-commit on silence (critical)
+            vad_silence_threshold_secs: '2.5',
+            include_language_detection: 'true'
+        });
+        const url = `wss://api.elevenlabs.io/v1/speech-to-text/realtime?${params}`;
+
+        console.log('[Voice] Connecting to ElevenLabs Scribe...');
 
         return new Promise((resolve, reject) => {
-            sttWS = new WebSocket(url, ['token', apiKey]);
+            sttWS = new WebSocket(url);
 
             sttWS.onopen = () => {
-                console.log('[Voice] Deepgram WS opened');
+                console.log('[Voice] ElevenLabs WS opened');
                 connected = true;
                 setState('listening', 'Listening...');
                 setStatus('Speak now');
@@ -109,30 +128,16 @@ const voiceMode = (() => {
                 let data;
                 try { data = JSON.parse(event.data); } catch (e) { return; }
 
-                if (data.type === 'SpeechStarted') {
-                    setStatus('Listening...');
+                // Session started
+                if (data.message_type === 'session_started') {
+                    console.log('[Voice] Session started');
                     return;
                 }
 
-                if (data.type === 'UtteranceEnd') {
-                    if (accumulatedFinal.trim()) {
-                        const text = accumulatedFinal.trim();
-                        accumulatedFinal = '';
-                        console.log('[Voice] UtteranceEnd:', text);
-                        showTranscript('user', text);
-                        setState('thinking', 'Thinking...');
-                        setStatus('Processing...');
-                        processUserSpeech(text);
-                    }
-                    return;
-                }
+                const transcript = data.text?.trim() || '';
+                const isFinal = data.message_type === 'committed_transcript';
 
-                const alt = data.channel?.alternatives?.[0];
-                const transcript = alt?.transcript?.trim() || "";
-                const isFinal = data.is_final;
-                const speechFinal = data.speech_final;
-
-                // Barge-in: user starts talking while AI is speaking
+                // ─── BARGE-IN ───
                 if (!isFinal && transcript.length > 0 && aiSpeaking && currentAiAudio) {
                     console.log('[Voice] Barge-in detected');
                     try {
@@ -144,38 +149,52 @@ const voiceMode = (() => {
                     setState('listening', 'Listening...');
                 }
 
-                if (!transcript) return;
+                if (data.message_type === 'partial_transcript') {
+                    showTranscript('user', accumulatedFinal + (accumulatedFinal ? ' ' : '') + transcript);
+                }
 
-                if (isFinal) {
+                if (data.message_type === 'committed_transcript') {
                     accumulatedFinal += (accumulatedFinal ? ' ' : '') + transcript;
                     showTranscript('user', accumulatedFinal);
+                }
 
-                    if (speechFinal && accumulatedFinal.trim()) {
-                        const text = accumulatedFinal.trim();
-                        accumulatedFinal = '';
-                        console.log('[Voice] Final:', text);
-                        setState('thinking', 'Thinking...');
-                        setStatus('Processing...');
-                        processUserSpeech(text);
-                    }
-                } else {
-                    showTranscript('user', accumulatedFinal + (accumulatedFinal ? ' ' : '') + transcript);
+                // ElevenLabs doesn't send a separate "utterance_end" event like Deepgram
+                // Instead, use VAD commit_strategy — the committed_transcript fires on silence
+                // We trigger LLM after a short delay if nothing more comes
+                if (data.message_type === 'committed_transcript' && accumulatedFinal.trim()) {
+                    clearTimeout(window._elDelay);
+                    window._elDelay = setTimeout(() => {
+                        if (accumulatedFinal.trim()) {
+                            const text = accumulatedFinal.trim();
+                            accumulatedFinal = '';
+                            console.log('[Voice] Final utterance:', text);
+                            setState('thinking', 'Thinking...');
+                            setStatus('Processing...');
+                            processUserSpeech(text);
+                        }
+                    }, 800); // Wait 800ms for any trailing text
+                }
+
+                if (data.error || data.message_type === 'scribe_error') {
+                    console.error('[Voice] ElevenLabs error:', data);
+                    setStatus('STT error: ' + (data.error || 'unknown'));
                 }
             };
 
             sttWS.onerror = err => {
-                console.error('[Voice] Deepgram error:', err);
+                console.error('[Voice] ElevenLabs WS error:', err);
                 reject(err);
             };
 
             sttWS.onclose = e => {
-                console.log('[Voice] Deepgram closed:', e.code, e.reason);
+                console.log('[Voice] ElevenLabs closed:', e.code, e.reason);
                 connected = false;
                 if (e.code !== 1000) setStatus('Disconnected: ' + (e.reason || e.code));
             };
         });
     }
 
+    // ─── PROCESS USER SPEECH THROUGH GROQ ───
     async function processUserSpeech(text) {
         if (isProcessing) return;
         isProcessing = true;
@@ -217,12 +236,14 @@ const voiceMode = (() => {
                         const data = JSON.parse(jsonStr);
                         if (data.type === 'token') {
                             fullResponse += data.content;
-                            showTranscript('ai', fullResponse);
+                            // Don't display during streaming — wait for done
                         } else if (data.type === 'done') {
                             if (data.conversation_id && !state.conversationId) {
                                 state.conversationId = data.conversation_id;
                             }
                             if (fullResponse.trim()) {
+                                // Show the FULL response at once (ChatGPT-style)
+                                showTranscript('ai', fullResponse);
                                 setState('speaking', 'Speaking...');
                                 setStatus('AI is responding...');
                                 await speakText(fullResponse);
@@ -246,6 +267,7 @@ const voiceMode = (() => {
         }
     }
 
+    // ─── TEXT-TO-SPEECH (edge-tts) ───
     async function speakText(text) {
         try {
             const res = await authenticatedFetch('/api/voice/tts-georgian', {
@@ -283,6 +305,7 @@ const voiceMode = (() => {
         }
     }
 
+    // ─── PUBLIC API ───
     async function open() {
         const overlay = $('voice-mode-overlay');
         if (!overlay) return;
@@ -314,7 +337,7 @@ const voiceMode = (() => {
             const keys = await fetchKeys();
             setStatus('Connecting...');
             await startAudioCapture();
-            await connectDeepgram(keys.deepgram_key);
+            await connectElevenLabs(keys.token);
         } catch (err) {
             console.error('[Voice] Open failed:', err);
             setStatus('Failed: ' + err.message);
@@ -325,8 +348,7 @@ const voiceMode = (() => {
 
     function close() {
         if (sttWS && sttWS.readyState === WebSocket.OPEN) {
-            try { sttWS.send(JSON.stringify({ type: 'CloseStream' })); } catch (e) {}
-            sttWS.close();
+            try { sttWS.close(); } catch (e) {}
         }
         sttWS = null;
         if (mediaStream) {
@@ -346,6 +368,7 @@ const voiceMode = (() => {
         isProcessing = false;
         aiSpeaking = false;
         accumulatedFinal = '';
+        clearTimeout(window._elDelay);
         const btn = $('voice-mute-btn');
         if (btn) btn.classList.remove('muted');
         const overlay = $('voice-mode-overlay');

@@ -1273,11 +1273,26 @@ GEORGIAN_RE = re.compile(r'[\u10A0-\u10FF]')
 
 @app.get("/api/voice/streaming-token")
 async def get_streaming_token(current_user: dict = Depends(get_current_user_required)):
-    """Return Deepgram key for the voice session."""
-    if not Config.DEEPGRAM_API_KEY:
-        raise HTTPException(503, detail="Deepgram not configured.")
-    return {"token": Config.DEEPGRAM_API_KEY}
+    """Generate a single-use ElevenLabs token for browser STT."""
+    if not Config.ELEVENLABS_API_KEY:
+        raise HTTPException(503, detail="ElevenLabs not configured.")
 
+    try:
+        resp = requests.post(
+            "https://api.elevenlabs.io/v1/single-use-token/realtime_scribe",
+            headers={"xi-api-key": Config.ELEVENLABS_API_KEY},
+            timeout=10
+        )
+        if resp.status_code != 200:
+            print(f"[ELEVENLABS TOKEN ERROR] {resp.status_code}: {resp.text[:300]}")
+            raise HTTPException(500, detail="Failed to create streaming token.")
+        data = resp.json()
+        return {"token": data.get("token")}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ELEVENLABS TOKEN EXCEPTION] {e}")
+        raise HTTPException(500, detail="Failed to create streaming token.")
 
 def _detect_voice(text: str) -> str:
     """Pick Georgian or English voice based on text content."""

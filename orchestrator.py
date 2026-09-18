@@ -14,6 +14,16 @@ from database import get_history
 from settings import Config
 
 
+# ─── Shared language rule injected into every system prompt ───
+LANGUAGE_RULE = (
+    "CRITICAL LANGUAGE RULE: Detect the language of the user's message. "
+    "If the message contains Georgian characters (ა-ჿ), respond ONLY in Georgian. "
+    "If the message is English, respond ONLY in English. "
+    "NEVER translate. NEVER mix languages in the same response. "
+    "If the user switches language, you switch too.\n\n"
+)
+
+
 class CentralOrchestrator:
     def __init__(self) -> None:
         self.calculator = SafeCalculator()
@@ -159,10 +169,8 @@ class CentralOrchestrator:
 
         for line in lines:
             stripped = line.strip()
-            # Detect step starts: "Step 1:", "Step 2:", "1)", "1.", "Step 1 -", etc.
             step_match = re.match(r'(?:Step\s*)?(\d+)[\):.\-]\s*(.*)', stripped, re.IGNORECASE)
             if step_match:
-                # Close previous step
                 if in_step and step_buffer:
                     step_text = '\n'.join(step_buffer).strip()
                     if step_text:
@@ -171,18 +179,14 @@ class CentralOrchestrator:
                         formatted_lines.append(f'<div class="math-step-content">{step_text}</div>')
                         formatted_lines.append('</div>')
                     step_buffer = []
-                # Start new step
                 step_counter = int(step_match.group(1))
                 step_buffer.append(step_match.group(2).strip() or '')
                 in_step = True
             elif in_step and stripped:
-                # Content inside current step
                 step_buffer.append(line)
             elif not in_step and stripped:
-                # Content outside steps – keep as is (like intro text)
                 formatted_lines.append(line)
 
-        # Close last step
         if in_step and step_buffer:
             step_text = '\n'.join(step_buffer).strip()
             if step_text:
@@ -191,14 +195,11 @@ class CentralOrchestrator:
                 formatted_lines.append(f'<div class="math-step-content">{step_text}</div>')
                 formatted_lines.append('</div>')
 
-        # Build the final response
         result = '\n'.join(formatted_lines)
 
-        # Ensure final answer is boxed and highlighted
         if final_answer and not re.search(r'boxed\{', result):
             result += f'\n\n<div class="math-solution">✅ Final Answer: <span class="math-boxed">\\[ {final_answer} \\]</span></div>'
         elif final_answer and re.search(r'boxed\{', result):
-            # Already has a boxed answer – just wrap it nicely
             result = re.sub(
                 r'(\\boxed\{[^}]+\})',
                 r'<span class="math-boxed">\1</span>',
@@ -252,8 +253,7 @@ class CentralOrchestrator:
     def _run_math(self, query: str, system_prompt: str, history: list, model_mode: str = "instant") -> dict:
         """Solve math with clean step-by-step and boxed answer."""
         result = self.calculator.evaluate(query)
-        
-        # Build a prompt that forces structured step-by-step
+
         steps_prompt = (
             f"Solve this step by step: {query}\n\n"
             "RULES:\n"
@@ -263,7 +263,7 @@ class CentralOrchestrator:
             "4. Be clear and educational.\n\n"
             f"The final answer is: {result}"
         )
-        
+
         config = self._get_model_config(model_mode)
         explanation = self.groq_agent.generate_response(
             steps_prompt,
@@ -272,12 +272,10 @@ class CentralOrchestrator:
             temperature=config["temperature"],
             max_tokens=config["max_tokens"]
         )
-        
+
         reasoning, cleaned = self._extract_reasoning(explanation)
-        
-        # Apply post-processing to format steps and boxed answer
         formatted = self._format_math_response(cleaned, result)
-        
+
         return {
             "response": f"🧮 Step-by-Step Solution:\n\n{formatted}",
             "reasoning": reasoning,
@@ -342,7 +340,6 @@ class CentralOrchestrator:
     def _run_research(self, query: str, system_prompt: str, history: list, model_mode: str = "instant", custom_instructions: str = None, response_style: str = None) -> dict:
         config = self._get_model_config(model_mode)
 
-        # Step 1: Plan
         plan_prompt = (
             f"Break this research question into 3-5 specific sub-questions that will help answer it comprehensively. "
             f"Return ONLY a JSON array of strings, nothing else.\n\nQuestion: {query}"
@@ -370,7 +367,6 @@ class CentralOrchestrator:
         if not sub_questions:
             sub_questions = [query]
 
-        # Step 2: Search
         all_citations = []
         all_contexts = []
 
@@ -380,7 +376,6 @@ class CentralOrchestrator:
                 all_citations.extend(search_result["results"])
                 all_contexts.append(f"--- Sub-question {idx}: {sq} ---\n{search_result['formatted']}\n")
 
-        # Deduplicate
         seen_urls = set()
         unique_citations = []
         for c in all_citations:
@@ -394,7 +389,6 @@ class CentralOrchestrator:
 
         combined_context = "\n".join(all_contexts)
 
-        # Step 3: Synthesize
         research_system = system_prompt + "\n\nYou are now in DEEP RESEARCH mode. Write a comprehensive, well-structured research report. Use clear section headers, bullet points, and cite sources using [1], [2], etc. Be thorough but concise."
         research_system = self._inject_personality(research_system, custom_instructions, response_style)
 
@@ -522,13 +516,11 @@ class CentralOrchestrator:
         yield ("done", cleaned)
 
     def process_pipeline(self, user_query: str, mode: str = "chat", user_id: str = "default", conversation_id: int = None, image_b64: str = None, model_mode: str = "instant", ai_model: str = "groq", custom_instructions: str = None, response_style: str = None) -> dict:
-        # ─── CANVAS ROUTE ───
         if mode == "canvas":
             history = self._get_history(user_id, user_query, conversation_id)
             system_prompt = "You are VEYRONIS Canvas, an AI that helps users create visualizations on a whiteboard."
             return self._run_canvas(user_query, system_prompt, history, model_mode)
 
-        # ─── VISION ROUTE ───
         if image_b64 and self.gemini_agent:
             vision_prompt = self._build_vision_prompt(user_query)
             try:
@@ -542,13 +534,13 @@ class CentralOrchestrator:
         if image_b64 and not self.gemini_agent:
             return {"response": "⚠️ Image upload requires a Google API key (Gemini) to be configured in .env", "reasoning": None, "citations": []}
 
-        # ─── AI MODEL ROUTING ───
         if ai_model == "gemini" and self.gemini_agent:
             return self._run_gemini_text(user_query, model_mode)
 
         history = self._get_history(user_id, user_query, conversation_id)
 
         system_prompt = (
+            LANGUAGE_RULE +
             "You are VEYRONIS, a friendly, smart AI assistant for students. "
             "You talk like a knowledgeable friend — warm, natural, and never robotic.\n\n"
             "PERSONALITY:\n"
@@ -663,6 +655,7 @@ class CentralOrchestrator:
         history = self._get_history(user_id, user_query, conversation_id)
 
         system_prompt = (
+            LANGUAGE_RULE +
             "You are VEYRONIS, a friendly, smart AI assistant for students. "
             "You talk like a knowledgeable friend — warm, natural, and never robotic.\n\n"
             "PERSONALITY:\n"
@@ -746,7 +739,6 @@ class CentralOrchestrator:
             yield ("done", cleaned)
             return
 
-        # Non-streaming routes
         result = self.process_pipeline(
             user_query, mode, user_id, conversation_id, image_b64, model_mode, ai_model,
             custom_instructions, response_style
