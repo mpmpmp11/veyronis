@@ -75,8 +75,6 @@ class Config:
     FISH_VOICE_ID: str = os.getenv("FISH_VOICE_ID", "933563129e564b19a115bedd57b7406a").strip()
 
     ASSEMBLYAI_API_KEY: str = os.getenv("ASSEMBLYAI_API_KEY", "").strip()
-    TTS_AI_API_KEY: str = os.getenv("TTS_AI_API_KEY", "").strip()
-
     DEEPGRAM_API_KEY: str = os.getenv("DEEPGRAM_API_KEY", "").strip()
 
     

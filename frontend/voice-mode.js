@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-// VEYRONIS VOICE MODE — Deepgram + Groq + Fish Audio
+// VEYRONIS VOICE MODE — Deepgram + Groq + Edge-TTS
 // ═══════════════════════════════════════════════════════
 
 const voiceMode = (() => {
@@ -9,6 +9,9 @@ const voiceMode = (() => {
     let muted = false;
     let connected = false;
     let isProcessing = false;
+    let currentAiAudio = null;
+    let aiSpeaking = false;
+    let accumulatedFinal = '';
 
     const $ = id => document.getElementById(id);
 
@@ -31,15 +34,13 @@ const voiceMode = (() => {
         el.classList.toggle('visible', !!text);
     };
 
-    // ─── FETCH STREAMING TOKEN ───
     async function fetchKeys() {
         const res = await authenticatedFetch('/api/voice/streaming-token');
         if (!res.ok) throw new Error('Failed to get streaming token');
         const data = await res.json();
-        return { deepgram_token: data.token };
+        return { deepgram_key: data.token };
     }
 
-    // ─── AUDIO CAPTURE ───
     async function startAudioCapture() {
         audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -52,16 +53,13 @@ const voiceMode = (() => {
         });
 
         const source = audioContext.createMediaStreamSource(mediaStream);
-        const bufferSize = 4096;
-        const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+        const processor = audioContext.createScriptProcessor(4096, 1, 1);
 
         processor.onaudioprocess = e => {
             if (muted || !connected || !sttWS || sttWS.readyState !== WebSocket.OPEN) return;
             const input = e.inputBuffer.getChannelData(0);
             const pcm16 = floatTo16BitPCM(input);
-            try {
-                sttWS.send(pcm16.buffer);
-            } catch (err) {}
+            try { sttWS.send(pcm16.buffer); } catch (err) {}
         };
 
         source.connect(processor);
@@ -81,13 +79,23 @@ const voiceMode = (() => {
         return new Int16Array(buffer);
     }
 
-    // ─── DEEPGRAM WEBSOCKET (Nova-3 for Georgian) ───
-    async function connectDeepgram(token) {
-        const url = `wss://api.deepgram.com/v1/listen?model=nova-3&language=ka&encoding=linear16&sample_rate=16000&interim_results=true&smart_format=true&endpointing=300`;
-        console.log('[Voice] Connecting to Deepgram (Nova-3, Georgian)...');
+    async function connectDeepgram(apiKey) {
+        const url = `wss://api.deepgram.com/v1/listen?` +
+            `model=nova-3` +
+            `&language=ka` +
+            `&encoding=linear16` +
+            `&sample_rate=16000` +
+            `&interim_results=true` +
+            `&smart_format=true` +
+            `&punctuate=true` +
+            `&endpointing=2500` +
+            `&utterance_end_ms=2500` +
+            `&vad_events=true`;
+
+        console.log('[Voice] Connecting to Deepgram...');
 
         return new Promise((resolve, reject) => {
-            sttWS = new WebSocket(url, ['token', token]);
+            sttWS = new WebSocket(url, ['token', apiKey]);
 
             sttWS.onopen = () => {
                 console.log('[Voice] Deepgram WS opened');
@@ -99,53 +107,75 @@ const voiceMode = (() => {
 
             sttWS.onmessage = event => {
                 let data;
-                try {
-                    data = JSON.parse(event.data);
-                } catch (e) {
-                    return;
-                }
+                try { data = JSON.parse(event.data); } catch (e) { return; }
 
                 if (data.type === 'SpeechStarted') {
                     setStatus('Listening...');
+                    return;
+                }
+
+                if (data.type === 'UtteranceEnd') {
+                    if (accumulatedFinal.trim()) {
+                        const text = accumulatedFinal.trim();
+                        accumulatedFinal = '';
+                        console.log('[Voice] UtteranceEnd:', text);
+                        showTranscript('user', text);
+                        setState('thinking', 'Thinking...');
+                        setStatus('Processing...');
+                        processUserSpeech(text);
+                    }
+                    return;
                 }
 
                 const alt = data.channel?.alternatives?.[0];
-                if (alt && alt.transcript) {
-                    const transcript = alt.transcript.trim();
-                    const isFinal = data.is_final;
+                const transcript = alt?.transcript?.trim() || "";
+                const isFinal = data.is_final;
+                const speechFinal = data.speech_final;
 
-                    if (transcript) {
-                        if (isFinal) {
-                            showTranscript('user', transcript);
-                            console.log('[Voice] Final transcript:', transcript);
-                            if (transcript) {
-                                setState('thinking', 'Thinking...');
-                                setStatus('Processing...');
-                                processUserSpeech(transcript);
-                            }
-                        } else {
-                            showTranscript('user', transcript);
-                        }
+                // Barge-in: user starts talking while AI is speaking
+                if (!isFinal && transcript.length > 0 && aiSpeaking && currentAiAudio) {
+                    console.log('[Voice] Barge-in detected');
+                    try {
+                        currentAiAudio.pause();
+                        currentAiAudio.currentTime = 0;
+                    } catch (e) {}
+                    currentAiAudio = null;
+                    aiSpeaking = false;
+                    setState('listening', 'Listening...');
+                }
+
+                if (!transcript) return;
+
+                if (isFinal) {
+                    accumulatedFinal += (accumulatedFinal ? ' ' : '') + transcript;
+                    showTranscript('user', accumulatedFinal);
+
+                    if (speechFinal && accumulatedFinal.trim()) {
+                        const text = accumulatedFinal.trim();
+                        accumulatedFinal = '';
+                        console.log('[Voice] Final:', text);
+                        setState('thinking', 'Thinking...');
+                        setStatus('Processing...');
+                        processUserSpeech(text);
                     }
+                } else {
+                    showTranscript('user', accumulatedFinal + (accumulatedFinal ? ' ' : '') + transcript);
                 }
             };
 
             sttWS.onerror = err => {
-                console.error('[Voice] Deepgram WS error:', err);
+                console.error('[Voice] Deepgram error:', err);
                 reject(err);
             };
 
             sttWS.onclose = e => {
                 console.log('[Voice] Deepgram closed:', e.code, e.reason);
                 connected = false;
-                if (e.code !== 1000) {
-                    setStatus('Disconnected: ' + (e.reason || e.code));
-                }
+                if (e.code !== 1000) setStatus('Disconnected: ' + (e.reason || e.code));
             };
         });
     }
 
-    // ─── PROCESS USER SPEECH THROUGH GROQ ───
     async function processUserSpeech(text) {
         if (isProcessing) return;
         isProcessing = true;
@@ -216,7 +246,6 @@ const voiceMode = (() => {
         }
     }
 
-    // ─── TEXT-TO-SPEECH (Fish Audio) ───
     async function speakText(text) {
         try {
             const res = await authenticatedFetch('/api/voice/tts-georgian', {
@@ -231,22 +260,29 @@ const voiceMode = (() => {
 
             return new Promise(resolve => {
                 const audio = new Audio(audioUrl);
-                audio.onended = () => {
+                currentAiAudio = audio;
+                aiSpeaking = true;
+
+                const cleanup = () => {
                     URL.revokeObjectURL(audioUrl);
+                    if (currentAiAudio === audio) {
+                        currentAiAudio = null;
+                        aiSpeaking = false;
+                    }
                     resolve();
                 };
-                audio.onerror = () => {
-                    URL.revokeObjectURL(audioUrl);
-                    resolve();
-                };
-                audio.play().catch(() => resolve());
+
+                audio.onended = cleanup;
+                audio.onerror = cleanup;
+                audio.play().catch(cleanup);
             });
         } catch (err) {
             console.error('[Voice] TTS error:', err);
+            aiSpeaking = false;
+            currentAiAudio = null;
         }
     }
 
-    // ─── PUBLIC API ───
     async function open() {
         const overlay = $('voice-mode-overlay');
         if (!overlay) return;
@@ -278,7 +314,7 @@ const voiceMode = (() => {
             const keys = await fetchKeys();
             setStatus('Connecting...');
             await startAudioCapture();
-            await connectDeepgram(keys.deepgram_token);
+            await connectDeepgram(keys.deepgram_key);
         } catch (err) {
             console.error('[Voice] Open failed:', err);
             setStatus('Failed: ' + err.message);
@@ -301,9 +337,15 @@ const voiceMode = (() => {
             audioContext.close().catch(() => {});
             audioContext = null;
         }
+        if (currentAiAudio) {
+            try { currentAiAudio.pause(); } catch (e) {}
+            currentAiAudio = null;
+        }
         connected = false;
         muted = false;
         isProcessing = false;
+        aiSpeaking = false;
+        accumulatedFinal = '';
         const btn = $('voice-mute-btn');
         if (btn) btn.classList.remove('muted');
         const overlay = $('voice-mode-overlay');

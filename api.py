@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, date
 from jose import JWTError, jwt
 import hashlib
 import bcrypt
+import edge_tts
 import secrets
 from orchestrator import CentralOrchestrator
 from guardrails import check_input
@@ -1261,6 +1262,15 @@ async def text_to_speech(request: dict):
         print(f"[FISH TTS EXCEPTION] {e}")
         raise HTTPException(500, detail="🎤 TTS generation failed.")
 
+# ═══════════════════════════════════════════════════════
+# VOICE MODE — Deepgram Token + Edge-TTS
+# ═══════════════════════════════════════════════════════
+
+import re
+
+GEORGIAN_RE = re.compile(r'[\u10A0-\u10FF]')
+
+
 @app.get("/api/voice/streaming-token")
 async def get_streaming_token(current_user: dict = Depends(get_current_user_required)):
     """Return Deepgram key for the voice session."""
@@ -1268,68 +1278,83 @@ async def get_streaming_token(current_user: dict = Depends(get_current_user_requ
         raise HTTPException(503, detail="Deepgram not configured.")
     return {"token": Config.DEEPGRAM_API_KEY}
 
-    try:
-        resp = requests.post(
-            "https://api.deepgram.com/v1/auth/token",
-            headers={"Authorization": f"Token {Config.DEEPGRAM_API_KEY}"},
-            json={"ttl_seconds": 300},
-            timeout=10
-        )
-        if resp.status_code != 200:
-            print(f"[DEEPGRAM TOKEN ERROR] {resp.status_code}: {resp.text[:300]}")
-            raise HTTPException(500, detail="Failed to create streaming token.")
-        data = resp.json()
-        return {"token": data.get("access_token")}
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[DEEPGRAM TOKEN EXCEPTION] {e}")
-        raise HTTPException(500, detail="Failed to create streaming token.")
+
+def _detect_voice(text: str) -> str:
+    """Pick Georgian or English voice based on text content."""
+    georgian_chars = len(GEORGIAN_RE.findall(text))
+    total_letters = len(re.findall(r'[^\s\d\W]', text, re.UNICODE))
+    if total_letters == 0:
+        return "en-US-ChristopherNeural"
+    if georgian_chars / total_letters > 0.3:
+        return "ka-GE-EkaNeural"
+    return "en-US-ChristopherNeural"
+
+
+def _clean_for_tts(text: str) -> str:
+    """Strip markdown, code blocks, and emojis."""
+    if not text:
+        return ""
+    text = re.sub(r'```[\s\S]*?```', '', text)
+    text = re.sub(r'`([^`]*)`', r'\1', text)
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    text = re.sub(r'#{1,6}\s*', '', text)
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    emoji_pat = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"
+        "\U0001F300-\U0001F5FF"
+        "\U0001F680-\U0001F6FF"
+        "\U0001F1E0-\U0001F1FF"
+        "\U00002700-\U000027BF"
+        "\U0001F900-\U0001F9FF"
+        "\U00002600-\U000026FF"
+        "\U0001FA00-\U0001FAFF"
+        "]+", flags=re.UNICODE
+    )
+    text = emoji_pat.sub("", text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
 
 @app.post("/api/voice/tts-georgian")
-async def tts_georgian(request: dict, current_user: dict = Depends(get_current_user_required)):
-    """Generate Georgian speech via Fish Audio (already integrated)."""
-    text = (request.get("text") or "").strip()
-    if not text:
+async def tts_georgian(
+    request: dict,
+    current_user: dict = Depends(get_current_user_required)
+):
+    """Generate Georgian or English speech via edge-tts (free, no GPU)."""
+    raw_text = (request.get("text") or "").strip()
+    if not raw_text:
         raise HTTPException(400, detail="No text provided.")
-    if not Config.FISH_API_KEY:
-        raise HTTPException(503, detail="Fish Audio not configured.")
 
-    text = sanitize_for_tts(text)
+    text = _clean_for_tts(raw_text)
     if not text:
         raise HTTPException(400, detail="Nothing speakable after cleaning.")
     if len(text) > 3000:
         text = text[:3000]
 
-    voice_id = request.get("voice_id") or Config.FISH_VOICE_ID
+    voice = _detect_voice(text)
+    print(f"[EDGE-TTS] voice={voice}, chars={len(text)}")
 
-    try:
-        resp = requests.post(
-            "https://api.fish.audio/v1/tts",
-            headers={
-                "Authorization": f"Bearer {Config.FISH_API_KEY}",
-                "Content-Type": "application/json",
-                "model": "s2.1-pro-free",
-            },
-            json={
-                "text": text,
-                "reference_id": voice_id,
-                "format": "mp3",
-                "mp3_bitrate": 128,
-                "latency": "normal",
-            },
-            timeout=60,
-        )
-        if resp.status_code != 200:
-            print(f"[FISH VOICE TTS ERROR] {resp.status_code}: {resp.text[:300]}")
-            raise HTTPException(500, detail="Voice TTS failed.")
-        return Response(content=resp.content, media_type="audio/mpeg")
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[FISH VOICE TTS EXCEPTION] {e}")
-        raise HTTPException(500, detail="Voice TTS failed.")
+    async def audio_stream():
+        try:
+            communicate = edge_tts.Communicate(text=text, voice=voice)
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    yield chunk["data"]
+        except Exception as e:
+            print(f"[EDGE-TTS STREAM ERROR] {e}")
+
+    return StreamingResponse(
+        audio_stream(),
+        media_type="audio/mpeg",
+        headers={"Content-Disposition": "inline; filename=tts.mp3"}
+    )
+
+
+
+
+
 
 @app.get("/health")
 async def health():
