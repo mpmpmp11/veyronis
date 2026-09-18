@@ -1,17 +1,21 @@
 // ═══════════════════════════════════════════════════════
-// VEYRONIS VOICE MODE v3
-// ElevenLabs Scribe (STT) + Groq (LLM) + Edge-TTS (TTS)
-// Features: 7-state orb, live interim transcript, instant barge-in,
-//           sentence-chunked TTS streaming, natural conversation flow
+// VEYRONIS VOICE MODE v4
+// - Live word-by-word AI transcript (synced to audio)
+// - Intro audio sequence (en → ka → orb)
+// - Live call timer
+// - Generation counter for reliable barge-in
 // ═══════════════════════════════════════════════════════
 
 const voiceMode = (() => {
-    // ─── CONFIG (tweak these to taste) ───
     const CONFIG = {
-        VAD_SILENCE_MS: 1200,           // how long of silence before finalizing
-        BARGE_IN_VOLUME: 25,             // analyser threshold (0-255) for barge-in
-        BARGE_IN_CHECK_MS: 50,           // how often to check for barge-in
-        TTS_SENTENCE_MIN_LEN: 4,         // don't TTS fragments shorter than this
+        VAD_SILENCE_MS: 1200,
+        BARGE_IN_VOLUME: 25,
+        BARGE_IN_CHECK_MS: 50,
+        COMMIT_DELAY_MS: 700,
+        TTS_SENTENCE_MIN_LEN: 4,
+        AI_TEXT_WINDOW: 30,          // how many recent words to show
+        INTRO_EN_PATH: '/static/intro-en.mp3',
+        INTRO_KA_PATH: '/static/intro-ka.mp3',
     };
 
     // ─── STATE ───
@@ -24,6 +28,7 @@ const voiceMode = (() => {
     let muted = false;
     let connected = false;
     let isProcessing = false;
+    let generation = 0;
 
     let currentAiAudio = null;
     let aiSpeaking = false;
@@ -32,14 +37,23 @@ const voiceMode = (() => {
     let userCommittedText = '';
     let commitTimeout = null;
 
-    // TTS sentence queue
+    // TTS queue (sentence-chunked)
     let sentenceBuffer = '';
     let ttsQueue = [];
     let ttsProcessing = false;
 
+    // Live AI word reveal
+    let aiFullRevealedText = '';
+    let currentSentenceWords = [];
+    let currentSentenceRevealed = 0;
+
+    // Timer
+    let callStartTime = 0;
+    let timerInterval = null;
+
     const $ = id => document.getElementById(id);
 
-    // ─── ORB STATE MACHINE ───
+    // ─── STATE MACHINE ───
     const setState = (state, label) => {
         const orb = $('voice-orb');
         if (orb) orb.className = 'voice-orb state-' + state;
@@ -66,7 +80,80 @@ const voiceMode = (() => {
         el.classList.toggle('visible', !!text);
     };
 
-    // ─── FETCH SINGLE-USE ELEVENLABS TOKEN ───
+    // ─── TIMER ───
+    function ensureTimerElement() {
+        let el = document.getElementById('voice-timer');
+        if (!el) {
+            const overlay = $('voice-mode-overlay');
+            if (!overlay) return null;
+            el = document.createElement('div');
+            el.id = 'voice-timer';
+            el.className = 'voice-timer';
+            el.textContent = '00:00';
+            overlay.appendChild(el);
+        }
+        return el;
+    }
+
+    function startTimer() {
+        const el = ensureTimerElement();
+        if (!el) return;
+        callStartTime = Date.now();
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+            const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+            const s = String(elapsed % 60).padStart(2, '0');
+            el.textContent = `${m}:${s}`;
+        }, 1000);
+    }
+
+    function stopTimer() {
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = null;
+    }
+
+    // ─── INTRO SEQUENCE ───
+    function playIntroFile(src) {
+        return new Promise(resolve => {
+            const audio = new Audio(src);
+            let done = false;
+            const finish = () => { if (!done) { done = true; resolve(); } };
+            audio.onended = finish;
+            audio.onerror = () => {
+                console.warn('[Voice] Intro audio failed or missing:', src);
+                finish();
+            };
+            audio.play().catch(() => finish());
+            // Safety timeout in case the file is huge or broken
+            setTimeout(finish, 15000);
+        });
+    }
+
+    async function playIntros() {
+        setStatus('Welcome to VEYRONIS');
+        await playIntroFile(CONFIG.INTRO_EN_PATH);
+        await playIntroFile(CONFIG.INTRO_KA_PATH);
+    }
+
+    // ─── ORB REVEAL ───
+    function showOrb() {
+        const wrap = document.querySelector('.voice-orb-wrap');
+        if (wrap) {
+            wrap.classList.remove('intro-hidden');
+            wrap.classList.add('intro-visible');
+        }
+    }
+
+    function hideOrb() {
+        const wrap = document.querySelector('.voice-orb-wrap');
+        if (wrap) {
+            wrap.classList.remove('intro-visible');
+            wrap.classList.add('intro-hidden');
+        }
+    }
+
+    // ─── FETCH ELEVENLABS TOKEN ───
     async function fetchToken() {
         const res = await authenticatedFetch('/api/voice/streaming-token');
         if (!res.ok) throw new Error('Failed to get streaming token');
@@ -88,14 +175,12 @@ const voiceMode = (() => {
 
         const source = audioContext.createMediaStreamSource(mediaStream);
 
-        // AnalyserNode for instant barge-in detection (NOT for VAD end-of-speech)
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 512;
         analyser.smoothingTimeConstant = 0.5;
         analyserData = new Uint8Array(analyser.frequencyBinCount);
         source.connect(analyser);
 
-        // Send audio chunks to ElevenLabs
         const processor = audioContext.createScriptProcessor(4096, 1, 1);
         processor.onaudioprocess = e => {
             if (muted || !connected || !sttWS || sttWS.readyState !== WebSocket.OPEN) return;
@@ -111,13 +196,11 @@ const voiceMode = (() => {
         };
         source.connect(processor);
 
-        // Silent gain keeps processor alive without mic feedback
         const silentGain = audioContext.createGain();
         silentGain.gain.value = 0;
         processor.connect(silentGain);
         silentGain.connect(audioContext.destination);
 
-        // Start barge-in watcher
         startBargeInWatcher();
     }
 
@@ -140,7 +223,7 @@ const voiceMode = (() => {
         return btoa(binary);
     }
 
-    // ─── BARGE-IN WATCHER (client-side, instant) ───
+    // ─── BARGE-IN WATCHER ───
     function startBargeInWatcher() {
         if (bargeInInterval) clearInterval(bargeInInterval);
         bargeInInterval = setInterval(() => {
@@ -150,28 +233,28 @@ const voiceMode = (() => {
             for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
             const avg = sum / analyserData.length;
             if (avg > CONFIG.BARGE_IN_VOLUME) {
-                console.log('[Voice] Barge-in (client VAD) — user interrupted');
+                console.log('[Voice] Barge-in (client VAD)');
                 interruptAi();
             }
         }, CONFIG.BARGE_IN_CHECK_MS);
     }
 
     function interruptAi() {
-        // Kill current AI audio instantly
         if (currentAiAudio) {
             try { currentAiAudio.pause(); currentAiAudio.currentTime = 0; } catch (e) {}
             currentAiAudio = null;
         }
         aiSpeaking = false;
-        // Clear pending TTS queue — this response is dead
         ttsQueue = [];
         sentenceBuffer = '';
         ttsProcessing = false;
+        currentSentenceWords = [];
+        currentSentenceRevealed = 0;
         setState('listening', 'Listening...');
         setStatus('Speak now');
     }
 
-    // ─── ELEVENLABS STT WEBSOCKET ───
+    // ─── ELEVENLABS STT ───
     async function connectElevenLabs(token) {
         const params = new URLSearchParams({
             model_id: 'scribe_v2_realtime',
@@ -208,7 +291,6 @@ const voiceMode = (() => {
 
                 const transcript = (data.text || '').trim();
 
-                // ─── LIVE INTERIM TRANSCRIPT ───
                 if (data.message_type === 'partial_transcript') {
                     userInterimText = transcript;
                     if (transcript) {
@@ -218,7 +300,6 @@ const voiceMode = (() => {
                     return;
                 }
 
-                // ─── FINAL CHUNK ───
                 if (data.message_type === 'committed_transcript') {
                     if (transcript) {
                         userCommittedText += (userCommittedText ? ' ' : '') + transcript;
@@ -226,18 +307,15 @@ const voiceMode = (() => {
                     }
                     userInterimText = '';
 
-                    // Wait for possible additional chunks before firing LLM
                     if (commitTimeout) clearTimeout(commitTimeout);
                     commitTimeout = setTimeout(() => {
-                        if (userCommittedText.trim()) {
-                            const text = userCommittedText.trim();
+                        const text = userCommittedText.trim();
+                        if (text) {
                             userCommittedText = '';
                             console.log('[Voice] Final:', text);
-                            setState('thinking', 'Thinking...');
-                            setStatus('Processing...');
-                            processUserSpeech(text);
+                            fireUtterance(text);
                         }
-                    }, 600);
+                    }, CONFIG.COMMIT_DELAY_MS);
                     return;
                 }
 
@@ -265,16 +343,30 @@ const voiceMode = (() => {
         });
     }
 
-    // ─── PROCESS USER SPEECH → GROQ (sentence-streamed to TTS) ───
-    async function processUserSpeech(text) {
-        if (isProcessing) return;
+    // ─── UTTERANCE DISPATCH (with generation guard) ───
+    function fireUtterance(text) {
+        // Interrupt whatever's happening
+        if (aiSpeaking) interruptAi();
+        // Bump generation so any in-flight response is abandoned
+        generation++;
+        const myGen = generation;
+        setState('thinking', 'Thinking...');
+        setStatus('Processing...');
+        processUserSpeech(text, myGen);
+    }
+
+    // ─── PROCESS USER SPEECH → GROQ ───
+    async function processUserSpeech(text, myGen) {
         isProcessing = true;
 
-        // Reset response state
+        // Fresh response state
         showAiText('');
+        aiFullRevealedText = '';
         sentenceBuffer = '';
         ttsQueue = [];
         ttsProcessing = false;
+        currentSentenceWords = [];
+        currentSentenceRevealed = 0;
 
         try {
             const res = await authenticatedFetch('/chat/stream', {
@@ -295,9 +387,13 @@ const voiceMode = (() => {
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
-            let fullResponse = '';
 
             while (true) {
+                if (generation !== myGen) {
+                    try { reader.cancel(); } catch (e) {}
+                    return;
+                }
+
                 const { done, value } = await reader.read();
                 if (done) break;
                 buffer += decoder.decode(value, { stream: true });
@@ -312,15 +408,11 @@ const voiceMode = (() => {
                     try {
                         const data = JSON.parse(jsonStr);
                         if (data.type === 'token') {
-                            fullResponse += data.content;
-                            showAiText(fullResponse);
-                            // Feed token into sentence chunker → TTS
                             feedToken(data.content);
                         } else if (data.type === 'done') {
                             if (data.conversation_id && !state.conversationId) {
                                 state.conversationId = data.conversation_id;
                             }
-                            // Flush any remaining partial sentence
                             flushSentenceBuffer();
                         } else if (data.type === 'error') {
                             throw new Error(data.content);
@@ -331,24 +423,25 @@ const voiceMode = (() => {
                 }
             }
         } catch (err) {
-            console.error('[Voice] Process error:', err);
-            setStatus('Error: ' + err.message);
-            setState('error', 'Error');
-            setTimeout(() => {
-                setState('listening', 'Listening...');
-                setStatus('Speak now');
-            }, 2000);
+            if (generation === myGen) {
+                console.error('[Voice] Process error:', err);
+                setStatus('Error: ' + err.message);
+                setState('error', 'Error');
+                setTimeout(() => {
+                    if (generation === myGen) {
+                        setState('listening', 'Listening...');
+                        setStatus('Speak now');
+                    }
+                }, 2000);
+            }
         } finally {
-            isProcessing = false;
+            if (generation === myGen) isProcessing = false;
         }
     }
 
-    // ─── SENTENCE CHUNKING (for low-latency TTS) ───
+    // ─── SENTENCE CHUNKING ───
     function feedToken(token) {
         sentenceBuffer += token;
-
-        // Match a sentence that ends in . ! ? or newline
-        // Keep trailing quotes/brackets attached to the sentence
         const match = sentenceBuffer.match(/^([\s\S]*?[.!?]+["')\]]*[\s]*)/);
         if (match) {
             const sentence = match[1].trim();
@@ -375,20 +468,19 @@ const voiceMode = (() => {
     async function processTtsQueue() {
         ttsProcessing = true;
         while (ttsQueue.length > 0) {
-            if (!ttsProcessing) return; // interrupted
+            if (!ttsProcessing) return;
             const sentence = ttsQueue.shift();
             await speakSentence(sentence);
             if (!ttsProcessing) return;
         }
         ttsProcessing = false;
-        // All audio done
         if (!aiSpeaking && connected) {
             setState('listening', 'Listening...');
             setStatus('Speak now');
         }
     }
 
-    // ─── TTS ONE SENTENCE ───
+    // ─── TTS + LIVE WORD REVEAL ───
     async function speakSentence(text) {
         try {
             const res = await authenticatedFetch('/api/voice/tts-georgian', {
@@ -409,12 +501,35 @@ const voiceMode = (() => {
                 currentAiAudio = audio;
                 aiSpeaking = true;
 
-                const cleanup = () => {
-                    URL.revokeObjectURL(audioUrl);
-                    if (currentAiAudio === audio) {
-                        currentAiAudio = null;
+                // Setup word reveal for this sentence
+                currentSentenceWords = text.split(/\s+/).filter(Boolean);
+                currentSentenceRevealed = 0;
+
+                const revealNext = () => {
+                    if (currentSentenceRevealed < currentSentenceWords.length) {
+                        aiFullRevealedText += (aiFullRevealedText ? ' ' : '') + currentSentenceWords[currentSentenceRevealed];
+                        currentSentenceRevealed++;
+                        renderRollingAiText();
                     }
-                    // aiSpeaking stays true until the whole queue drains
+                };
+
+                // Sync word reveal to audio progress
+                audio.addEventListener('timeupdate', () => {
+                    if (!audio.duration || audio.duration === 0) return;
+                    const progress = audio.currentTime / audio.duration;
+                    const target = Math.floor(progress * currentSentenceWords.length);
+                    while (currentSentenceRevealed < target && currentSentenceRevealed < currentSentenceWords.length) {
+                        revealNext();
+                    }
+                });
+
+                const cleanup = () => {
+                    // Force reveal any remaining words
+                    while (currentSentenceRevealed < currentSentenceWords.length) {
+                        revealNext();
+                    }
+                    URL.revokeObjectURL(audioUrl);
+                    if (currentAiAudio === audio) currentAiAudio = null;
                     resolve();
                 };
 
@@ -427,12 +542,21 @@ const voiceMode = (() => {
         }
     }
 
-    // ─── PUBLIC: OPEN ───
+    function renderRollingAiText() {
+        const words = aiFullRevealedText.split(/\s+/).filter(Boolean);
+        const MAX = CONFIG.AI_TEXT_WINDOW;
+        const display = words.length > MAX
+            ? '… ' + words.slice(-MAX).join(' ')
+            : words.join(' ');
+        showAiText(display);
+    }
+
+    // ─── OPEN ───
     async function open() {
         const overlay = $('voice-mode-overlay');
         if (!overlay) return;
 
-        // Ensure we have a conversation to write into
+        // Ensure conversation
         if (!state.conversationId) {
             try {
                 const headers = { 'Content-Type': 'application/json' };
@@ -452,15 +576,24 @@ const voiceMode = (() => {
             }
         }
 
-        overlay.classList.remove('hidden');
+        // Reset display
         showUserText('');
         showAiText('');
+        overlay.classList.remove('hidden');
+        hideOrb();
         setState('idle', 'Starting...');
-        setStatus('Requesting microphone...');
 
         try {
-            const token = await fetchToken();
+            // Phase 1: intros
+            await playIntros();
+
+            // Phase 2: reveal orb + timer
+            showOrb();
+            startTimer();
             setStatus('Connecting...');
+
+            // Phase 3: connect
+            const token = await fetchToken();
             await startAudioCapture();
             await connectElevenLabs(token);
         } catch (err) {
@@ -471,19 +604,16 @@ const voiceMode = (() => {
         }
     }
 
-    // ─── PUBLIC: CLOSE ───
+    // ─── CLOSE ───
     function close() {
-        // Stop watcher
         if (bargeInInterval) {
             clearInterval(bargeInInterval);
             bargeInInterval = null;
         }
-        // Stop STT
         if (sttWS && sttWS.readyState === WebSocket.OPEN) {
             try { sttWS.close(); } catch (e) {}
         }
         sttWS = null;
-        // Stop mic
         if (mediaStream) {
             mediaStream.getTracks().forEach(t => t.stop());
             mediaStream = null;
@@ -494,7 +624,6 @@ const voiceMode = (() => {
         }
         analyser = null;
         analyserData = null;
-        // Stop AI audio
         if (currentAiAudio) {
             try { currentAiAudio.pause(); } catch (e) {}
             currentAiAudio = null;
@@ -503,8 +632,8 @@ const voiceMode = (() => {
             clearTimeout(commitTimeout);
             commitTimeout = null;
         }
+        stopTimer();
 
-        // Reset everything
         connected = false;
         muted = false;
         isProcessing = false;
@@ -514,20 +643,27 @@ const voiceMode = (() => {
         sentenceBuffer = '';
         ttsQueue = [];
         ttsProcessing = false;
+        aiFullRevealedText = '';
+        currentSentenceWords = [];
+        currentSentenceRevealed = 0;
+        generation++;
 
         const btn = $('voice-mute-btn');
         if (btn) btn.classList.remove('muted');
         const overlay = $('voice-mode-overlay');
         if (overlay) overlay.classList.add('hidden');
+        showOrb(); // reset for next open
     }
 
-    // ─── PUBLIC: MUTE ───
     function toggleMute() {
         muted = !muted;
         const btn = $('voice-mute-btn');
         if (btn) btn.classList.toggle('muted', muted);
         setStatus(muted ? 'Muted' : 'Speak now');
     }
+
+
+    
 
     return { open, close, toggleMute };
 })();
