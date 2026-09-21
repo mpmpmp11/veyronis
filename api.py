@@ -1309,7 +1309,6 @@ def _detect_voice(text: str) -> str:
 
 def _clean_for_tts(text: str) -> str:
     """Aggressively clean text so Edge-TTS never chokes."""
-
     if not text:
         return ""
 
@@ -1371,18 +1370,12 @@ def _clean_for_tts(text: str) -> str:
     text = text.replace('…', ', ').replace('...', ', ')
 
     # 10. Replace symbols that break TTS
-    text = text.replace('&', ' and ')
-    text = text.replace('&amp;', ' and ')
-    text = text.replace('@', ' at ')
-    text = text.replace('#', ' ')
-    text = text.replace('%', ' percent ')
-    text = text.replace('+', ' plus ')
-    text = text.replace('=', ' equals ')
-    text = text.replace('~', ' ')
-    text = text.replace('^', ' ')
-    text = text.replace('|', ', ')
-    text = text.replace('\\', ' ')
-    text = text.replace('/', ' or ')
+    text = text.replace('&', ' and ').replace('&amp;', ' and ')
+    text = text.replace('@', ' at ').replace('#', ' ')
+    text = text.replace('%', ' percent ').replace('+', ' plus ')
+    text = text.replace('=', ' equals ').replace('~', ' ')
+    text = text.replace('^', ' ').replace('|', ', ')
+    text = text.replace('\\', ' ').replace('/', ' or ')
     text = text.replace('[', ' ').replace(']', ' ')
     text = text.replace('{', ' ').replace('}', ' ')
     text = text.replace('<', ' ').replace('>', ' ')
@@ -1394,16 +1387,16 @@ def _clean_for_tts(text: str) -> str:
     text = re.sub(r'^[\s.,!?;:]+', '', text)
     text = text.strip()
 
-    # 12. Hard cap at 1500 chars, ending at a sentence
+    # 12. FINAL SAFETY: kill remaining markdown noise
+    text = text.replace('*', '').replace('_', ' ').replace('#', ' ').replace('`', '')
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    # 13. Hard cap at 1500 chars
     if len(text) > 1500:
         cut = text[:1500]
         last_punct = max(cut.rfind('.'), cut.rfind('!'), cut.rfind('?'))
         text = cut[:last_punct + 1] if last_punct > 0 else cut
 
-    # FINAL SAFETY: kill any remaining markdown noise
-    text = text.replace('*', '').replace('_', ' ').replace('#', ' ').replace('`', '')
-    text = re.sub(r'\s+', ' ', text).strip()
-    
     return text
 
 @app.post("/api/voice/tts-georgian")

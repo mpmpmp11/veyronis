@@ -6278,3 +6278,33 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
         padding: 8px 14px;
     }
 }
+/* ─── CALL / SEND BUTTON ICON IMAGES ─── */
+.btn-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    display: block;
+    pointer-events: none;
+}
+
+.composer-btn.call-btn {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(34, 197, 94, 0.35);
+    border: none;
+    width: 36px;
+    height: 36px;
+}
+
+.composer-btn.call-btn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 4px 20px rgba(34, 197, 94, 0.5);
+}
+
+@media (max-width: 768px) {
+    .btn-icon { width: 18px; height: 18px; }
+}
+
+@media (max-width: 480px) {
+    .btn-icon { width: 16px; height: 16px; }
+}

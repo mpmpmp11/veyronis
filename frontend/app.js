@@ -46,24 +46,33 @@ const state = {
 
 // ─── SPLASH SCREEN (mobile only) ───
 (function initSplash() {
-    // Skip on desktop
     if (window.innerWidth >= 768) return;
 
     const startSplash = () => {
         const splash = document.getElementById('splash-screen');
         if (!splash) return;
 
-        // Show splash
         splash.classList.remove('hidden');
 
-        // Hide after 3 seconds
-        setTimeout(() => {
+        // Hide when app is ready, min 2s for aesthetic
+        const minTime = new Promise(r => setTimeout(r, 2000));
+        const appReady = new Promise(r => {
+            const check = () => {
+                const app = document.getElementById('app');
+                const auth = document.getElementById('auth-screen');
+                if ((app && !app.classList.contains('hidden')) || (auth && !auth.classList.contains('hidden'))) {
+                    r();
+                } else {
+                    setTimeout(check, 100);
+                }
+            };
+            check();
+        });
+
+        Promise.all([minTime, appReady]).then(() => {
             splash.classList.add('hidden');
-            // Fully remove from DOM after fade
-            setTimeout(() => {
-                if (splash.parentNode) splash.remove();
-            }, 700);
-        }, 3000);
+            setTimeout(() => { if (splash.parentNode) splash.remove(); }, 700);
+        });
     };
 
     if (document.readyState === 'loading') {
@@ -92,6 +101,7 @@ function toast(message, type = 'info') {
         setTimeout(() => toastEl.remove(), 300);
     }, 3000);
 }
+
 
 // ─── WELCOME TYPE-IN ANIMATION (mobile only) ───
 function runWelcomeTypeIn() {
@@ -703,9 +713,8 @@ function loadConversations() {
             document.getElementById('conv-list-today').innerHTML = today.join('') || '<div class="conv-empty">No chats today</div>';
             document.getElementById('conv-list-yesterday').innerHTML = yesterday.join('') || '';
             document.getElementById('conv-list-week').innerHTML = week.join('') || '';
-            if (convs.length && !state.conversationId && !state.isNewChat) {
-                switchConversation(convs[0].id);
-            } else if (!convs.length && !state.conversationId) {
+                        if (!state.conversationId && !state.isNewChat) {
+                state.isNewChat = true;
                 showEmpty(true);
             }
             state.isNewChat = false;
@@ -1658,30 +1667,44 @@ async function sendMessage() {
 }
 
 function updateSendButton() {
-    const btn = document.getElementById('send-btn');
-    if (!btn) return;
-    if (state.isTyping && state.abortController) {
-        btn.disabled = false;
-        btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
-        btn.onclick = stopGeneration;
-        btn.title = "Stop";
-        btn.classList.add('stop-btn');
+    const sendBtn = document.getElementById('send-btn');
+    const callBtn = document.getElementById('call-btn');
+    const input = document.getElementById('msg-input');
+    if (!sendBtn || !callBtn || !input) return;
+
+    const hasText = !!input.value.trim();
+    const hasImage = !!state.pendingImageBase64;
+    const inActiveChat = state.conversationId !== null;
+
+    // Chat has messages → send button stays forever
+    if (inActiveChat) {
+        sendBtn.style.display = 'flex';
+        callBtn.style.display = 'none';
+        if (state.isTyping && state.abortController) {
+            sendBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+            sendBtn.onclick = stopGeneration;
+            sendBtn.disabled = false;
+        } else {
+            sendBtn.innerHTML = '<img src="/static/icons/send.png" alt="Send" class="btn-icon" />';
+            sendBtn.onclick = sendMessage;
+            sendBtn.disabled = !hasText && !hasImage;
+        }
         return;
     }
-    btn.classList.remove('stop-btn');
-    btn.onclick = sendMessage;
-    btn.title = "Send";
-    btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>';
-    const ta = document.getElementById('msg-input');
-    const hasText = ta ? !!ta.value.trim() : false;
-    const hasImage = !!state.pendingImageBase64;
-    btn.disabled = !hasText && !hasImage;
-}
 
-function stopGeneration() {
-    if (state.abortController) { state.abortController.abort(); state.abortController = null; }
-    state.isTyping = false;
-    updateSendButton();
+    // New chat, empty input → show CALL
+    if (!hasText && !hasImage) {
+        sendBtn.style.display = 'none';
+        callBtn.style.display = 'flex';
+        return;
+    }
+
+    // New chat, typing → show SEND
+    sendBtn.style.display = 'flex';
+    callBtn.style.display = 'none';
+    sendBtn.innerHTML = '<img src="/static/icons/send.png" alt="Send" class="btn-icon" />';
+    sendBtn.onclick = sendMessage;
+    sendBtn.disabled = false;
 }
 
 function regenerateMsg(aiId) {
