@@ -6145,3 +6145,136 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
     #voice-ai-text { font-size: 14.5px; }
     #voice-user-text { font-size: 13px; }
 }
+/* ─── VOICE INTERRUPT BUTTON ─── */
+.voice-interrupt-btn {
+    position: absolute;
+    bottom: 130px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    padding: 12px 28px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease, background 0.2s ease;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    z-index: 5;
+    font-family: inherit;
+}
+.voice-interrupt-btn.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+.voice-interrupt-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+.voice-interrupt-btn:active {
+    transform: translateX(-50%) scale(0.96);
+}
+@media (max-width: 768px) {
+    .voice-interrupt-btn {
+        bottom: 110px;
+        padding: 10px 24px;
+        font-size: 13px;
+    }
+}
+/* ═══════════════════════════════════════════════════════
+   WELCOME TYPE-IN ANIMATION (mobile) + DESKTOP BRAND
+   ═══════════════════════════════════════════════════════ */
+
+/* Import Roboto Bold & Black */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@700;900&display=swap');
+
+/* Mobile wrapper — hidden by default, JS shows it */
+.empty-mobile {
+    display: none;
+    text-align: left;
+    padding: 0 32px;
+    max-width: 520px;
+    margin: 0 auto 24px auto;
+    font-family: 'Roboto', sans-serif;
+}
+
+/* Both lines use Roboto Black (900) with tight letter-spacing */
+.welcome-line-1,
+.welcome-line-2 {
+    font-family: 'Roboto', sans-serif;
+    font-weight: 900;
+    font-size: 40px;
+    letter-spacing: -2px;
+    line-height: 1.05;
+    color: #ffffff;
+    margin-bottom: 8px;
+    min-height: 44px;
+    word-break: break-word;
+}
+
+/* The white box that holds the user's name */
+.welcome-box {
+    display: inline-block;
+    background: #ffffff;
+    color: #000000;
+    padding: 4px 14px 6px 14px;
+    border-radius: 6px;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+    font-weight: 900;
+    letter-spacing: -2px;
+}
+
+.welcome-box.revealed {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Desktop wrapper — shows VEYRONIS brand */
+.empty-desktop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.empty-desktop .empty-brand {
+    font-size: 44px;
+    font-weight: 900;
+    letter-spacing: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2), var(--accent-3));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Hide/show based on screen width */
+@media (max-width: 767px) {
+    .empty-desktop { display: none !important; }
+    .empty-hint { display: none; }
+}
+@media (min-width: 768px) {
+    .empty-mobile { display: none !important; }
+    .welcome-line-1, .welcome-line-2 { display: none; }
+}
+
+/* Mobile chip tweaks */
+@media (max-width: 767px) {
+    .chips {
+        gap: 8px;
+        padding: 0 16px;
+    }
+    .chip {
+        font-size: 12px;
+        padding: 8px 14px;
+    }
+}

@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════
-// VEYRONIS VOICE MODE v6
+// VEYRONIS VOICE MODE v7
 // - Intro audio (EN → KA → orb reveal)
-// - Live call timer
+// - Live call timer + minute tracking
 // - Live AI text during streaming
-// - One TTS call per response (reliable)
-// - Word ticker during playback
+// - Word ticker synced to audio
 // - Echo fix: mic muted while AI speaks + 900ms cooldown
-// - Voice minute tracking (every 30s)
-// - Barge-in support
+// - Tap To Interrupt button (1.5s fade in)
+// - Barge-in detection
+// - Voice rate limit aware
 // ═══════════════════════════════════════════════════════
 
 const voiceMode = (() => {
@@ -21,6 +21,7 @@ const voiceMode = (() => {
         INTRO_KA_PATH: '/static/intro-ka.mp3',
         ECHO_COOLDOWN_MS: 900,
         MINUTE_LOG_INTERVAL_MS: 30000,
+        INTERRUPT_BTN_DELAY_MS: 1500,
     };
 
     // ─── STATE ───
@@ -47,13 +48,14 @@ const voiceMode = (() => {
     let callStartTime = 0;
     let timerInterval = null;
 
-    // Voice minutes tracking
     let voiceMinutesLogged = 0;
     let minuteLoggerInterval = null;
 
+    let interruptBtnTimeout = null;
+
     const $ = id => document.getElementById(id);
 
-    // ─── HELPERS ───
+    // ─── UI HELPERS ───
     const setState = (state, label) => {
         const orb = $('voice-orb');
         if (orb) orb.className = 'voice-orb state-' + state;
@@ -85,6 +87,30 @@ const voiceMode = (() => {
         el.textContent = display;
         el.classList.toggle('visible', !!display);
     };
+
+    // ─── INTERRUPT BUTTON ───
+    function showInterruptButton() {
+        if (interruptBtnTimeout) clearTimeout(interruptBtnTimeout);
+        interruptBtnTimeout = setTimeout(() => {
+            const btn = $('voice-interrupt-btn');
+            if (btn) btn.classList.add('visible');
+        }, CONFIG.INTERRUPT_BTN_DELAY_MS);
+    }
+
+    function hideInterruptButton() {
+        if (interruptBtnTimeout) clearTimeout(interruptBtnTimeout);
+        const btn = $('voice-interrupt-btn');
+        if (btn) btn.classList.remove('visible');
+    }
+
+    function onInterruptTap() {
+        console.log('[Voice] Interrupt tapped');
+        interruptAi();
+        hideInterruptButton();
+        muted = false;
+        setStatus('Speak now');
+        setState('listening', 'Listening...');
+    }
 
     // ─── CALL TIMER ───
     function ensureTimerElement() {
@@ -135,12 +161,9 @@ const voiceMode = (() => {
                     if (data.remaining <= 0) {
                         console.log('[Voice] Minute limit reached:', data);
                         setStatus('Call limit reached. Upgrade for more.');
-                        // Give the user a heads-up but don't cut the call — next log will kill it
                     }
                 }
-            } catch (e) {
-                // Non-fatal
-            }
+            } catch (e) {}
         }, CONFIG.MINUTE_LOG_INTERVAL_MS);
     }
 
@@ -267,7 +290,6 @@ const voiceMode = (() => {
         if (bargeInInterval) clearInterval(bargeInInterval);
         bargeInInterval = setInterval(() => {
             if (!analyser || !aiSpeaking) return;
-            // Don't barge-in while we've deliberately muted the mic for AI speech
             if (muted) return;
             analyser.getByteFrequencyData(analyserData);
             let sum = 0;
@@ -276,6 +298,7 @@ const voiceMode = (() => {
             if (avg > CONFIG.BARGE_IN_VOLUME) {
                 console.log('[Voice] Barge-in detected');
                 interruptAi();
+                hideInterruptButton();
             }
         }, CONFIG.BARGE_IN_CHECK_MS);
     }
@@ -286,6 +309,7 @@ const voiceMode = (() => {
             currentAiAudio = null;
         }
         aiSpeaking = false;
+        hideInterruptButton();
         setState('listening', 'Listening...');
         setStatus('Speak now');
     }
@@ -327,7 +351,6 @@ const voiceMode = (() => {
 
                 const transcript = (data.text || '').trim();
 
-                // Skip everything if mic is muted (AI is speaking)
                 if (muted) return;
 
                 if (data.message_type === 'partial_transcript') {
@@ -385,6 +408,7 @@ const voiceMode = (() => {
     // ─── FIRE UTTERANCE ───
     function fireUtterance(text) {
         if (aiSpeaking) interruptAi();
+        hideInterruptButton();
         generation++;
         const myGen = generation;
         setState('thinking', 'Thinking...');
@@ -455,7 +479,17 @@ const voiceMode = (() => {
                             }
                             console.log('[Voice] Stream done. Tokens:', tokenCount, 'Chars:', aiFullResponse.length);
                         } else if (data.type === 'error') {
-                            throw new Error(data.content);
+                            // Show rate limit error to user
+                            const msg = data.content || 'An error occurred';
+                            setStatus(msg);
+                            setState('error', 'Error');
+                            setTimeout(() => {
+                                if (generation === myGen) {
+                                    setState('listening', 'Listening...');
+                                    setStatus('Speak now');
+                                }
+                            }, 3000);
+                            return;
                         }
                     } catch (e) {
                         if (e instanceof SyntaxError) continue;
@@ -486,7 +520,7 @@ const voiceMode = (() => {
         }
     }
 
-    // ─── TTS + WORD REVEAL ───
+    // ─── TTS + WORD REVEAL + INTERRUPT BTN ───
     async function speakFullResponse(text, myGen) {
         console.log('[Voice] Requesting TTS for', text.length, 'chars');
 
@@ -512,11 +546,14 @@ const voiceMode = (() => {
                 currentAiAudio = audio;
                 aiSpeaking = true;
 
-                // ✅ ECHO FIX PART 1: mute the mic while AI is speaking
+                // ✅ ECHO FIX: mute mic while AI speaks
                 muted = true;
 
                 setState('speaking', 'Speaking...');
                 setStatus('AI is responding...');
+
+                // ✅ Show interrupt button after 1.5s
+                showInterruptButton();
 
                 const words = text.split(/\s+/).filter(Boolean);
                 let lastRevealed = -1;
@@ -552,7 +589,10 @@ const voiceMode = (() => {
                     aiSpeaking = false;
                     showAiText(text);
 
-                    // ✅ ECHO FIX PART 2: cooldown before unmuting
+                    // ✅ Hide interrupt button
+                    hideInterruptButton();
+
+                    // ✅ ECHO FIX: cooldown before unmuting
                     setTimeout(() => {
                         if (generation === myGen) {
                             muted = false;
@@ -582,6 +622,7 @@ const voiceMode = (() => {
             console.error('[Voice] TTS exception:', err);
             showAiText(text);
             muted = false;
+            hideInterruptButton();
             setState('listening', 'Listening...');
             setStatus('Speak now');
         }
@@ -613,6 +654,7 @@ const voiceMode = (() => {
 
         showUserText('');
         showAiText('');
+        hideInterruptButton();
         overlay.classList.remove('hidden');
         hideOrb();
         setState('idle', 'Starting...');
@@ -668,6 +710,7 @@ const voiceMode = (() => {
         }
         stopTimer();
         stopMinuteLogger();
+        hideInterruptButton();
 
         connected = false;
         muted = false;
@@ -692,5 +735,5 @@ const voiceMode = (() => {
         setStatus(muted ? 'Muted' : 'Speak now');
     }
 
-    return { open, close, toggleMute };
+    return { open, close, toggleMute, onInterrupt: onInterruptTap };
 })();

@@ -93,6 +93,52 @@ function toast(message, type = 'info') {
     }, 3000);
 }
 
+// ─── WELCOME TYPE-IN ANIMATION (mobile only) ───
+function runWelcomeTypeIn() {
+    // Only on mobile
+    if (window.innerWidth >= 768) return;
+    // Only once per session
+    if (sessionStorage.getItem('veyronis_welcomed_this_session')) return;
+    sessionStorage.setItem('veyronis_welcomed_this_session', '1');
+
+    const mobileEl = document.getElementById('empty-mobile');
+    const line1 = document.getElementById('welcome-line-1');
+    const nameBox = document.getElementById('welcome-name-box');
+    const desktopEl = document.getElementById('empty-desktop');
+    if (!mobileEl || !line1 || !nameBox) return;
+
+    // Show mobile welcome, hide desktop brand
+    mobileEl.style.display = 'block';
+    if (desktopEl) desktopEl.style.display = 'none';
+
+    // Extract name from email
+    // Example: "lukegod123@gmail.com" → "Luke"
+    const email = state.user?.email || '';
+    let raw = email.split('@')[0] || 'Friend';         // "lukegod123"
+    raw = raw.split(/[._\-+]/)[0];                      // "lukegod123" (split on dots/underscores)
+    raw = raw.replace(/\d/g, '');                       // "lukegod" (remove digits)
+    if (raw.length > 6) raw = raw.slice(0, 4);          // "luke" (cap at 4 chars)
+    const displayName = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();  // "Luke"
+
+    // Type-in animation for "Welcome Back,"
+    const line1Text = 'Welcome Back,';
+    let i = 0;
+    line1.textContent = '';
+    const typeInterval = setInterval(() => {
+        if (i < line1Text.length) {
+            line1.textContent += line1Text[i];
+            i++;
+        } else {
+            clearInterval(typeInterval);
+            // After typing, reveal the name box with a slight delay
+            setTimeout(() => {
+                nameBox.textContent = displayName;
+                nameBox.classList.add('revealed');
+            }, 200);
+        }
+    }, 60);  // 60ms per character = ~780ms for "Welcome Back,"
+}
+
 // ─── MODAL SYSTEM ───
 function openModal(id) {
     const modal = document.getElementById(id);
@@ -805,7 +851,9 @@ function newChat() {
     state.conversationId = null;
     state.isNewChat = true;
     document.getElementById('messages').innerHTML = '';
-    showEmpty(true);   // ✅ only shows because conversationId is null and no .msg elements
+    // No empty state on in-app new chats — blank screen only
+    const emptyState = document.getElementById('empty-state');
+    if (emptyState) emptyState.style.display = 'none';
     loadConversations();
     closeSidebar();
 }
@@ -1193,9 +1241,6 @@ function showEmpty(show) {
     if (!emptyState) return;
 
     if (show) {
-        // NEVER show empty state if:
-        // 1. Any .msg element already exists in #messages
-        // 2. We're inside an active conversation
         const messagesContainer = document.getElementById('messages');
         const hasMessages = messagesContainer && messagesContainer.querySelector('.msg');
         const inActiveChat = !!state.conversationId;
@@ -1204,7 +1249,14 @@ function showEmpty(show) {
             emptyState.style.display = 'none';
             return;
         }
-        emptyState.style.display = 'flex';
+
+        // Only show on FIRST app-open of this session
+        const alreadyWelcomed = sessionStorage.getItem('veyronis_welcomed_this_session');
+        if (alreadyWelcomed) {
+            emptyState.style.display = 'none';
+        } else {
+            emptyState.style.display = 'flex';
+        }
     } else {
         emptyState.style.display = 'none';
     }
@@ -2651,6 +2703,7 @@ function initApp() {
     try { mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' }); } catch(e) {}
     if (window.Chart) updateChartDefaults();
     loadConversations();
+    setTimeout(runWelcomeTypeIn, 300);
     const micBtn = document.getElementById('mic-btn');
 if (micBtn) micBtn.style.display = 'flex';
     initScrollHeader();

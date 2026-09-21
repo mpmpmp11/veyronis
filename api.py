@@ -221,6 +221,24 @@ def _check_rate_limit(client_ip: str, max_requests: int = 30, window_seconds: in
     _rate_limit_tracker[key].append(now)
     return True
 
+
+_voice_rate_tracker = {}
+
+def _check_voice_rate_limit(user_email: str, max_per_minute: int = 8):
+    """Sliding-window rate limit for voice mode. Returns (ok, wait_seconds)."""
+    now = time.time()
+    key = f"voice_rl_{user_email}"
+    if key not in _voice_rate_tracker:
+        _voice_rate_tracker[key] = []
+    # Keep only last 60s
+    _voice_rate_tracker[key] = [t for t in _voice_rate_tracker[key] if now - t < 60]
+    if len(_voice_rate_tracker[key]) >= max_per_minute:
+        oldest = _voice_rate_tracker[key][0]
+        wait = 60 - (now - oldest)
+        return False, wait
+    _voice_rate_tracker[key].append(now)
+    return True, 0
+
 def load_limits():
     if limits_file.exists():
         with open(limits_file, "r") as f:
@@ -1031,6 +1049,15 @@ async def chat_stream(
                 user_id = "u_" + str(int(time.time()))
 
         today = str(date.today())
+                # ✅ Voice mode rate limit — max 8 turns/min per user
+        if request.voice_mode:
+            ok, wait_secs = _check_voice_rate_limit(user_id, max_per_minute=8)
+            if not ok:
+                async def voice_rl_error():
+                    msg = f"⏳ Speaking too fast. Wait {int(wait_secs) + 1}s and try again."
+                    yield f"data: {json.dumps({'type': 'error', 'content': msg})}\n\n"
+                return StreamingResponse(voice_rl_error(), media_type="text/event-stream")
+            
         if not is_pro:
             usage = get_usage_count(user_id, today)
             if usage >= 20:
@@ -1282,9 +1309,7 @@ def _detect_voice(text: str) -> str:
 
 def _clean_for_tts(text: str) -> str:
     """Aggressively clean text so Edge-TTS never chokes."""
-        # FINAL SAFETY: kill any remaining markdown noise
-    text = text.replace('*', '').replace('_', ' ').replace('#', ' ').replace('`', '')
-    text = re.sub(r'\s+', ' ', text).strip()
+
     if not text:
         return ""
 
@@ -1375,6 +1400,10 @@ def _clean_for_tts(text: str) -> str:
         last_punct = max(cut.rfind('.'), cut.rfind('!'), cut.rfind('?'))
         text = cut[:last_punct + 1] if last_punct > 0 else cut
 
+    # FINAL SAFETY: kill any remaining markdown noise
+    text = text.replace('*', '').replace('_', ' ').replace('#', ' ').replace('`', '')
+    text = re.sub(r'\s+', ' ', text).strip()
+    
     return text
 
 @app.post("/api/voice/tts-georgian")
