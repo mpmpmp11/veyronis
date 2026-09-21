@@ -56,14 +56,14 @@ class Config:
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "").strip()
 
     # Model IDs (updated)
-    MODEL_ULTRA: str = "qwen/qwen3-32b"
-    MODEL_STABLE: str = "llama-3.3-70b-versatile"
+    MODEL_ULTRA: str = "qwen/qwen3.8-27b"
+    MODEL_STABLE: str = "qwen/qwen3.6-27b"
     GEMINI_MODEL: str = "gemini-2.5-flash"
     COMPOUND_MODEL: str = "groq/compound"
 
     GROQ_MODEL: str = MODEL_ULTRA
-    JUDGE_MODEL: str = "llama-3.3-70b-versatile"
-
+    JUDGE_MODEL: str = "qwen/qwen3.6-27b"
+    
     # PostgreSQL Database URL
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:mysecret@localhost:5432/veyronis").strip()
 
