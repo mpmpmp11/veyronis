@@ -1324,67 +1324,53 @@ body::before {
 }
 
 .empty-state {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 16px;
-  padding: 60px 20px;
-  min-height: 60vh;
-  animation: fadeUp 0.5s ease;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 24px;
+    padding: 0 20px;
+    min-height: calc(100vh - 240px);
+    animation: fadeUp 0.5s ease;
 }
-
-.empty-brand {
-  font-size: 44px;
-  font-weight: 900;
-  letter-spacing: 8px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2), var(--accent-3));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
+.empty-brand { display: none; }
 .empty-hint {
-  font-size: 16px;
-  color: var(--text-secondary);
-  font-weight: 400;
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1.1;
+    color: var(--text);
+    max-width: 640px;
 }
-
 .chips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  max-width: 520px;
-  padding: 0 12px;
-  margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    max-width: 620px;
 }
-
 .chip {
-  padding: 8px 16px;
-  border-radius: 20px;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+    padding: 10px 18px;
+    border-radius: 24px;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
-
 .chip:hover {
-  background: var(--glass-hover);
-  color: var(--text);
-  border-color: rgba(167, 139, 250, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), 0 0 20px var(--accent-glow);
+    background: var(--glass-hover);
+    color: var(--text);
+    border-color: rgba(167, 139, 250, 0.3);
+    transform: translateY(-2px);
 }
-
-.chip:active {
-  transform: translateY(0);
+@media (max-width: 768px) {
+    .empty-hint { font-size: 32px; letter-spacing: -1px; }
+    .chips { gap: 8px; }
+    .chip { font-size: 12px; padding: 8px 14px; }
 }
 
 /* ─── MESSAGES ─── */

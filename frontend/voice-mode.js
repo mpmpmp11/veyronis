@@ -1,9 +1,13 @@
 // ═══════════════════════════════════════════════════════
-// VEYRONIS VOICE MODE v4
-// - Live word-by-word AI transcript (synced to audio)
-// - Intro audio sequence (en → ka → orb)
+// VEYRONIS VOICE MODE v6
+// - Intro audio (EN → KA → orb reveal)
 // - Live call timer
-// - Generation counter for reliable barge-in
+// - Live AI text during streaming
+// - One TTS call per response (reliable)
+// - Word ticker during playback
+// - Echo fix: mic muted while AI speaks + 900ms cooldown
+// - Voice minute tracking (every 30s)
+// - Barge-in support
 // ═══════════════════════════════════════════════════════
 
 const voiceMode = (() => {
@@ -12,10 +16,11 @@ const voiceMode = (() => {
         BARGE_IN_VOLUME: 25,
         BARGE_IN_CHECK_MS: 50,
         COMMIT_DELAY_MS: 700,
-        TTS_SENTENCE_MIN_LEN: 4,
-        AI_TEXT_WINDOW: 30,          // how many recent words to show
+        AI_TEXT_WINDOW: 25,
         INTRO_EN_PATH: '/static/intro-en.mp3',
         INTRO_KA_PATH: '/static/intro-ka.mp3',
+        ECHO_COOLDOWN_MS: 900,
+        MINUTE_LOG_INTERVAL_MS: 30000,
     };
 
     // ─── STATE ───
@@ -37,23 +42,18 @@ const voiceMode = (() => {
     let userCommittedText = '';
     let commitTimeout = null;
 
-    // TTS queue (sentence-chunked)
-    let sentenceBuffer = '';
-    let ttsQueue = [];
-    let ttsProcessing = false;
+    let aiFullResponse = '';
 
-    // Live AI word reveal
-    let aiFullRevealedText = '';
-    let currentSentenceWords = [];
-    let currentSentenceRevealed = 0;
-
-    // Timer
     let callStartTime = 0;
     let timerInterval = null;
 
+    // Voice minutes tracking
+    let voiceMinutesLogged = 0;
+    let minuteLoggerInterval = null;
+
     const $ = id => document.getElementById(id);
 
-    // ─── STATE MACHINE ───
+    // ─── HELPERS ───
     const setState = (state, label) => {
         const orb = $('voice-orb');
         if (orb) orb.className = 'voice-orb state-' + state;
@@ -76,11 +76,17 @@ const voiceMode = (() => {
     const showAiText = (text) => {
         const el = $('voice-ai-text');
         if (!el) return;
-        el.textContent = text;
-        el.classList.toggle('visible', !!text);
+        let display = text;
+        if (display.length > 400) {
+            const cut = display.slice(0, 400);
+            const lastPunct = Math.max(cut.lastIndexOf('.'), cut.lastIndexOf('!'), cut.lastIndexOf('?'));
+            display = lastPunct > 0 ? cut.slice(0, lastPunct + 1) : cut + '…';
+        }
+        el.textContent = display;
+        el.classList.toggle('visible', !!display);
     };
 
-    // ─── TIMER ───
+    // ─── CALL TIMER ───
     function ensureTimerElement() {
         let el = document.getElementById('voice-timer');
         if (!el) {
@@ -113,7 +119,38 @@ const voiceMode = (() => {
         timerInterval = null;
     }
 
-    // ─── INTRO SEQUENCE ───
+    // ─── VOICE MINUTE LOGGER ───
+    function startMinuteLogger() {
+        voiceMinutesLogged = 0;
+        if (minuteLoggerInterval) clearInterval(minuteLoggerInterval);
+        minuteLoggerInterval = setInterval(async () => {
+            voiceMinutesLogged += 0.5;
+            try {
+                const res = await authenticatedFetch('/api/voice/log-minutes', {
+                    method: 'POST',
+                    body: JSON.stringify({ minutes: 0.5 })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.remaining <= 0) {
+                        console.log('[Voice] Minute limit reached:', data);
+                        setStatus('Call limit reached. Upgrade for more.');
+                        // Give the user a heads-up but don't cut the call — next log will kill it
+                    }
+                }
+            } catch (e) {
+                // Non-fatal
+            }
+        }, CONFIG.MINUTE_LOG_INTERVAL_MS);
+    }
+
+    function stopMinuteLogger() {
+        if (minuteLoggerInterval) clearInterval(minuteLoggerInterval);
+        minuteLoggerInterval = null;
+        voiceMinutesLogged = 0;
+    }
+
+    // ─── INTRO AUDIO ───
     function playIntroFile(src) {
         return new Promise(resolve => {
             const audio = new Audio(src);
@@ -121,19 +158,21 @@ const voiceMode = (() => {
             const finish = () => { if (!done) { done = true; resolve(); } };
             audio.onended = finish;
             audio.onerror = () => {
-                console.warn('[Voice] Intro audio failed or missing:', src);
+                console.warn('[Voice] Intro audio missing/failed:', src);
                 finish();
             };
             audio.play().catch(() => finish());
-            // Safety timeout in case the file is huge or broken
-            setTimeout(finish, 15000);
+            setTimeout(finish, 20000);
         });
     }
 
     async function playIntros() {
         setStatus('Welcome to VEYRONIS');
+        console.log('[Voice] Playing English intro...');
         await playIntroFile(CONFIG.INTRO_EN_PATH);
+        console.log('[Voice] Playing Georgian intro...');
         await playIntroFile(CONFIG.INTRO_KA_PATH);
+        console.log('[Voice] Intros done');
     }
 
     // ─── ORB REVEAL ───
@@ -153,7 +192,7 @@ const voiceMode = (() => {
         }
     }
 
-    // ─── FETCH ELEVENLABS TOKEN ───
+    // ─── FETCH TOKEN ───
     async function fetchToken() {
         const res = await authenticatedFetch('/api/voice/streaming-token');
         if (!res.ok) throw new Error('Failed to get streaming token');
@@ -161,7 +200,7 @@ const voiceMode = (() => {
         return data.token;
     }
 
-    // ─── AUDIO CAPTURE + ANALYSER ───
+    // ─── AUDIO CAPTURE ───
     async function startAudioCapture() {
         audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -228,12 +267,14 @@ const voiceMode = (() => {
         if (bargeInInterval) clearInterval(bargeInInterval);
         bargeInInterval = setInterval(() => {
             if (!analyser || !aiSpeaking) return;
+            // Don't barge-in while we've deliberately muted the mic for AI speech
+            if (muted) return;
             analyser.getByteFrequencyData(analyserData);
             let sum = 0;
             for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
             const avg = sum / analyserData.length;
             if (avg > CONFIG.BARGE_IN_VOLUME) {
-                console.log('[Voice] Barge-in (client VAD)');
+                console.log('[Voice] Barge-in detected');
                 interruptAi();
             }
         }, CONFIG.BARGE_IN_CHECK_MS);
@@ -245,11 +286,6 @@ const voiceMode = (() => {
             currentAiAudio = null;
         }
         aiSpeaking = false;
-        ttsQueue = [];
-        sentenceBuffer = '';
-        ttsProcessing = false;
-        currentSentenceWords = [];
-        currentSentenceRevealed = 0;
         setState('listening', 'Listening...');
         setStatus('Speak now');
     }
@@ -290,6 +326,9 @@ const voiceMode = (() => {
                 }
 
                 const transcript = (data.text || '').trim();
+
+                // Skip everything if mic is muted (AI is speaking)
+                if (muted) return;
 
                 if (data.message_type === 'partial_transcript') {
                     userInterimText = transcript;
@@ -343,30 +382,24 @@ const voiceMode = (() => {
         });
     }
 
-    // ─── UTTERANCE DISPATCH (with generation guard) ───
+    // ─── FIRE UTTERANCE ───
     function fireUtterance(text) {
-        // Interrupt whatever's happening
         if (aiSpeaking) interruptAi();
-        // Bump generation so any in-flight response is abandoned
         generation++;
         const myGen = generation;
         setState('thinking', 'Thinking...');
         setStatus('Processing...');
         processUserSpeech(text, myGen);
-        voice_mode: true
-}
-    // ─── PROCESS USER SPEECH → GROQ ───
+    }
+
+    // ─── PROCESS USER SPEECH ───
     async function processUserSpeech(text, myGen) {
         isProcessing = true;
 
-        // Fresh response state
+        aiFullResponse = '';
         showAiText('');
-        aiFullRevealedText = '';
-        sentenceBuffer = '';
-        ttsQueue = [];
-        ttsProcessing = false;
-        currentSentenceWords = [];
-        currentSentenceRevealed = 0;
+
+        console.log('[Voice] Sending to Groq:', text);
 
         try {
             const res = await authenticatedFetch('/chat/stream', {
@@ -378,15 +411,20 @@ const voiceMode = (() => {
                     model_mode: 'instant',
                     ai_model: 'groq',
                     custom_instructions: state.customInstructions,
-                    response_style: state.responseStyle
+                    response_style: state.responseStyle,
+                    voice_mode: true
                 })
             });
 
-            if (!res.ok) throw new Error('Chat request failed');
+            if (!res.ok) {
+                const errText = await res.text().catch(() => '');
+                throw new Error(`Chat failed ${res.status}: ${errText.slice(0, 100)}`);
+            }
 
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
+            let tokenCount = 0;
 
             while (true) {
                 if (generation !== myGen) {
@@ -408,12 +446,14 @@ const voiceMode = (() => {
                     try {
                         const data = JSON.parse(jsonStr);
                         if (data.type === 'token') {
-                            feedToken(data.content);
+                            aiFullResponse += data.content;
+                            tokenCount++;
+                            showAiText(aiFullResponse);
                         } else if (data.type === 'done') {
                             if (data.conversation_id && !state.conversationId) {
                                 state.conversationId = data.conversation_id;
                             }
-                            flushSentenceBuffer();
+                            console.log('[Voice] Stream done. Tokens:', tokenCount, 'Chars:', aiFullResponse.length);
                         } else if (data.type === 'error') {
                             throw new Error(data.content);
                         }
@@ -421,6 +461,13 @@ const voiceMode = (() => {
                         if (e instanceof SyntaxError) continue;
                     }
                 }
+            }
+
+            if (aiFullResponse.trim()) {
+                await speakFullResponse(aiFullResponse, myGen);
+            } else {
+                setState('listening', 'Listening...');
+                setStatus('Speak now');
             }
         } catch (err) {
             if (generation === myGen) {
@@ -432,123 +479,112 @@ const voiceMode = (() => {
                         setState('listening', 'Listening...');
                         setStatus('Speak now');
                     }
-                }, 2000);
+                }, 3000);
             }
         } finally {
             if (generation === myGen) isProcessing = false;
         }
     }
 
-    // ─── SENTENCE CHUNKING ───
-    function feedToken(token) {
-        sentenceBuffer += token;
-        const match = sentenceBuffer.match(/^([\s\S]*?[.!?]+["')\]]*[\s]*)/);
-        if (match) {
-            const sentence = match[1].trim();
-            if (sentence.length >= CONFIG.TTS_SENTENCE_MIN_LEN) {
-                enqueueTts(sentence);
-            }
-            sentenceBuffer = sentenceBuffer.slice(match[1].length);
-        }
-    }
+    // ─── TTS + WORD REVEAL ───
+    async function speakFullResponse(text, myGen) {
+        console.log('[Voice] Requesting TTS for', text.length, 'chars');
 
-    function flushSentenceBuffer() {
-        const leftover = sentenceBuffer.trim();
-        if (leftover.length >= CONFIG.TTS_SENTENCE_MIN_LEN) {
-            enqueueTts(leftover);
-        }
-        sentenceBuffer = '';
-    }
-
-    function enqueueTts(sentence) {
-        ttsQueue.push(sentence);
-        if (!ttsProcessing) processTtsQueue();
-    }
-
-    async function processTtsQueue() {
-        ttsProcessing = true;
-        while (ttsQueue.length > 0) {
-            if (!ttsProcessing) return;
-            const sentence = ttsQueue.shift();
-            await speakSentence(sentence);
-            if (!ttsProcessing) return;
-        }
-        ttsProcessing = false;
-        if (!aiSpeaking && connected) {
-            setState('listening', 'Listening...');
-            setStatus('Speak now');
-        }
-    }
-
-    // ─── TTS + LIVE WORD REVEAL ───
-    async function speakSentence(text) {
         try {
             const res = await authenticatedFetch('/api/voice/tts-georgian', {
                 method: 'POST',
                 body: JSON.stringify({ text })
             });
 
-            if (!res.ok) throw new Error('TTS failed');
+            if (!res.ok) {
+                console.warn('[Voice] TTS failed, showing text only');
+                showAiText(text);
+                setState('listening', 'Listening...');
+                setStatus('Speak now');
+                return;
+            }
 
             const audioBlob = await res.blob();
             const audioUrl = URL.createObjectURL(audioBlob);
 
-            setState('speaking', 'Speaking...');
-            setStatus('AI is responding...');
-
-            return new Promise(resolve => {
+            await new Promise(resolve => {
                 const audio = new Audio(audioUrl);
                 currentAiAudio = audio;
                 aiSpeaking = true;
 
-                // Setup word reveal for this sentence
-                currentSentenceWords = text.split(/\s+/).filter(Boolean);
-                currentSentenceRevealed = 0;
+                // ✅ ECHO FIX PART 1: mute the mic while AI is speaking
+                muted = true;
 
-                const revealNext = () => {
-                    if (currentSentenceRevealed < currentSentenceWords.length) {
-                        aiFullRevealedText += (aiFullRevealedText ? ' ' : '') + currentSentenceWords[currentSentenceRevealed];
-                        currentSentenceRevealed++;
-                        renderRollingAiText();
+                setState('speaking', 'Speaking...');
+                setStatus('AI is responding...');
+
+                const words = text.split(/\s+/).filter(Boolean);
+                let lastRevealed = -1;
+                let tickerRunning = true;
+
+                const tick = () => {
+                    if (!tickerRunning) return;
+                    if (audio.duration && audio.duration > 0 && isFinite(audio.duration)) {
+                        const progress = audio.currentTime / audio.duration;
+                        const target = Math.min(
+                            Math.floor(progress * words.length) + 1,
+                            words.length
+                        );
+                        if (target !== lastRevealed) {
+                            lastRevealed = target;
+                            const start = Math.max(0, target - CONFIG.AI_TEXT_WINDOW);
+                            const window = words.slice(start, target).join(' ');
+                            const prefix = start > 0 ? '… ' : '';
+                            showAiText(prefix + window);
+                        }
                     }
+                    if (!audio.ended) requestAnimationFrame(tick);
                 };
 
-                // Sync word reveal to audio progress
-                audio.addEventListener('timeupdate', () => {
-                    if (!audio.duration || audio.duration === 0) return;
-                    const progress = audio.currentTime / audio.duration;
-                    const target = Math.floor(progress * currentSentenceWords.length);
-                    while (currentSentenceRevealed < target && currentSentenceRevealed < currentSentenceWords.length) {
-                        revealNext();
-                    }
+                audio.addEventListener('play', () => {
+                    requestAnimationFrame(tick);
                 });
 
-                const cleanup = () => {
-                    // Force reveal any remaining words
-                    while (currentSentenceRevealed < currentSentenceWords.length) {
-                        revealNext();
-                    }
+                const finish = () => {
+                    tickerRunning = false;
                     URL.revokeObjectURL(audioUrl);
                     if (currentAiAudio === audio) currentAiAudio = null;
+                    aiSpeaking = false;
+                    showAiText(text);
+
+                    // ✅ ECHO FIX PART 2: cooldown before unmuting
+                    setTimeout(() => {
+                        if (generation === myGen) {
+                            muted = false;
+                        }
+                    }, CONFIG.ECHO_COOLDOWN_MS);
+
                     resolve();
                 };
 
-                audio.onended = cleanup;
-                audio.onerror = cleanup;
-                audio.play().catch(cleanup);
-            });
-        } catch (err) {
-            console.error('[Voice] TTS error:', err);
-        }
-    }
+                audio.addEventListener('ended', finish);
+                audio.addEventListener('error', () => {
+                    console.warn('[Voice] Audio error');
+                    finish();
+                });
 
-    function renderRollingAiText() {
-        const words = aiFullRevealedText.split(/\s+/).filter(Boolean);
-        const MAX = CONFIG.AI_TEXT_WINDOW;
-        const display = words.length > MAX
-            ? '… ' + words.slice(-MAX).join(' ')
-            : words.join(' ');
-        showAiText(display);
+                audio.play().catch(err => {
+                    console.error('[Voice] Play failed:', err);
+                    finish();
+                });
+            });
+
+            if (generation === myGen) {
+                setState('listening', 'Listening...');
+                setStatus('Speak now');
+            }
+        } catch (err) {
+            console.error('[Voice] TTS exception:', err);
+            showAiText(text);
+            muted = false;
+            setState('listening', 'Listening...');
+            setStatus('Speak now');
+        }
     }
 
     // ─── OPEN ───
@@ -556,7 +592,6 @@ const voiceMode = (() => {
         const overlay = $('voice-mode-overlay');
         if (!overlay) return;
 
-        // Ensure conversation
         if (!state.conversationId) {
             try {
                 const headers = { 'Content-Type': 'application/json' };
@@ -576,23 +611,22 @@ const voiceMode = (() => {
             }
         }
 
-        // Reset display
         showUserText('');
         showAiText('');
         overlay.classList.remove('hidden');
         hideOrb();
         setState('idle', 'Starting...');
+        setStatus('Welcome to VEYRONIS');
 
         try {
-            // Phase 1: intros
             await playIntros();
+            console.log('[Voice] Intros complete, revealing orb');
 
-            // Phase 2: reveal orb + timer
             showOrb();
             startTimer();
+            startMinuteLogger();
             setStatus('Connecting...');
 
-            // Phase 3: connect
             const token = await fetchToken();
             await startAudioCapture();
             await connectElevenLabs(token);
@@ -633,6 +667,7 @@ const voiceMode = (() => {
             commitTimeout = null;
         }
         stopTimer();
+        stopMinuteLogger();
 
         connected = false;
         muted = false;
@@ -640,19 +675,14 @@ const voiceMode = (() => {
         aiSpeaking = false;
         userInterimText = '';
         userCommittedText = '';
-        sentenceBuffer = '';
-        ttsQueue = [];
-        ttsProcessing = false;
-        aiFullRevealedText = '';
-        currentSentenceWords = [];
-        currentSentenceRevealed = 0;
+        aiFullResponse = '';
         generation++;
 
         const btn = $('voice-mute-btn');
         if (btn) btn.classList.remove('muted');
         const overlay = $('voice-mode-overlay');
         if (overlay) overlay.classList.add('hidden');
-        showOrb(); // reset for next open
+        showOrb();
     }
 
     function toggleMute() {
@@ -661,9 +691,6 @@ const voiceMode = (() => {
         if (btn) btn.classList.toggle('muted', muted);
         setStatus(muted ? 'Muted' : 'Speak now');
     }
-
-
-
 
     return { open, close, toggleMute };
 })();

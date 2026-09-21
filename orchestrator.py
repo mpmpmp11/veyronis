@@ -24,14 +24,13 @@ LANGUAGE_RULE = (
 )
 
 VOICE_MODE_RULE = (
-    "\n\nYOU ARE IN VOICE CALL MODE:\n"
-    "- Keep answers SHORT: 1-3 sentences for simple questions. Max 4-5 sentences unless the user explicitly asks for detail.\n"
-    "- NO emojis. NO markdown. NO bullet points. NO numbered lists. NO asterisks. NO hashes.\n"
-    "- Speak like a warm friend on a phone call, not a written article.\n"
-    "- If you don't know something recent or factual, use the web search context provided. "
-    "If still unsure, briefly say 'I'm not sure' — do not guess or invent.\n"
-    "- Never say 'as an AI' or 'I'm just a language model'.\n"
-    "- Prefer plain conversational sentences with natural punctuation.\n"
+    "\n\nYOU ARE IN VOICE CALL MODE. THIS IS A LIVE PHONE CALL.\n"
+    "ABSOLUTE OUTPUT RULES:\n"
+    "- Output ONLY plain conversational text. NO asterisks (*), NO underscores (_), NO hashtags (#), NO backticks, NO bullet points, NO numbered lists, NO markdown of ANY kind.\n"
+    "- Keep answers to 2-3 SHORT sentences. Maximum 5 sentences unless the user says 'explain in detail'.\n"
+    "- Never say 'as an AI' or 'I'm a language model'.\n"
+    "- Speak like a warm human friend on the phone.\n"
+    "- No emojis. Ever.\n"
 )
 
 

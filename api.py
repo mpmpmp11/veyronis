@@ -1282,6 +1282,9 @@ def _detect_voice(text: str) -> str:
 
 def _clean_for_tts(text: str) -> str:
     """Aggressively clean text so Edge-TTS never chokes."""
+        # FINAL SAFETY: kill any remaining markdown noise
+    text = text.replace('*', '').replace('_', ' ').replace('#', ' ').replace('`', '')
+    text = re.sub(r'\s+', ' ', text).strip()
     if not text:
         return ""
 
@@ -1588,6 +1591,26 @@ async def admin_review_report(
 
     conn.commit()
     return {"message": f"Report {report_id} {status}"}
+
+_voice_minutes_tracker = {}
+
+@app.post("/api/voice/log-minutes")
+async def log_voice_minutes(request: dict, current_user: dict = Depends(get_current_user_required)):
+    """Log voice usage minutes. Free = 5 min/day, PRO = 60 min/day."""
+    minutes = float(request.get("minutes", 0))
+    today = str(date.today())
+    key = f"{current_user['email']}_{today}"
+    _voice_minutes_tracker[key] = _voice_minutes_tracker.get(key, 0) + minutes
+
+    user = get_user_by_email(current_user["email"])
+    is_pro = bool(user["is_pro"]) if user else False
+    limit = 60 if is_pro else 5
+
+    return {
+        "used": round(_voice_minutes_tracker[key], 1),
+        "limit": limit,
+        "remaining": max(0, round(limit - _voice_minutes_tracker[key], 1))
+    }
 
 # ─── FEEDBACK ENDPOINT ───
 
