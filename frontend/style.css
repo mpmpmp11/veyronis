@@ -1326,11 +1326,13 @@ body::before {
     align-items: center;
     justify-content: center;
     text-align: center;
-    gap: 24px;
-    padding: 0 20px;
-    min-height: calc(100vh - 240px);
+    gap: 16px;
+    padding: 0 20px 60px;
+    min-height: auto;
+    margin-top: 40px;
     animation: fadeUp 0.5s ease;
 }
+
 .empty-brand { display: none; }
 .empty-hint {
     font-size: 44px;
@@ -1346,7 +1348,9 @@ body::before {
     justify-content: center;
     gap: 10px;
     max-width: 620px;
+    margin-bottom: 80px;
 }
+
 .chip {
     padding: 10px 18px;
     border-radius: 24px;
@@ -6206,29 +6210,31 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
 /* Both lines use Roboto Black (900) with tight letter-spacing */
 .welcome-line-1,
 .welcome-line-2 {
-    font-family: 'Roboto', sans-serif;
+    font-family: 'Roboto', 'Inter', -apple-system, sans-serif;
     font-weight: 900;
-    font-size: 40px;
-    letter-spacing: -2px;
-    line-height: 1.05;
-    color: #ffffff;
-    margin-bottom: 8px;
-    min-height: 44px;
+    font-size: 28px;
+    letter-spacing: -1.2px;
+    line-height: 1.15;
+    color: var(--text);
+    margin-bottom: 6px;
+    min-height: 34px;
     word-break: break-word;
 }
 
 /* The white box that holds the user's name */
 .welcome-box {
     display: inline-block;
-    background: #ffffff;
-    color: #000000;
-    padding: 4px 14px 6px 14px;
+    background: var(--text);
+    color: var(--bg);
+    padding: 2px 12px 4px 12px;
     border-radius: 6px;
     opacity: 0;
     transform: translateY(6px);
     transition: opacity 0.35s ease, transform 0.35s ease;
     font-weight: 900;
-    letter-spacing: -2px;
+    letter-spacing: -1.2px;
+    font-size: 28px;
+    line-height: 1.15;
 }
 
 .welcome-box.revealed {
@@ -6337,15 +6343,25 @@ body::before { display: none !important; }
    ═══════════════════════════════════════════════════════ */
 .welcome-line-3 {
     font-family: 'Inter', -apple-system, sans-serif;
-    font-size: 20px;
+    font-size: 15px;
     font-weight: 500;
     color: var(--text-secondary);
-    margin-top: 20px;
+    margin-top: 10px;
     text-align: center;
 }
+
 @media (max-width: 768px) {
-    .welcome-line-3 { font-size: 16px; margin-top: 16px; }
+    .welcome-line-1,
+    .welcome-line-2,
+    .welcome-box {
+        font-size: 24px;
+        min-height: 30px;
+    }
+    .welcome-line-3 { font-size: 14px; margin-top: 8px; }
+    .empty-state { margin-top: 20px; padding-bottom: 40px; }
+    .chips { margin-bottom: 60px; }
 }
+
 .empty-mobile {
     text-align: center !important;
     padding: 0 24px !important;

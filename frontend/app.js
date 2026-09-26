@@ -129,16 +129,22 @@ function runWelcomeTypeIn() {
     mobileEl.style.display = 'block';
     if (desktopEl) desktopEl.style.display = 'none';
 
-    // Prefer full_name from Google/DB; fall back to email prefix
-    let displayName = state.user?.full_name;
+        // Prefer full_name → take first word only (e.g. "Misho Bazadze" → "Misho")
+    // Fall back to email prefix only if full_name is missing
+    let displayName = '';
+    if (state.user?.full_name) {
+        displayName = state.user.full_name.trim().split(/\s+/)[0];
+    }
     if (!displayName) {
         const email = state.user?.email || '';
         let raw = email.split('@')[0] || 'Friend';
         raw = raw.split(/[._\-+]/)[0];
         raw = raw.replace(/\d/g, '');
-        if (raw.length > 6) raw = raw.slice(0, 4);
+        if (raw.length > 10) raw = raw.slice(0, 10);
         displayName = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
     }
+    // Capitalize first letter, lowercase rest (handles "MISHO" → "Misho")
+    displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1).toLowerCase();
 
     // Type-in animation for "Welcome Back,"
     const line1Text = 'Welcome Back,';
