@@ -319,6 +319,31 @@ function switchAuthTab(tab) {
     document.getElementById('register-error').textContent = '';
 }
 
+// ─── AUTH SCREEN VIEW NAVIGATION ───
+function showAuthLanding() {
+    const landing = document.getElementById('auth-landing');
+    const creds = document.getElementById('auth-credentials');
+    if (!landing || !creds) return;
+    creds.classList.remove('auth-view-active');
+    landing.classList.add('auth-view-active');
+    const le = document.getElementById('login-error');
+    const re = document.getElementById('register-error');
+    if (le) le.textContent = '';
+    if (re) re.textContent = '';
+}
+
+function showAuthCredentials() {
+    const landing = document.getElementById('auth-landing');
+    const creds = document.getElementById('auth-credentials');
+    if (!landing || !creds) return;
+    landing.classList.remove('auth-view-active');
+    creds.classList.add('auth-view-active');
+}
+
+function showMobileComingSoon() {
+    toast('📱 Mobile number login coming soon', 'info');
+}
+
 async function handleLogin() {
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value.trim();
@@ -350,6 +375,7 @@ async function handleLogin() {
         state.isAuthenticated = true;
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('app').classList.remove('hidden');
+        showAuthLanding();
         initApp();
         toast('🎉 Welcome back, ' + data.user.email + '!', 'success');
         setTimeout(() => {

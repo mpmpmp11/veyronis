@@ -22,67 +22,96 @@
     <video src="/static/splash.mp4" class="splash-video" autoplay muted playsinline preload="auto"></video>
 </div>
     <!-- ============================================================
-    AUTH SCREEN
-    ============================================================ -->
-    <div id="auth-screen" class="auth-screen">
-        <div class="ambient-bg">
-            <div class="ambient-orb orb-1"></div>
-            <div class="ambient-orb orb-2"></div>
-            <div class="ambient-orb orb-3"></div>
-        </div>
-        <div class="auth-card glass">
-            <div class="auth-brand">VEYRONIS</div>
-            <div class="auth-tag">Multi-AI Student Assistant</div>
+     AUTH SCREEN — Full-screen native dark
+     ============================================================ -->
+<div id="auth-screen" class="auth-screen">
 
-            <div class="auth-tabs">
-                <button class="auth-tab active" data-tab="login" onclick="switchAuthTab('login')">Login</button>
+    <!-- ─── SCREEN 1: LANDING ─── -->
+    <div id="auth-landing" class="auth-view auth-view-active">
+        <div class="auth-landing-header"></div>
+
+        <div class="auth-landing-center">
+            <img src="/static/icons/icon-512.png" class="auth-logo-large" alt="Veyronis">
+            <div class="auth-brand-large">VEYRONIS</div>
+            <div class="auth-tagline-large">Multi-AI Student Assistant</div>
+        </div>
+
+        <div class="auth-landing-bottom">
+            <button class="auth-btn auth-btn-outline" onclick="handleGoogleLogin()">
+                Continue with Google
+            </button>
+            <button class="auth-btn auth-btn-outline" onclick="showAuthCredentials()">
+                Try another way
+            </button>
+        </div>
+
+        <div class="auth-legal-footer">
+            <a href="/privacy">Privacy Policy</a>
+            <span>•</span>
+            <a href="/terms">Terms of Service</a>
+        </div>
+    </div>
+
+    <!-- ─── SCREEN 2: CREDENTIALS ─── -->
+    <div id="auth-credentials" class="auth-view">
+        <div class="auth-creds-header">
+            <button class="auth-back-btn" onclick="showAuthLanding()" aria-label="Back">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="auth-creds-scroll">
+            <img src="/static/icons/icon-192.png" class="auth-logo-small" alt="Veyronis">
+
+            <h1 class="auth-heading">Log In Or Register</h1>
+            <p class="auth-consent">
+                By logging in or registering, you accept our
+                <a href="/privacy">Privacy Policy</a> &amp;
+                <a href="/terms">Terms of Service</a>.
+            </p>
+
+            <div class="auth-tabs-pill">
+                <button class="auth-tab active" data-tab="login" onclick="switchAuthTab('login')">Log In</button>
                 <button class="auth-tab" data-tab="register" onclick="switchAuthTab('register')">Register</button>
             </div>
 
+            <!-- LOGIN FORM -->
             <div id="auth-login" class="auth-form active">
-                <div class="auth-field">
-                    <label>Email</label>
-                    <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email">
-                </div>
-                <div class="auth-field">
-                    <label>Password</label>
-                    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
-                </div>
+                <input type="email" id="login-email" class="auth-input" placeholder="Email" autocomplete="email">
+                <input type="password" id="login-password" class="auth-input" placeholder="Password" autocomplete="current-password">
                 <div id="login-error" class="auth-error"></div>
-
-                <div style="text-align: right; margin-top: 4px; margin-bottom: 12px;">
-                    <button id="forgot-password-btn" style="color: var(--accent); font-size: 12px; background: none; border: none; text-decoration: underline; cursor: pointer; font-family: inherit; padding: 0;">
-                        Forgot Password?
-                    </button>
-                </div>
-
-                <div class="auth-divider"><span>or</span></div>
-                <button class="auth-google-btn" onclick="handleGoogleLogin()">
-                    <svg width="18" height="18" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                    </svg>
-                    Continue with Google
-                </button>
-                <button class="auth-action" onclick="handleLogin()">Login</button>
+                <button class="auth-btn auth-btn-primary" onclick="handleLogin()">Continue</button>
+                <button class="auth-link" id="forgot-password-btn" type="button">Forgot Password?</button>
             </div>
 
+            <!-- REGISTER FORM -->
             <div id="auth-register" class="auth-form">
-                <div class="auth-field">
-                    <label>Email</label>
-                    <input type="email" id="register-email" placeholder="you@example.com" autocomplete="email">
-                </div>
-                <div class="auth-field">
-                    <label>Password</label>
-                    <input type="password" id="register-password" placeholder="Min 6 characters" autocomplete="new-password">
-                </div>
+                <input type="text" id="register-name" class="auth-input" placeholder="Full Name" autocomplete="name">
+                <input type="email" id="register-email" class="auth-input" placeholder="Email" autocomplete="email">
+                <input type="password" id="register-password" class="auth-input" placeholder="Password (min 6 characters)" autocomplete="new-password">
                 <div id="register-error" class="auth-error"></div>
-                <button class="auth-action" onclick="handleRegister()">Create Account</button>
+                <button class="auth-btn auth-btn-primary" onclick="handleRegister()">Continue</button>
             </div>
+
+            <!-- OR DIVIDER -->
+            <div class="auth-or-divider">
+                <span class="auth-or-line"></span>
+                <span class="auth-or-text">OR</span>
+                <span class="auth-or-line"></span>
+            </div>
+
+            <button class="auth-btn auth-btn-outline" onclick="handleGoogleLogin()">
+                Continue with Google
+            </button>
+            <button class="auth-btn auth-btn-outline" onclick="showMobileComingSoon()" style="margin-top:10px;">
+                Continue with Mobile Number
+            </button>
         </div>
     </div>
+
+</div>
 
     <!-- ============================================================
     OFFLINE BANNER
@@ -369,88 +398,95 @@
                 </div>
             </div>
 
-            <!-- INPUT COMPOSER -->
+           <!-- INPUT COMPOSER -->
+<div class="input-shell">
+    <div class="input-glass">
         <div class="input-composer">
-    <button class="composer-btn attach-btn" onclick="toggleAttach()" title="Attach">
-        <svg>...</svg>
-    </button>
-    <div class="composer-input-wrap">
-        <textarea id="msg-input" rows="1" placeholder="Message VEYRONIS..." autocomplete="off"></textarea>
-    </div>
-
-    <button class="composer-btn glass-icon mic-btn" id="mic-btn" onclick="toggleMic()" title="Voice">
-        <svg>...</svg>
-    </button>
-    <button class="composer-btn call-btn" id="call-btn" onclick="voiceMode.open()" title="Voice Call" style="display:none;">
-        <img src="/static/icons/call.png" alt="Call" class="btn-icon" />
-    </button>
-    <button class="composer-btn send-btn" id="send-btn" onclick="sendMessage()" title="Send">
-        <img src="/static/icons/send.png" alt="Send" class="btn-icon" />
-    </button>
-</div>
-
-                    <!-- OPTIONS ROW -->
-                    <div class="composer-options">
-                        <button class="model-toggle glass-toggle" id="model-toggle" onclick="toggleModelMenu()">
-                            <span id="model-label">Instant</span>
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                                <polyline points="6 9 12 15 18 9"/>
-                            </svg>
-                        </button>
-                        <button class="simulation-toggle glass-toggle" id="sim-toggle" onclick="toggleSimulationMode()" title="Toggle VEYRONIS HINDSIGHT">
-                            <span class="sim-icon">🔮</span>
-                            <span>Hindsight</span>
-                            <span class="sim-limit-badge" id="sim-badge">1/1</span>
-                        </button>
-                        <div style="flex:1;"></div>
-                    </div>
-
-                    <!-- MODEL MENU -->
-                    <div class="model-menu glass" id="model-menu">
-                        <button class="model-row glass" onclick="pickModel(event, 'instant','Instant')">
-                            <div class="model-row-name">Instant</div>
-                            <div class="model-row-desc">Fast responses</div>
-                        </button>
-                        <button class="model-row glass" onclick="pickModel(event, 'smart','Smart')">
-                            <div class="model-row-name">Smart</div>
-                            <div class="model-row-desc">Deeper reasoning</div>
-                        </button>
-                        <button class="model-row glass" onclick="pickModel(event, 'genius','Genius')">
-                            <div class="model-row-name">Genius</div>
-                            <div class="model-row-desc">Maximum capability</div>
-                        </button>
-                        <button class="model-row glass research-row" onclick="pickModel(event, 'research','Research')">
-                            <div class="model-row-name">🔬 Research</div>
-                            <div class="model-row-desc">Deep research report</div>
-                        </button>
-                    </div>
-
-                    <!-- ATTACH POPUP -->
-                    <div class="attach-pop glass" id="attach-pop">
-                        <div class="attach-item" onclick="triggerDocumentUpload()">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-                                <polyline points="13 2 13 9 20 9"/>
-                            </svg>
-                            Document
-                        </div>
-                        <div class="attach-item" onclick="triggerImageUpload()">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                                <circle cx="8.5" cy="8.5" r="1.5"/>
-                                <polyline points="21 15 16 10 5 21"/>
-                            </svg>
-                            Image
-                        </div>
-                    </div>
-                </div>
-
-                <div class="input-disclaimer" id="input-disclaimer">
-                    Free: 0/20 today · VEYRONIS can make mistakes
-                </div>
+            <button class="composer-btn attach-btn" onclick="toggleAttach()" title="Attach">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                </svg>
+            </button>
+            <div class="composer-input-wrap">
+                <textarea id="msg-input" rows="1" placeholder="Message VEYRONIS..." autocomplete="off"></textarea>
             </div>
-        </main>
+
+            <button class="composer-btn glass-icon mic-btn" id="mic-btn" onclick="toggleMic()" title="Voice">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+            </button>
+            <button class="composer-btn call-btn" id="call-btn" onclick="voiceMode.open()" title="Voice Call" style="display:none;">
+                <img src="/static/icons/call.png" alt="Call" class="btn-icon" />
+            </button>
+            <button class="composer-btn send-btn" id="send-btn" onclick="sendMessage()" title="Send">
+                <img src="/static/icons/send.png" alt="Send" class="btn-icon" />
+            </button>
+        </div>
+
+        <!-- OPTIONS ROW -->
+        <div class="composer-options">
+            <button class="model-toggle glass-toggle" id="model-toggle" onclick="toggleModelMenu()">
+                <span id="model-label">Instant</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+            </button>
+            <button class="simulation-toggle glass-toggle" id="sim-toggle" onclick="toggleSimulationMode()" title="Toggle VEYRONIS HINDSIGHT">
+                <span class="sim-icon">🔮</span>
+                <span>Hindsight</span>
+                <span class="sim-limit-badge" id="sim-badge">1/1</span>
+            </button>
+            <div style="flex:1;"></div>
+        </div>
+
+        <!-- MODEL MENU -->
+        <div class="model-menu glass" id="model-menu">
+            <button class="model-row glass" onclick="pickModel(event, 'instant','Instant')">
+                <div class="model-row-name">Instant</div>
+                <div class="model-row-desc">Fast responses</div>
+            </button>
+            <button class="model-row glass" onclick="pickModel(event, 'smart','Smart')">
+                <div class="model-row-name">Smart</div>
+                <div class="model-row-desc">Deeper reasoning</div>
+            </button>
+            <button class="model-row glass" onclick="pickModel(event, 'genius','Genius')">
+                <div class="model-row-name">Genius</div>
+                <div class="model-row-desc">Maximum capability</div>
+            </button>
+            <button class="model-row glass research-row" onclick="pickModel(event, 'research','Research')">
+                <div class="model-row-name">🔬 Research</div>
+                <div class="model-row-desc">Deep research report</div>
+            </button>
+        </div>
+
+        <!-- ATTACH POPUP -->
+        <div class="attach-pop glass" id="attach-pop">
+            <div class="attach-item" onclick="triggerDocumentUpload()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                    <polyline points="13 2 13 9 20 9"/>
+                </svg>
+                Document
+            </div>
+            <div class="attach-item" onclick="triggerImageUpload()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                Image
+            </div>
+        </div>
     </div>
+
+    <div class="input-disclaimer" id="input-disclaimer">
+        Free: 0/20 today · VEYRONIS can make mistakes
+    </div>
+</div>
 
     <!-- ============================================================
     TOAST CONTAINER
