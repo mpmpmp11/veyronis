@@ -6763,7 +6763,6 @@ body::before { display: none !important; }
     object-fit: contain;
     display: block;
     pointer-events: none;
-    filter: brightness(0) invert(1);
 }
 
 @media (max-width: 768px) {
