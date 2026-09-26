@@ -121,14 +121,16 @@ function runWelcomeTypeIn() {
     mobileEl.style.display = 'block';
     if (desktopEl) desktopEl.style.display = 'none';
 
-    // Extract name from email
-    // Example: "lukegod123@gmail.com" → "Luke"
-    const email = state.user?.email || '';
-    let raw = email.split('@')[0] || 'Friend';         // "lukegod123"
-    raw = raw.split(/[._\-+]/)[0];                      // "lukegod123" (split on dots/underscores)
-    raw = raw.replace(/\d/g, '');                       // "lukegod" (remove digits)
-    if (raw.length > 6) raw = raw.slice(0, 4);          // "luke" (cap at 4 chars)
-    const displayName = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();  // "Luke"
+        // Prefer full_name from Google/DB; fall back to email prefix
+    let displayName = state.user?.full_name;
+    if (!displayName) {
+        const email = state.user?.email || '';
+        let raw = email.split('@')[0] || 'Friend';
+        raw = raw.split(/[._\-+]/)[0];
+        raw = raw.replace(/\d/g, '');
+        if (raw.length > 6) raw = raw.slice(0, 4);
+        displayName = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+    }
 
     // Type-in animation for "Welcome Back,"
     const line1Text = 'Welcome Back,';
@@ -456,7 +458,7 @@ function handleGoogleCallback() {
         const avatar = params.get('avatar') || null;
         if (token && email) {
             state.token = token;
-            state.user = { email, is_pro: isPro, name, avatar_url: avatar, auth_method: 'google' };
+            state.user = { email, is_pro: isPro, name, full_name: name, avatar_url: avatar, auth_method: 'google' };
             state.userId = email;
             state.isAuthenticated = true;
             localStorage.setItem('veyronis_token', token);

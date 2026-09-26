@@ -72,6 +72,7 @@ def init_db():
                     id SERIAL PRIMARY KEY,
                     email TEXT UNIQUE NOT NULL,
                     hashed_password TEXT,
+                    full_name TEXT,
                     google_id TEXT,
                     avatar_url TEXT,
                     is_pro BOOLEAN DEFAULT FALSE,
@@ -109,6 +110,9 @@ def init_db():
                     WHERE display_id IS NULL
                 """)
                 print("[VEYRONIS] display_id column added and populated.")
+
+
+        
 
             # Conversations table
             cur.execute("""
@@ -219,6 +223,16 @@ def init_db():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_users_display_id ON users(display_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_usage_logs_user_date ON usage_logs(user_id, date)")
+
+                        # ─── MIGRATION: Add full_name if missing ───
+            cur.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name='users' AND column_name='full_name'
+            """)
+            if not cur.fetchone():
+                print("[VEYRONIS] Adding full_name column to users table...")
+                cur.execute("ALTER TABLE users ADD COLUMN full_name TEXT")
 
         conn.commit()
     finally:
@@ -389,7 +403,7 @@ def delete_attachment(attachment_id: int, user_id: str) -> bool:
 
 # ─── USERS ───
 
-def create_user(email: str, hashed_password: str = None, google_id: str = None, avatar_url: str = None) -> int:
+def create_user(email: str, hashed_password: str = None, google_id: str = None, avatar_url: str = None, full_name: str = None) -> int:
     with db_connection() as conn:
         with conn.cursor() as cur:
             if google_id:
@@ -400,26 +414,24 @@ def create_user(email: str, hashed_password: str = None, google_id: str = None, 
                 existing = cur.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone()
                 if existing:
                     cur.execute(
-                        "UPDATE users SET google_id = %s, avatar_url = %s WHERE id = %s",
-                        (google_id, avatar_url, existing["id"])
+                        "UPDATE users SET google_id = %s, avatar_url = %s, full_name = COALESCE(%s, full_name) WHERE id = %s",
+                        (google_id, avatar_url, full_name, existing["id"])
                     )
                     conn.commit()
                     return existing["id"]
 
-                # Generate display_id
                 display_id = generate_display_id()
                 cur.execute(
-                    "INSERT INTO users (email, google_id, avatar_url, is_pro, display_id) VALUES (%s, %s, %s, FALSE, %s) RETURNING id",
-                    (email, google_id, avatar_url, display_id)
+                    "INSERT INTO users (email, google_id, avatar_url, full_name, is_pro, display_id) VALUES (%s, %s, %s, %s, FALSE, %s) RETURNING id",
+                    (email, google_id, avatar_url, full_name, display_id)
                 )
             else:
                 if hashed_password is None:
                     raise ValueError("Password required for email registration")
-                # Generate display_id
                 display_id = generate_display_id()
                 cur.execute(
-                    "INSERT INTO users (email, hashed_password, display_id) VALUES (%s, %s, %s) RETURNING id",
-                    (email, hashed_password, display_id)
+                    "INSERT INTO users (email, hashed_password, full_name, display_id) VALUES (%s, %s, %s, %s) RETURNING id",
+                    (email, hashed_password, full_name, display_id)
                 )
             user_id = cur.fetchone()["id"]
         conn.commit()
@@ -429,15 +441,14 @@ def create_user(email: str, hashed_password: str = None, google_id: str = None, 
 def get_user_by_email(email: str):
     with db_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id, email, hashed_password, is_pro, google_id, avatar_url, is_verified, is_banned, ban_reason, display_id FROM users WHERE email = %s", (email,))
+            cur.execute("SELECT id, email, hashed_password, is_pro, google_id, avatar_url, is_verified, is_banned, ban_reason, display_id, full_name FROM users WHERE email = %s", (email,))
             row = cur.fetchone()
     return row_to_dict(row)
-
 
 def get_user_by_id(user_id: int):
     with db_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id, email, is_pro, avatar_url, is_verified, is_banned, ban_reason, display_id FROM users WHERE id = %s", (user_id,))
+            cur.execute("SELECT id, email, is_pro, avatar_url, is_verified, is_banned, ban_reason, display_id, full_name FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
     return row_to_dict(row)
 
@@ -446,7 +457,7 @@ def get_user_by_google_id(google_id: str):
     with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, email, is_pro, avatar_url, display_id FROM users WHERE google_id = %s",
+                "SELECT id, email, is_pro, avatar_url, display_id, full_name FROM users WHERE google_id = %s",
                 (google_id,)
             )
             row = cur.fetchone()

@@ -82,7 +82,7 @@ async def handle_google_callback(code: str, redirect_uri: str):
                 user_id = existing_email["id"]
                 is_pro = bool(existing_email.get("is_pro", False))
             else:
-                user_id = create_user(email=email, google_id=google_id, avatar_url=avatar_url)
+                user_id = create_user(email=email, google_id=google_id, avatar_url=avatar_url, full_name=name)
                 is_pro = False
         
         jwt_token = create_jwt_for_user(user_id)

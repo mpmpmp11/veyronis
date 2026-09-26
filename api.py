@@ -337,7 +337,7 @@ async def register(req: RegisterRequest, request: Request):
         return TokenResponse(
             access_token=token,
             token_type="bearer",
-            user={"id": user_id, "email": req.email, "is_pro": False, "display_id": user.get("display_id") if user else None}
+            user={"id": user_id, "email": req.email, "is_pro": False, "display_id": user.get("display_id") if user else None, "full_name": user.get("full_name") if user else None}
         )
     except HTTPException:
         raise
@@ -364,7 +364,7 @@ async def login(req: LoginRequest, request: Request):
         return TokenResponse(
             access_token=token,
             token_type="bearer",
-            user={"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"]), "display_id": user.get("display_id")}
+            user={"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"]), "display_id": user.get("display_id"), "full_name": user.get("full_name")}
         )
     except HTTPException:
         raise
@@ -372,7 +372,7 @@ async def login(req: LoginRequest, request: Request):
         print(f"[LOGIN ERROR] {e}")
         traceback.print_exc()
         raise HTTPException(500, detail="😕 Login failed. Please try again.")
-
+    
 @app.get("/me")
 async def get_me(current_user: dict = Depends(get_current_user_required)):
     try:
@@ -400,6 +400,7 @@ async def get_me(current_user: dict = Depends(get_current_user_required)):
                 "remaining": remaining,
                 "is_verified": bool(user.get("is_verified", False)),
                 "display_id": user.get("display_id"),
+                "full_name": user.get("full_name"),
                 "reset_at": reset_at_iso,
                 "uploads_today": upload_counts,
             }
