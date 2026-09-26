@@ -6754,3 +6754,20 @@ body::before { display: none !important; }
     .auth-heading { font-size: 22px; }
     .auth-btn, .auth-input { height: 52px; border-radius: 13px; }
 }
+/* Force PNG icons to render pure white on any button background */
+.btn-icon {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+    display: block;
+    pointer-events: none;
+    filter: brightness(0) invert(1);
+}
+
+@media (max-width: 768px) {
+    .btn-icon { width: 24px; height: 24px; }
+}
+
+@media (max-width: 480px) {
+    .btn-icon { width: 22px; height: 22px; }
+}

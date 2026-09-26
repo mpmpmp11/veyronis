@@ -1732,43 +1732,34 @@ function stopGeneration() {
 
 function updateSendButton() {
     const sendBtn = document.getElementById('send-btn');
-    const callBtn = document.getElementById('call-btn');
     const input = document.getElementById('msg-input');
-    if (!sendBtn || !callBtn || !input) return;
+    if (!sendBtn || !input) return;
 
     const hasText = !!input.value.trim();
     const hasImage = !!state.pendingImageBase64;
+    const hasDoc = !!state.pendingDocContent;
     const inActiveChat = state.conversationId !== null;
 
-    // Chat has messages → send button stays forever
-    if (inActiveChat) {
-        sendBtn.style.display = 'flex';
-        callBtn.style.display = 'none';
-        if (state.isTyping && state.abortController) {
-            sendBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
-            sendBtn.onclick = stopGeneration;
-            sendBtn.disabled = false;
-        } else {
-            sendBtn.innerHTML = '<img src="/static/icons/send.png" alt="Send" class="btn-icon" />';
-            sendBtn.onclick = sendMessage;
-            sendBtn.disabled = !hasText && !hasImage;
-        }
+    // STOP mode — AI generating
+    if (state.isTyping && state.abortController) {
+        sendBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+        sendBtn.onclick = stopGeneration;
+        sendBtn.disabled = false;
         return;
     }
 
-    // New chat, empty input → show CALL
-    if (!hasText && !hasImage) {
-        sendBtn.style.display = 'none';
-        callBtn.style.display = 'flex';
+    // CALL mode — new chat, nothing typed
+    if (!inActiveChat && !hasText && !hasImage && !hasDoc) {
+        sendBtn.innerHTML = '<img src="/static/icons/call.png" alt="Call" class="btn-icon" />';
+        sendBtn.onclick = () => voiceMode.open();
+        sendBtn.disabled = false;
         return;
     }
 
-    // New chat, typing → show SEND
-    sendBtn.style.display = 'flex';
-    callBtn.style.display = 'none';
+    // SEND mode
     sendBtn.innerHTML = '<img src="/static/icons/send.png" alt="Send" class="btn-icon" />';
     sendBtn.onclick = sendMessage;
-    sendBtn.disabled = false;
+    sendBtn.disabled = !hasText && !hasImage && !hasDoc;
 }
 
 function regenerateMsg(aiId) {
