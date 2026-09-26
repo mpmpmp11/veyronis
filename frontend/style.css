@@ -6277,11 +6277,19 @@ button, .chip, .conv-item, .auth-google-btn, .auth-action, .composer-btn {
 }
 /* ─── CALL / SEND BUTTON ICON IMAGES ─── */
 .btn-icon {
-    width: 20px;
-    height: 20px;
+    width: 26px;
+    height: 26px;
     object-fit: contain;
     display: block;
     pointer-events: none;
+}
+
+@media (max-width: 768px) {
+    .btn-icon { width: 24px; height: 24px; }
+}
+
+@media (max-width: 480px) {
+    .btn-icon { width: 22px; height: 22px; }
 }
 
 .composer-btn.call-btn {

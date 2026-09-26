@@ -4,6 +4,7 @@
 // ============================================================
 
 const state = {
+    
     apiUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8000' : 'https://veyronis.onrender.com',
     token: localStorage.getItem('veyronis_token') || null,
     user: JSON.parse(localStorage.getItem('veyronis_user') || 'null'),
@@ -42,7 +43,10 @@ const state = {
     simulationCount: parseInt(localStorage.getItem('veyronis_sim_count') || '0'),
     simulationDate: localStorage.getItem('veyronis_sim_date') || '',
     adminUsers: []
+    
 };
+
+
 
 // ─── SPLASH SCREEN (mobile only) ───
 (function initSplash() {
@@ -104,12 +108,13 @@ function toast(message, type = 'info') {
 
 
 // ─── WELCOME TYPE-IN ANIMATION (mobile only) ───
+
+
 function runWelcomeTypeIn() {
     // Only on mobile
     if (window.innerWidth >= 768) return;
     // Only once per session
     if (sessionStorage.getItem('veyronis_welcomed_this_session')) return;
-    sessionStorage.setItem('veyronis_welcomed_this_session', '1');
 
     const mobileEl = document.getElementById('empty-mobile');
     const line1 = document.getElementById('welcome-line-1');
@@ -117,11 +122,14 @@ function runWelcomeTypeIn() {
     const desktopEl = document.getElementById('empty-desktop');
     if (!mobileEl || !line1 || !nameBox) return;
 
+    // Mark animation as running so showEmpty() doesn't hide it mid-play
+    _welcomeAnimating = true;
+
     // Show mobile welcome, hide desktop brand
     mobileEl.style.display = 'block';
     if (desktopEl) desktopEl.style.display = 'none';
 
-        // Prefer full_name from Google/DB; fall back to email prefix
+    // Prefer full_name from Google/DB; fall back to email prefix
     let displayName = state.user?.full_name;
     if (!displayName) {
         const email = state.user?.email || '';
@@ -147,8 +155,14 @@ function runWelcomeTypeIn() {
                 nameBox.textContent = displayName;
                 nameBox.classList.add('revealed');
             }, 200);
+
+            // Mark animation complete + set session flag
+            setTimeout(() => {
+                sessionStorage.setItem('veyronis_welcomed_this_session', '1');
+                _welcomeAnimating = false;
+            }, 600);
         }
-    }, 60);  // 60ms per character = ~780ms for "Welcome Back,"
+    }, 60);
 }
 
 // ─── MODAL SYSTEM ───
@@ -1247,6 +1261,8 @@ async function loadHistory() {
     }
 }
 
+let _welcomeAnimating = false;
+
 function showEmpty(show) {
     const emptyState = document.getElementById('empty-state');
     if (!emptyState) return;
@@ -1261,7 +1277,12 @@ function showEmpty(show) {
             return;
         }
 
-        // Only show on FIRST app-open of this session
+        // NEVER hide while the welcome animation is running
+        if (_welcomeAnimating) {
+            emptyState.style.display = 'flex';
+            return;
+        }
+
         const alreadyWelcomed = sessionStorage.getItem('veyronis_welcomed_this_session');
         if (alreadyWelcomed) {
             emptyState.style.display = 'none';
@@ -1665,6 +1686,15 @@ async function sendMessage() {
             if (thinkingEl) thinkingEl.style.display = 'none';
         }
     }
+    updateSendButton();
+}
+
+function stopGeneration() {
+    if (state.abortController) {
+        state.abortController.abort();
+        state.abortController = null;
+    }
+    state.isTyping = false;
     updateSendButton();
 }
 
@@ -2744,6 +2774,7 @@ if (micBtn) micBtn.style.display = 'flex';
     initKeyboardHandler();
     if (state.user && state.user.is_pro) setProUi();
     setTimeout(() => { if (state.apiUrl) { updateConnStatus('checking'); checkServerHealth(); } }, 100);
+    updateSendButton();
 }
 
 function initScrollHeader() {
