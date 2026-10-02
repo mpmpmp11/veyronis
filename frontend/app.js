@@ -110,11 +110,17 @@ function toast(message, type = 'info') {
 // ─── WELCOME TYPE-IN ANIMATION (mobile only) ───
 
 
+let _welcomeRunning = false;
+
 function runWelcomeTypeIn() {
     // Only on mobile
     if (window.innerWidth >= 768) return;
-    // Only once per session
+    // Guard: block re-entry while running OR once done
+    if (_welcomeRunning) return;
     if (sessionStorage.getItem('veyronis_welcomed_this_session')) return;
+    _welcomeRunning = true;
+    // Set the persistent flag IMMEDIATELY — prevents any second invocation
+    sessionStorage.setItem('veyronis_welcomed_this_session', '1');
 
     const mobileEl = document.getElementById('empty-mobile');
     const line1 = document.getElementById('welcome-line-1');
@@ -164,8 +170,6 @@ function runWelcomeTypeIn() {
 
             // Mark animation complete + set session flag
             setTimeout(() => {
-                sessionStorage.setItem('veyronis_welcomed_this_session', '1');
-                _welcomeAnimating = false;
             }, 600);
         }
     }, 60);
@@ -395,11 +399,15 @@ async function handleLogin() {
 
 
 async function handleRegister() {
+    const fullName = document.getElementById('register-name').value.trim();
     const email = document.getElementById('register-email').value.trim();
     const password = document.getElementById('register-password').value.trim();
     const errorEl = document.getElementById('register-error');
+    if (!fullName) {
+        errorEl.textContent = '📝 Please enter your name';
+        return;
+    }
     if (!email || !password) {
-        errorEl.textContent = '📝 Please enter email and password';
         return;
     }
     if (password.length < 6) {
@@ -415,7 +423,7 @@ async function handleRegister() {
         const res = await fetch(`${state.apiUrl}/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({ email, password, full_name: fullName })
         });
         const data = await res.json();
         hideLoading();
@@ -2147,14 +2155,17 @@ function cycleTheme() {
 // ─── SETTINGS ───
 function openSettingsPanel() {
     const panel = document.getElementById('settings-panel');
-    if (panel) panel.classList.remove('hidden');
+    if (!panel) return;
+    document.querySelectorAll('.settings-view-sub').forEach(s => s.classList.add('hidden'));
+    const main = document.getElementById('settings-main');
+    if (main) main.classList.remove('hidden');
+    panel.classList.remove('hidden');
     syncSettingsValues();
     closeSidebar();
 }
 function closeSettingsPanel() { const panel = document.getElementById('settings-panel'); if (panel) panel.classList.add('hidden'); }
 
 function syncSettingsValues() {
-    // Ensure we have user data
     if (!state.user || !state.user.email) {
         const stored = JSON.parse(localStorage.getItem('veyronis_user') || 'null');
         if (stored) state.user = stored;
@@ -2163,41 +2174,73 @@ function syncSettingsValues() {
     const tier = state.user?.is_pro ? 'Pro' : 'Free';
     const email = state.user?.email || 'Not logged in';
     const displayId = state.user?.display_id || state.displayId || 'N/A';
+    const fullName = state.user?.full_name
+        || state.user?.name
+        || (email.includes('@') ? email.split('@')[0] : 'User');
 
-    document.getElementById('settings-tier-value').textContent = tier;
-    document.getElementById('profile-plan-value').textContent = tier;
-    document.getElementById('profile-user-id').textContent = email;
-    document.getElementById('profile-id-value').textContent = email;
-    // Update display ID if element exists
-    const displayEl = document.getElementById('profile-display-id');
-    if (displayEl) displayEl.textContent = displayId;
+    // Avatar block
+    const nameEl = document.getElementById('settings-name');
+    const emailEl = document.getElementById('settings-email');
+    if (nameEl) nameEl.textContent = fullName;
+    if (emailEl) emailEl.textContent = email;
+    applyAvatar(localStorage.getItem('veyronis_avatar'));
 
-    document.getElementById('settings-voice-value').textContent = state.ttsEnabled ? 'On' : 'Off';
+    // Menu values
+    const setText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+    };
+    setText('settings-tier-value', tier);
+    setText('profile-plan-value', tier);
+    setText('profile-plan-value-sub', tier);
+    setText('profile-id-value-sub', displayId);
+    setText('settings-theme-value', currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1));
+
+    // Voice toggle
+    const voiceBtn = document.getElementById('settings-voice-value');
+    if (voiceBtn) voiceBtn.textContent = state.ttsEnabled ? 'On' : 'Off';
+
+    // Custom instructions
     const ci = document.getElementById('settings-custom-instructions');
     if (ci) ci.value = state.customInstructions || '';
 
-    // Update plan badge in subscription sub
-    const planVal = document.getElementById('profile-plan-value-sub');
-    if (planVal) planVal.textContent = tier;
+    // Theme radio
+    document.querySelectorAll('.radio-circle').forEach(r => r.classList.remove('checked'));
+    const activeRadio = document.getElementById('radio-' + currentTheme);
+    if (activeRadio) activeRadio.classList.add('checked');
+
+    // Sidebar badge
     const planBadge = document.getElementById('sidebar-pro-badge');
     if (planBadge) {
         planBadge.textContent = state.user?.is_pro ? '⭐ PRO' : 'FREE';
         planBadge.className = 'sidebar-pro-badge' + (state.user?.is_pro ? ' pro' : '');
     }
 
-    document.querySelectorAll('.radio-circle').forEach(r => r.classList.remove('checked'));
-    const activeRadio = document.getElementById('radio-' + currentTheme);
-    if (activeRadio) activeRadio.classList.add('checked');
-
     updateUsageDisplay();
 }
 
 function openSettingsSub(id) {
-    document.querySelectorAll('.settings-sub').forEach(s => s.classList.add('hidden'));
+    const main = document.getElementById('settings-main');
+    if (main) main.classList.add('hidden');
+    document.querySelectorAll('.settings-view-sub').forEach(s => s.classList.add('hidden'));
     const sub = document.getElementById('settings-sub-' + id);
-    if (sub) sub.classList.remove('hidden');
+    if (!sub) return;
+    sub.classList.remove('hidden');
+    sub.classList.remove('settings-slide-in');
+    void sub.offsetWidth;
+    sub.classList.add('settings-slide-in');
 }
-function closeSettingsSub() { document.querySelectorAll('.settings-sub').forEach(s => s.classList.add('hidden')); }
+
+function closeSettingsSub() {
+    document.querySelectorAll('.settings-view-sub').forEach(s => s.classList.add('hidden'));
+    const main = document.getElementById('settings-main');
+    if (!main) return;
+    main.classList.remove('hidden');
+    main.classList.remove('settings-slide-in');
+    void main.offsetWidth;
+    main.classList.add('settings-slide-in');
+    syncSettingsValues();
+}
 
 function setTheme(theme) {
     if (theme === 'system') {
@@ -3467,4 +3510,45 @@ function pickVoice(voiceId) {
     state.fishVoiceId = voiceId;
     localStorage.setItem('veyronis_voice', voiceId);
     toast('🎙️ Voice updated!', 'success');
+}
+
+// ─── AVATAR PICKER ───
+function openAvatarPicker() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+            toast('📷 Image too large. Max 2MB.', 'error');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const dataUrl = ev.target.result;
+            try {
+                localStorage.setItem('veyronis_avatar', dataUrl);
+            } catch (err) {
+                toast('📷 Image too large to save locally', 'error');
+                return;
+            }
+            applyAvatar(dataUrl);
+            toast('✅ Profile photo updated', 'success');
+        };
+        reader.readAsDataURL(file);
+    };
+    input.click();
+}
+
+function applyAvatar(dataUrl) {
+    const el = document.getElementById('settings-avatar');
+    if (!el) return;
+    if (dataUrl) {
+        el.innerHTML = `<img src="${dataUrl}" alt="Avatar">`;
+    } else {
+        const name = state.user?.full_name || state.user?.name
+            || state.user?.email?.split('@')[0] || 'U';
+        el.textContent = name.trim().charAt(0).toUpperCase();
+    }
 }
