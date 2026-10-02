@@ -7324,3 +7324,18 @@ body::before { display: none !important; }
 [data-theme="light"] .settings-textarea {
     background: rgba(0, 0, 0, 0.03);
 }
+/* ═══════════════════════════════════════════════════════
+   FINAL Z-INDEX STACK — sidebar beats input bar, always
+   ═══════════════════════════════════════════════════════ */
+#sidebar {
+    z-index: 9999 !important;
+}
+#sidebar-backdrop {
+    z-index: 9998 !important;
+}
+.input-shell {
+    z-index: 10 !important;
+}
+.top-bar-floating {
+    z-index: 100 !important;
+}
