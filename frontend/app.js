@@ -87,8 +87,11 @@ const state = {
 })();
 
 const THEMES = ['dark', 'light', 'veyronis'];
-let currentTheme = localStorage.getItem('veyronis_theme') || 'dark';
-document.documentElement.setAttribute('data-theme', currentTheme);
+let currentTheme = localStorage.getItem('veyronis_theme');
+if (!currentTheme) {
+    currentTheme = 'light';
+    localStorage.setItem('veyronis_theme', 'light');
+}
 
 // ─── TOAST ───
 function toast(message, type = 'info') {
@@ -168,8 +171,9 @@ function runWelcomeTypeIn() {
                 nameBox.classList.add('revealed');
             }, 200);
 
-            // Mark animation complete + set session flag
+                        // Mark animation complete
             setTimeout(() => {
+                _welcomeAnimating = false;
             }, 600);
         }
     }, 60);
@@ -783,12 +787,8 @@ function loadConversations() {
 
 function makeConvItem(c) {
     const isActive = state.conversationId === c.id ? 'active' : '';
-    const isArchived = c.is_archived ? 'archived' : '';
     const safeTitle = escapeHtml(c.title || 'New Chat').replace(/'/g, "\\'");
-    return `<div class="conv-item ${isActive} ${isArchived}" data-id="${c.id}" onclick="switchConversation(${c.id})">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
+    return `<div class="conv-item ${isActive}" data-id="${c.id}" onclick="switchConversation(${c.id})">
         <span class="conv-title">${safeTitle}</span>
         <div class="conv-actions">
             <button class="conv-action" onclick="event.stopPropagation(); renameConvPrompt(${c.id}, '${safeTitle}')" title="Rename">
@@ -882,9 +882,6 @@ function loadArchivedConversations() {
 function makeArchivedConvItem(c) {
     const safeTitle = escapeHtml(c.title || 'New Chat').replace(/'/g, "\\'");
     return `<div class="conv-item archived" data-id="${c.id}" style="opacity: 0.7;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
         <span class="conv-title">${safeTitle}</span>
         <div class="conv-actions">
             <button class="conv-action" onclick="event.stopPropagation(); unarchiveConv(${c.id})" title="Unarchive">
@@ -1389,10 +1386,9 @@ function addAiShell() {
     const div = document.createElement('div');
     div.className = 'msg ai';
     div.id = id;
-    div.innerHTML = `<div class="msg-avatar">V</div><div class="msg-body">
-        <div class="thinking-indicator" id="thinking-${id}">
-            <span class="thinking-text">VEYRONIS is thinking</span>
-            <span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span>
+    div.innerHTML = `<div class="msg-body">
+        <div class="thinking-dots-row" id="thinking-${id}">
+            <span></span><span></span><span></span>
         </div>
         <div class="msg-text" id="text-${id}"></div>
         <div class="msg-actions bot-actions">
@@ -2750,21 +2746,17 @@ function refreshUserInfo() {
             // ─── Update Settings panel (if open) ───
             syncSettingsValues();
             
-            // ─── Update Sidebar ───
+                  // ─── Update Sidebar ───
             const nameEl = document.getElementById('sidebar-name');
-            const emailEl = document.getElementById('sidebar-email');
-            const proBadge = document.getElementById('sidebar-pro-badge');
-            const tierEl = document.getElementById('sidebar-tier');
-            
-            if (nameEl) nameEl.textContent = state.user.email.split('@')[0] || 'You';
-            if (emailEl) emailEl.textContent = state.user.email;
-            if (proBadge) {
-                proBadge.textContent = state.user.is_pro ? '⭐ PRO' : 'FREE';
-                proBadge.className = 'sidebar-pro-badge' + (state.user.is_pro ? ' pro' : '');
-            }
-            if (tierEl) {
-                tierEl.textContent = state.user.is_pro ? 'PRO' : 'Free';
-                tierEl.className = 'sidebar-tier' + (state.user.is_pro ? ' pro' : '');
+            const tierLabelEl = document.getElementById('sidebar-tier-label');
+
+            const displayName = state.user.full_name
+                || state.user.name
+                || (state.user.email ? state.user.email.split('@')[0] : 'You');
+            if (nameEl) nameEl.textContent = displayName;
+            if (tierLabelEl) {
+                tierLabelEl.textContent = state.user.is_pro ? 'PRO' : 'FREE';
+                tierLabelEl.className = 'sidebar-tier-label' + (state.user.is_pro ? ' pro' : '');
             }
             
             // ─── Update Profile panel (if open) ───
@@ -2804,14 +2796,15 @@ function refreshUserInfo() {
 // ─── INIT ───
 function initApp() {
     const nameEl = document.getElementById('sidebar-name');
-    const emailEl = document.getElementById('sidebar-email');
-    const proBadge = document.getElementById('sidebar-pro-badge');
+    const tierLabelEl = document.getElementById('sidebar-tier-label');
     if (state.user) {
-        if (nameEl) nameEl.textContent = state.user.email.split('@')[0];
-        if (emailEl) emailEl.textContent = state.user.email;
-        if (proBadge) {
-            proBadge.textContent = state.user.is_pro ? '⭐ PRO' : 'FREE';
-            proBadge.className = 'sidebar-pro-badge' + (state.user.is_pro ? ' pro' : '');
+        const displayName = state.user.full_name
+            || state.user.name
+            || (state.user.email ? state.user.email.split('@')[0] : 'You');
+        if (nameEl) nameEl.textContent = displayName;
+        if (tierLabelEl) {
+            tierLabelEl.textContent = state.user.is_pro ? 'PRO' : 'FREE';
+            tierLabelEl.className = 'sidebar-tier-label' + (state.user.is_pro ? ' pro' : '');
         }
     }
     if (!state.userId && state.user) state.userId = state.user.email;
@@ -2836,7 +2829,6 @@ if (micBtn) micBtn.style.display = 'flex';
     initConnectivity();
     initInstallPrompt();
     initSwipeSidebar();
-    initSimulationToggle();
     initKeyboardHandler();
     if (state.user && state.user.is_pro) setProUi();
     setTimeout(() => { if (state.apiUrl) { updateConnStatus('checking'); checkServerHealth(); } }, 100);
@@ -3552,3 +3544,96 @@ function applyAvatar(dataUrl) {
         el.textContent = name.trim().charAt(0).toUpperCase();
     }
 }
+// ─── PLUGIN SYSTEM ───
+state.activePlugins = [];
+
+function showPluginDropdown() {
+    const dd = document.getElementById('plugin-dropdown');
+    if (dd) dd.classList.remove('hidden');
+}
+function hidePluginDropdown() {
+    const dd = document.getElementById('plugin-dropdown');
+    if (dd) dd.classList.add('hidden');
+}
+
+function selectPlugin(id) {
+    if (!state.activePlugins.includes(id)) {
+        state.activePlugins.push(id);
+    }
+    hidePluginDropdown();
+    renderPluginChips();
+
+    // Auto-activate the corresponding mode
+    if (id === 'hindsight') {
+        state.simulationMode = true;
+        const t = document.getElementById('sim-toggle');
+        if (t) t.classList.add('active');
+    } else if (id === 'research') {
+        state.model = 'research';
+        const lbl = document.getElementById('model-label');
+        if (lbl) lbl.textContent = 'Research';
+    }
+
+    // Clear the @ symbol from the input
+    const ta = document.getElementById('msg-input');
+    if (ta) {
+        ta.value = ta.value.replace(/@\s*$/, '');
+        ta.focus();
+    }
+}
+
+function removePlugin(id) {
+    state.activePlugins = state.activePlugins.filter(p => p !== id);
+    if (id === 'hindsight') {
+        state.simulationMode = false;
+        const t = document.getElementById('sim-toggle');
+        if (t) t.classList.remove('active');
+    } else if (id === 'research') {
+        state.model = 'instant';
+        const lbl = document.getElementById('model-label');
+        if (lbl) lbl.textContent = 'Instant';
+    }
+    renderPluginChips();
+}
+
+function renderPluginChips() {
+    const wrap = document.getElementById('active-plugins');
+    if (!wrap) return;
+    if (!state.activePlugins.length) {
+        wrap.classList.add('hidden');
+        wrap.innerHTML = '';
+        return;
+    }
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = state.activePlugins.map(id => {
+        const label = id === 'hindsight' ? '✨ Hindsight' : '🔍 Deep Research';
+        return `<span class="plugin-chip">${label}<button class="plugin-chip-x" onclick="event.stopPropagation(); removePlugin('${id}')">×</button></span>`;
+    }).join('');
+}
+
+// @ key trigger
+document.addEventListener('DOMContentLoaded', () => {
+    const ta = document.getElementById('msg-input');
+    if (!ta) return;
+
+    ta.addEventListener('input', () => {
+        const val = ta.value;
+        // Show dropdown if last typed char is @ (at start or after whitespace)
+        const atEnd = /(^|\s)@$/.test(val);
+        if (atEnd) showPluginDropdown();
+        else hidePluginDropdown();
+    });
+
+    ta.addEventListener('blur', () => {
+        setTimeout(hidePluginDropdown, 200);
+    });
+
+    // Click outside closes dropdown
+    document.addEventListener('click', (e) => {
+        const dd = document.getElementById('plugin-dropdown');
+        if (!dd || dd.classList.contains('hidden')) return;
+        if (dd.contains(e.target)) return;
+        if (ta.contains(e.target)) return;
+        hidePluginDropdown();
+    });
+});
