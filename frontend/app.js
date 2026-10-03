@@ -202,7 +202,6 @@ function closeModal(id) {
     }
     document.body.style.overflow = '';
 }
-    document.body.style.overflow = '';
 
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -2429,13 +2428,7 @@ function removeImagePreview() {
     if (existing) existing.remove();
     updateSendButton();
 }
-function triggerDocumentUpload() {
-    // ✅ Check limits first
-    checkUploadLimits('document').then(ok => {
-        if (!ok) return;
-        _doDocumentUpload();
-    });
-}
+
 
 function _doDocumentUpload() {
     const input = document.createElement('input');
