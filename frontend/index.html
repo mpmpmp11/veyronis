@@ -465,15 +465,15 @@
                 </svg>
                 Document
             </div>
-            <div class="attach-item" onclick="triggerImageUpload()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                    <circle cx="8.5" cy="8.5" r="1.5"/>
-                   <polyline points="21 15 16 10 5 21"/>
-                Image
-            </div>
-        </div>
-    </div>
+           <div class="attach-item" onclick="triggerImageUpload()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+    </svg>
+    Image
+</div>
+<span>Image</span>
 
     <div class="input-disclaimer" id="input-disclaimer">
         Free: 0/20 today · VEYRONIS can make mistakes
@@ -913,29 +913,52 @@
                 </div>
             </div>
             <div class="settings-card">
-                <div class="settings-card-header">Read-Aloud Voice</div>
-                <div style="padding:12px 16px 16px;">
-                    <select id="voice-select" onchange="pickVoice(this.value)" class="settings-select">
-                        <optgroup label="Female">
-                            <option value="933563129e564b19a115bedd57b7406a">Aria — Clear & Natural (Default)</option>
-                            <option value="b545c585f631496c914815291da4e893">Nova — Warm</option>
-                            <option value="c2623f0c075b4492ac367989aee1576f">Paula — Calm</option>
-                            <option value="5567200c7d8341738f0892bbacd3be3c">Claire — French</option>
-                            <option value="5161d41404314212af1254556477c17d">Yuki — Japanese</option>
-                        </optgroup>
-                        <optgroup label="Male">
-                            <option value="536d3a5e000945adb7038665781a4aca">Ethan — Friendly & Professional</option>
-                            <option value="c5f56a6cc2ec4fa8920cb4c5889a3fb7">Atlas — Deep</option>
-                            <option value="bf322df2096a46f18c579d0baa36f41d">Adrian — Narrator</option>
-                            <option value="802e3bc2b27e49c2995d23ef70e6ac89">Max — Energetic</option>
-                            <option value="35199d5438854f5d9157c500479ab684">Mateo — Spanish</option>
-                        </optgroup>
-                    </select>
-                </div>
+    <div class="settings-card-header">Read-Aloud Voice</div>
+    <div style="padding:12px 16px 16px;">
+        <div class="custom-select" id="voice-select-custom">
+            <button class="custom-select-btn" onclick="toggleVoiceDropdown(event)">
+                <span id="voice-select-label">Aria — Clear & Natural</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+            </button>
+            <div class="custom-select-sheet hidden" id="voice-select-sheet">
+                <div class="custom-select-group">Female</div>
+                <button class="custom-select-option" data-value="933563129e564b19a115bedd57b7406a" data-label="Aria — Clear & Natural">
+                    <span>Aria — Clear & Natural</span>
+                </button>
+                <button class="custom-select-option" data-value="b545c585f631496c914815291da4e893" data-label="Nova — Warm">
+                    <span>Nova — Warm</span>
+                </button>
+                <button class="custom-select-option" data-value="c2623f0c075b4492ac367989aee1576f" data-label="Paula — Calm">
+                    <span>Paula — Calm</span>
+                </button>
+                <button class="custom-select-option" data-value="5567200c7d8341738f0892bbacd3be3c" data-label="Claire — French">
+                    <span>Claire — French</span>
+                </button>
+                <button class="custom-select-option" data-value="5161d41404314212af1254556477c17d" data-label="Yuki — Japanese">
+                    <span>Yuki — Japanese</span>
+                </button>
+                <div class="custom-select-group">Male</div>
+                <button class="custom-select-option" data-value="536d3a5e000945adb7038665781a4aca" data-label="Ethan — Friendly & Professional">
+                    <span>Ethan — Friendly & Professional</span>
+                </button>
+                <button class="custom-select-option" data-value="c5f56a6cc2ec4fa8920cb4c5889a3fb7" data-label="Atlas — Deep">
+                    <span>Atlas — Deep</span>
+                </button>
+                <button class="custom-select-option" data-value="bf322df2096a46f18c579d0baa36f41d" data-label="Adrian — Narrator">
+                    <span>Adrian — Narrator</span>
+                </button>
+                <button class="custom-select-option" data-value="802e3bc2b27e49c2995d23ef70e6ac89" data-label="Max — Energetic">
+                    <span>Max — Energetic</span>
+                </button>
+                <button class="custom-select-option" data-value="35199d5438854f5d9157c500479ab684" data-label="Mateo — Spanish">
+                    <span>Mateo — Spanish</span>
+                </button>
             </div>
-            <button class="settings-primary-btn" onclick="saveChatPreferences()">Save Preferences</button>
         </div>
     </div>
+</div>
 
     <!-- ═══ SUB VIEW: THEME ═══ -->
     <div id="settings-sub-theme" class="settings-view-sub hidden">
@@ -956,10 +979,6 @@
                 <div class="settings-row-radio" onclick="setTheme('light')">
                     <div class="radio-circle" id="radio-light"></div>
                     <span class="settings-item-label">Light</span>
-                </div>
-                <div class="settings-row-radio" onclick="setTheme('veyronis')">
-                    <div class="radio-circle" id="radio-veyronis"></div>
-                    <span class="settings-item-label">Veyronis</span>
                 </div>
                 <div class="settings-row-radio" onclick="setTheme('system')">
                     <div class="radio-circle" id="radio-system"></div>
@@ -1011,37 +1030,49 @@
     </div>
 
     <!-- ═══ SUB VIEW: ABOUT ═══ -->
-    <div id="settings-sub-about" class="settings-view-sub hidden">
-        <div class="settings-topbar">
-            <button class="settings-back-btn" onclick="closeSettingsSub()" aria-label="Back">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <div class="settings-title">About</div>
-            <div style="width:40px"></div>
+  <div id="settings-sub-about" class="settings-view-sub hidden">
+    <div class="settings-topbar">
+        <button class="settings-back-btn" onclick="closeSettingsSub()" aria-label="Back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="settings-title">About</div>
+        <div style="width:40px"></div>
+    </div>
+    <div class="settings-body">
+
+        <!-- HERO -->
+        <div class="about-hero-card">
+            <div class="about-logo">V</div>
+            <div class="about-name">VEYRONIS</div>
+            <div class="about-version">v2.0 - Beta</div>
         </div>
-        <div class="settings-body">
-            <div class="settings-card" style="padding:24px 20px; text-align:center;">
-                <div class="about-logo" style="margin:0 auto 12px;">V</div>
-                <div class="about-name">VEYRONIS</div>
-                <div class="about-version">v1.3-hindsight</div>
+
+        <!-- SYSTEM METADATA -->
+        <div class="settings-card">
+            <div class="settings-card-header">System</div>
+            <div class="settings-row-static">
+                <span class="settings-item-label">Version</span>
+                <span class="settings-item-value">2.0 - Beta</span>
             </div>
-            <div class="settings-card">
-                <div class="settings-card-header">Info</div>
-                <div class="settings-row-static">
-                    <span class="settings-item-label">Version</span>
-                    <span class="settings-item-value">1.3-hindsight</span>
-                </div>
-                <div class="settings-row-static">
-                    <span class="settings-item-label">Backend</span>
-                    <span class="settings-item-value">FastAPI + Python 3.11</span>
-                </div>
-                <div class="settings-row-static">
-                    <span class="settings-item-label">Models</span>
-                    <span class="settings-item-value">Groq, Gemini, Tavily</span>
-                </div>
+            <div class="settings-row-static">
+                <span class="settings-item-label">Backend</span>
+                <span class="settings-item-value">FastAPI + Python 3.11</span>
             </div>
+            <div class="settings-row-static">
+                <span class="settings-item-label">AI Engines</span>
+                <span class="settings-item-value">Groq · Gemini · Tavily</span>
+            </div>
+            <div class="settings-row-static">
+                <span class="settings-item-label">Storage</span>
+                <span class="settings-item-value">PostgreSQL · Cloudinary</span>
+            </div>
+        </div>
+
+        <div class="settings-footer">
+            Built with 💜 for students and productivity hackers
         </div>
     </div>
+</div>
 
     <!-- ═══ SUB VIEW: FEEDBACK ═══ -->
     <div id="settings-sub-feedback" class="settings-view-sub hidden">
