@@ -7851,33 +7851,23 @@ body.sidebar-open .input-shell {
     letter-spacing: 0.5px;
 }
 /* ═══════════════════════════════════════════════════════
-   DEFINITIVE Z-INDEX STACK — modals & toasts on top of everything
+   FINAL STACK ORDER
    ═══════════════════════════════════════════════════════ */
-
-/* Modals always render above settings, sidebar, and any panel */
+.settings-panel {
+    z-index: 9000 !important;
+}
+#sidebar {
+    z-index: 9500 !important;
+}
+#sidebar-backdrop {
+    z-index: 9499 !important;
+}
 .modal-overlay {
-    z-index: 100001 !important;
+    z-index: 9999 !important;
 }
-#modal-preview.modal-overlay,
-#modal-confirm.modal-overlay,
-#modal-prompt.modal-overlay,
-#modal-search.modal-overlay,
-#modal-export.modal-overlay,
-#modal-attachments.modal-overlay,
-#modal-upgrade.modal-overlay,
-#modal-admin.modal-overlay,
-#modal-forgot.modal-overlay,
-#modal-reset.modal-overlay,
-#modal-limit.modal-overlay {
-    z-index: 100001 !important;
-}
-
-/* Loading spinner sits above modals */
 .loading-overlay {
-    z-index: 100002 !important;
+    z-index: 10000 !important;
 }
-
-/* Toasts always highest so nothing hides them */
 #toast-box {
-    z-index: 100003 !important;
+    z-index: 10001 !important;
 }
