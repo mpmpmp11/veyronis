@@ -7850,24 +7850,3 @@ body.sidebar-open .input-shell {
     font-family: var(--font-mono);
     letter-spacing: 0.5px;
 }
-/* ═══════════════════════════════════════════════════════
-   FINAL STACK ORDER
-   ═══════════════════════════════════════════════════════ */
-.settings-panel {
-    z-index: 9000 !important;
-}
-#sidebar {
-    z-index: 9500 !important;
-}
-#sidebar-backdrop {
-    z-index: 9499 !important;
-}
-.modal-overlay {
-    z-index: 9999 !important;
-}
-.loading-overlay {
-    z-index: 10000 !important;
-}
-#toast-box {
-    z-index: 10001 !important;
-}
