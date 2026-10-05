@@ -1065,6 +1065,76 @@
     </div>
 
 </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     PRO UPGRADE — full-page view
+     ═══════════════════════════════════════════════════════ -->
+<div id="upgrade-page" class="upgrade-page hidden">
+
+    <!-- TOP BAR -->
+    <div class="upgrade-topbar">
+        <button class="upgrade-back-btn" onclick="closeUpgradePage()" aria-label="Back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- HERO -->
+    <div class="upgrade-hero">
+        <h1 class="upgrade-hero-title">Veyronis <span class="upgrade-hero-accent">Pro</span></h1>
+        <p class="upgrade-hero-sub">Continue with expanded access</p>
+    </div>
+
+    <!-- TAB SWITCHER -->
+    <div class="upgrade-tabs">
+        <button class="upgrade-tab" data-tier="basic" onclick="switchUpgradeTab('basic')">Basic</button>
+        <button class="upgrade-tab active" data-tier="pro" onclick="switchUpgradeTab('pro')">Pro</button>
+    </div>
+
+    <!-- FEATURE MATRIX -->
+    <div class="upgrade-feature-card">
+        <div class="upgrade-feature-head">
+            <span>Features</span>
+            <span id="upgrade-tier-label">Pro Benefits</span>
+        </div>
+        <div class="upgrade-feature-list">
+            <div class="upgrade-feature-row">
+                <span class="upgrade-feature-name">Core AI Models</span>
+                <span class="upgrade-feature-check" data-basic="1" data-pro="1"></span>
+            </div>
+            <div class="upgrade-feature-row">
+                <span class="upgrade-feature-name">More messages</span>
+                <span class="upgrade-feature-check" data-basic="0" data-pro="1"></span>
+            </div>
+            <div class="upgrade-feature-row">
+                <span class="upgrade-feature-name">More uploads</span>
+                <span class="upgrade-feature-check" data-basic="0" data-pro="1"></span>
+            </div>
+            <div class="upgrade-feature-row">
+                <span class="upgrade-feature-name">Image generation</span>
+                <span class="upgrade-feature-check" data-basic="0" data-pro="1"></span>
+            </div>
+            <div class="upgrade-feature-row">
+                <span class="upgrade-feature-name">Longer memory</span>
+                <span class="upgrade-feature-check" data-basic="0" data-pro="1"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER CTA -->
+    <div class="upgrade-footer">
+        <button class="upgrade-restore-link">Restore subscription</button>
+        <button class="upgrade-cta-pill" onclick="activateProPlan()">
+            <span id="upgrade-price-label">$9.00</span>
+        </button>
+        <p class="upgrade-terms">Renews monthly. Cancel anytime.</p>
+        <p class="upgrade-ad-note hidden" id="upgrade-ad-note">This plan may include ads.</p>
+    </div>
+</div>
+
     <!-- LIMIT REACHED MODAL -->
     <div id="modal-limit" class="modal-overlay hidden">
         <div class="modal-backdrop" onclick="closeLimitModal()"></div>

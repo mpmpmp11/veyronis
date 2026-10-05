@@ -1146,8 +1146,53 @@ function renderAttachmentGrid(attachments) {
 }
 
 
-// ─── PRO UPGRADE ───
-function openUpgradeModal() { openModal('modal-upgrade'); }
+
+// ─── PRO UPGRADE PAGE ───
+function openUpgradeModal() {
+    const page = document.getElementById('upgrade-page');
+    if (!page) return;
+    page.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    switchUpgradeTab('pro');
+}
+
+function closeUpgradePage() {
+    const page = document.getElementById('upgrade-page');
+    if (page) page.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+function switchUpgradeTab(tier) {
+    document.querySelectorAll('.upgrade-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.tier === tier);
+    });
+
+    const priceEl = document.getElementById('upgrade-price-label');
+    if (priceEl) priceEl.textContent = tier === 'basic' ? 'Free' : '$9.00';
+
+    const tierLabel = document.getElementById('upgrade-tier-label');
+    if (tierLabel) tierLabel.textContent = tier === 'basic' ? 'Free Plan' : 'Pro Benefits';
+
+    document.querySelectorAll('.upgrade-feature-check').forEach(el => {
+        const available = el.dataset[tier] === '1';
+        el.innerHTML = available
+            ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+            : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+        el.classList.toggle('available', available);
+        el.classList.toggle('unavailable', !available);
+    });
+
+    const adNote = document.getElementById('upgrade-ad-note');
+    if (adNote) adNote.classList.toggle('hidden', tier !== 'basic');
+}
+
+// Escape key closes the upgrade page too
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const upg = document.getElementById('upgrade-page');
+        if (upg && !upg.classList.contains('hidden')) closeUpgradePage();
+    }
+});
 function closeUpgradeModal() { closeModal('modal-upgrade'); }
 function activateProPlan() { toast('⭐ Upgrade to PRO — Coming soon with Google Play Billing!', 'info'); }
 
