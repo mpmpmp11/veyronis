@@ -8641,3 +8641,89 @@ body.sidebar-open .input-shell {
         animation: none !important;
     }
 }
+/* ─── CHAT TRANSITION — new chat + switching ─── */
+#chat-scroll.transitioning-out {
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+#chat-scroll.transitioning-in {
+    animation: chatScrollIn 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes chatScrollIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+/* ═══════════════════════════════════════════════════════
+   UPGRADE PILL — refined
+   ═══════════════════════════════════════════════════════ */
+.pro-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 0 12px 0 10px !important;
+    height: 34px !important;
+    border-radius: 999px !important;
+
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.10), rgba(217, 119, 6, 0.05)) !important;
+    border: 1px solid rgba(251, 191, 36, 0.22) !important;
+    color: #fbbf24 !important;
+
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.1px !important;
+    font-family: inherit !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+}
+
+.pro-pill-icon {
+    flex-shrink: 0 !important;
+    color: #fbbf24 !important;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.pro-pill span {
+    color: #fbbf24 !important;
+    transition: color 0.2s ease !important;
+}
+
+.pro-pill:hover {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(217, 119, 6, 0.10)) !important;
+    border-color: rgba(251, 191, 36, 0.42) !important;
+}
+.pro-pill:hover .pro-pill-icon {
+    transform: rotate(45deg) !important;
+}
+
+.pro-pill:active {
+    transform: scale(0.96) !important;
+}
+
+/* Light mode */
+[data-theme="light"] .pro-pill {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.14), rgba(217, 119, 6, 0.06)) !important;
+    border-color: rgba(217, 119, 6, 0.28) !important;
+    color: #b45309 !important;
+}
+[data-theme="light"] .pro-pill-icon,
+[data-theme="light"] .pro-pill span {
+    color: #b45309 !important;
+}
+[data-theme="light"] .pro-pill:hover {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.22), rgba(217, 119, 6, 0.12)) !important;
+    border-color: rgba(217, 119, 6, 0.45) !important;
+}
+
+/* Mobile tweak */
+@media (max-width: 480px) {
+    .pro-pill {
+        height: 32px !important;
+        padding: 0 10px 0 8px !important;
+        font-size: 11px !important;
+        gap: 5px !important;
+    }
+    .pro-pill-icon { width: 12px !important; height: 12px !important; }
+}

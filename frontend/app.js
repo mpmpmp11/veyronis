@@ -920,14 +920,30 @@ async function unarchiveConv(id) {
 }
 
 function newChat() {
-    state.conversationId = null;
-    state.isNewChat = true;
-    document.getElementById('messages').innerHTML = '';
-    // No empty state on in-app new chats — blank screen only
+    const sc = document.getElementById('chat-scroll');
+    const msgs = document.getElementById('messages');
     const emptyState = document.getElementById('empty-state');
-    if (emptyState) emptyState.style.display = 'none';
-    loadConversations();
-    closeSidebar();
+    const hasContent = msgs && msgs.innerHTML.trim().length > 0;
+
+    // Fade out old content (only if there is content to fade)
+    if (hasContent && sc) sc.classList.add('transitioning-out');
+
+    const delay = hasContent ? 180 : 0;
+
+    setTimeout(() => {
+        state.conversationId = null;
+        state.isNewChat = true;
+        if (msgs) msgs.innerHTML = '';
+        if (emptyState) emptyState.style.display = 'none';
+        loadConversations();
+        closeSidebar();
+
+        if (sc) {
+            sc.classList.remove('transitioning-out');
+            sc.classList.add('transitioning-in');
+            setTimeout(() => sc.classList.remove('transitioning-in'), 340);
+        }
+    }, delay);
 }
 
 // ─── MORE MENU ───
