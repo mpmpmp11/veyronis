@@ -8450,3 +8450,80 @@ body.sidebar-open .input-shell {
     height: 100vh;
     height: 100dvh;
 }
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR NEW CHAT — final: flat subtle row
+   ═══════════════════════════════════════════════════════ */
+.sidebar-new-chat {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 12px !important;
+
+    width: 100% !important;
+    height: 44px !important;
+    padding: 0 12px !important;
+    margin: 0 !important;
+
+    border-radius: 10px !important;
+    border: 1px solid transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
+
+    color: var(--text) !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+    font-family: inherit !important;
+    text-align: left !important;
+    cursor: pointer !important;
+    transition: background-color 0.15s ease, color 0.15s ease !important;
+}
+
+.sidebar-new-chat svg {
+    flex-shrink: 0 !important;
+    color: var(--text-secondary) !important;
+    opacity: 0.9 !important;
+    transition: color 0.15s ease !important;
+}
+
+.sidebar-new-chat span {
+    flex: 1 !important;
+    text-align: left !important;
+    color: inherit !important;
+}
+
+/* Hover */
+.sidebar-new-chat:hover {
+    background: rgba(255, 255, 255, 0.06) !important;
+    color: var(--text) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+.sidebar-new-chat:hover svg {
+    color: var(--text) !important;
+}
+
+/* Active / pressed */
+.sidebar-new-chat:active {
+    background: rgba(255, 255, 255, 0.09) !important;
+    transform: none !important;
+}
+
+/* Light mode override */
+[data-theme="light"] .sidebar-new-chat {
+    background: transparent !important;
+    color: #0d0d0d !important;
+}
+[data-theme="light"] .sidebar-new-chat:hover {
+    background: rgba(0, 0, 0, 0.05) !important;
+    color: #0d0d0d !important;
+}
+[data-theme="light"] .sidebar-new-chat:active {
+    background: rgba(0, 0, 0, 0.08) !important;
+}
+[data-theme="light"] .sidebar-new-chat svg {
+    color: #5d5d5d !important;
+}
+[data-theme="light"] .sidebar-new-chat:hover svg {
+    color: #0d0d0d !important;
+}
