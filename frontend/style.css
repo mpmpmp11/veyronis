@@ -8727,3 +8727,142 @@ body.sidebar-open .input-shell {
     }
     .pro-pill-icon { width: 12px !important; height: 12px !important; }
 }
+/* ═══════════════════════════════════════════════════════
+   AUTH SCREEN — light + dark (respects data-theme)
+   ═══════════════════════════════════════════════════════ */
+
+/* Remove the old hardcoded black — let theme decide */
+#auth-screen.auth-screen {
+    background: #000 !important;
+}
+
+/* ─── DARK MODE (current look, preserved) ─── */
+[data-theme="dark"] #auth-screen.auth-screen {
+    background: #000 !important;
+}
+
+/* ─── LIGHT MODE ─── */
+[data-theme="light"] #auth-screen.auth-screen {
+    background: #ffffff !important;
+}
+
+/* ─── LIGHT MODE — brand & tagline ─── */
+[data-theme="light"] .auth-brand-large {
+    color: #0d0d0d;
+}
+[data-theme="light"] .auth-tagline-large {
+    color: #6b6b6b;
+}
+[data-theme="light"] .auth-logo-large,
+[data-theme="light"] .auth-logo-small {
+    filter: none;
+}
+
+/* ─── LIGHT MODE — back button ─── */
+[data-theme="light"] .auth-back-btn {
+    background: transparent;
+    border-color: #e5e5e5;
+    color: #0d0d0d;
+}
+[data-theme="light"] .auth-back-btn:hover {
+    background: #f4f4f4;
+    border-color: #d4d4d4;
+}
+
+/* ─── LIGHT MODE — heading & consent ─── */
+[data-theme="light"] .auth-heading {
+    color: #0d0d0d;
+}
+[data-theme="light"] .auth-consent {
+    color: #6b6b6b;
+}
+[data-theme="light"] .auth-consent a {
+    color: #7c3aed;
+}
+
+/* ─── LIGHT MODE — tabs pill ─── */
+[data-theme="light"] .auth-tabs-pill {
+    background: #f4f4f4;
+    border-color: #e5e5e5;
+}
+[data-theme="light"] .auth-tabs-pill .auth-tab {
+    color: #6b6b6b;
+}
+[data-theme="light"] .auth-tabs-pill .auth-tab.active {
+    background: #ffffff;
+    color: #0d0d0d;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ─── LIGHT MODE — inputs ─── */
+[data-theme="light"] .auth-input {
+    background: transparent;
+    border-color: #e5e5e5;
+    color: #0d0d0d;
+}
+[data-theme="light"] .auth-input::placeholder {
+    color: #9a9a9a;
+}
+[data-theme="light"] .auth-input:focus {
+    border-color: #0d0d0d;
+    background: #ffffff;
+}
+
+/* ─── LIGHT MODE — outline button (Try another way, Google) ─── */
+[data-theme="light"] .auth-btn-outline {
+    background: #ffffff;
+    border-color: #e5e5e5;
+    color: #0d0d0d;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+[data-theme="light"] .auth-btn-outline:hover,
+[data-theme="light"] .auth-btn-outline:active {
+    background: #f4f4f4;
+    border-color: #d4d4d4;
+    color: #0d0d0d;
+}
+
+/* ─── LIGHT MODE — primary Continue button (solid black, ChatGPT-style) ─── */
+[data-theme="light"] .auth-btn-primary {
+    background: #0d0d0d;
+    border-color: #0d0d0d;
+    color: #ffffff;
+    box-shadow: none;
+}
+[data-theme="light"] .auth-btn-primary:hover,
+[data-theme="light"] .auth-btn-primary:active {
+    background: #262626;
+    border-color: #262626;
+}
+
+/* ─── LIGHT MODE — forgot password link ─── */
+[data-theme="light"] .auth-link {
+    color: #7c3aed;
+}
+[data-theme="light"] .auth-link:hover {
+    color: #6d28d9;
+}
+
+/* ─── LIGHT MODE — errors ─── */
+[data-theme="light"] .auth-error {
+    color: #dc2626;
+}
+
+/* ─── LIGHT MODE — OR divider ─── */
+[data-theme="light"] .auth-or-line {
+    background: #e5e5e5;
+}
+[data-theme="light"] .auth-or-text {
+    color: #9a9a9a;
+}
+
+/* ─── LIGHT MODE — legal footer ─── */
+[data-theme="light"] .auth-legal-footer {
+    color: #9a9a9a;
+}
+[data-theme="light"] .auth-legal-footer a {
+    color: #6b6b6b;
+}
+[data-theme="light"] .auth-legal-footer a:hover {
+    color: #0d0d0d;
+}
