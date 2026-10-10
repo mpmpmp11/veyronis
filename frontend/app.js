@@ -1152,6 +1152,7 @@ function openUpgradeModal() {
     const page = document.getElementById('upgrade-page');
     if (!page) return;
     page.classList.remove('hidden');
+    document.body.classList.add('upgrade-open');
     document.body.style.overflow = 'hidden';
     switchUpgradeTab('pro');
 }
@@ -1159,6 +1160,7 @@ function openUpgradeModal() {
 function closeUpgradePage() {
     const page = document.getElementById('upgrade-page');
     if (page) page.classList.add('hidden');
+    document.body.classList.remove('upgrade-open');
     document.body.style.overflow = '';
 }
 
@@ -2211,10 +2213,16 @@ function openSettingsPanel() {
     const main = document.getElementById('settings-main');
     if (main) main.classList.remove('hidden');
     panel.classList.remove('hidden');
-    syncSettingsValues();
+    document.body.classList.add('settings-open');
+    try { syncSettingsValues(); } catch (e) { console.error('[Settings] sync error:', e); }
     closeSidebar();
 }
-function closeSettingsPanel() { const panel = document.getElementById('settings-panel'); if (panel) panel.classList.add('hidden'); }
+
+function closeSettingsPanel() {
+    const panel = document.getElementById('settings-panel');
+    if (panel) panel.classList.add('hidden');
+    document.body.classList.remove('settings-open');
+}
 
 function syncSettingsValues() {
     if (!state.user || !state.user.email) {

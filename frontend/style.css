@@ -8390,26 +8390,7 @@ body.sidebar-open .input-shell {
    OVERLAY CHROME FIXES — hide top bar + input when panels open
    ═══════════════════════════════════════════════════════ */
 
-/* Settings open → hide floating chrome */
-body:has(#settings-panel:not(.hidden)) .top-bar-floating,
-body:has(#settings-panel:not(.hidden)) .top-bar-desktop,
-body:has(#settings-panel:not(.hidden)) .input-shell {
-    display: none !important;
-}
 
-/* Sidebar open → hide floating chrome */
-body.sidebar-open .top-bar-floating,
-body.sidebar-open .top-bar-desktop,
-body.sidebar-open .input-shell {
-    display: none !important;
-}
-
-/* Upgrade page open → hide floating chrome */
-body:has(.upgrade-page:not(.hidden)) .top-bar-floating,
-body:has(.upgrade-page:not(.hidden)) .top-bar-desktop,
-body:has(.upgrade-page:not(.hidden)) .input-shell {
-    display: none !important;
-}
 
 /* ─── Sidebar height — dynamic for mobile URL bar ─── */
 #sidebar {
@@ -8421,11 +8402,6 @@ body:has(.upgrade-page:not(.hidden)) .input-shell {
     height: 100dvh;
 }
 
-/* ─── Force overlay panels above everything else ─── */
-#settings-panel,
-.upgrade-page {
-    isolation: isolate;
-}
 /* ═══════════════════════════════════════════════════════
    CRITICAL FIX — messages must always be visible
    The old animation-based approach fails silently on mobile
@@ -8434,4 +8410,43 @@ body:has(.upgrade-page:not(.hidden)) .input-shell {
     opacity: 1 !important;
     transform: none !important;
     animation: none !important;
+}
+/* ═══════════════════════════════════════════════════════
+   OVERLAY CHROME — body-class based, bulletproof
+   ═══════════════════════════════════════════════════════ */
+
+body.settings-open .top-bar-floating,
+body.settings-open .top-bar-desktop,
+body.settings-open .input-shell {
+    display: none !important;
+}
+
+body.upgrade-open .top-bar-floating,
+body.upgrade-open .top-bar-desktop,
+body.upgrade-open .input-shell {
+    display: none !important;
+}
+
+body.sidebar-open .top-bar-floating,
+body.sidebar-open .top-bar-desktop,
+body.sidebar-open .input-shell {
+    display: none !important;
+}
+
+/* Force settings panel visible when class removed */
+#settings-panel:not(.hidden) {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 999999 !important;
+    position: fixed !important;
+    inset: 0 !important;
+    background: #171717 !important;
+}
+
+/* Sidebar + app height — dynamic for mobile URL bar */
+#sidebar,
+#app {
+    height: 100vh;
+    height: 100dvh;
 }
