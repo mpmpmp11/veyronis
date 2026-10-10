@@ -1168,6 +1168,17 @@ function renderAttachmentGrid(attachments) {
 
 // ─── PRO UPGRADE PAGE ───
 function openUpgradeModal() {
+    // If settings panel is open, close it first (clean transition)
+    const settingsPanel = document.getElementById('settings-panel');
+    if (settingsPanel && !settingsPanel.classList.contains('hidden')) {
+        settingsPanel.classList.add('hidden');
+        document.body.classList.remove('settings-open');
+    }
+
+    // Close legacy modal if somehow open
+    const legacyModal = document.getElementById('modal-upgrade');
+    if (legacyModal) legacyModal.classList.add('hidden');
+
     const page = document.getElementById('upgrade-page');
     if (!page) return;
     page.classList.remove('hidden');
