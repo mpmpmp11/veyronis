@@ -822,7 +822,8 @@ function switchConversation(id) {
     }
 
     state.conversationId = parseInt(id);
-    showEmpty(false);   // ✅ hide immediately when switching into a chat
+    document.getElementById('chat-scroll').classList.add('switching');   // ← ADD THIS
+    showEmpty(false);
     document.getElementById('messages').innerHTML = `
         <div class="skeleton"><div class="skeleton-line"></div><div class="skeleton-line medium"></div></div>
         <div class="skeleton"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
@@ -830,6 +831,8 @@ function switchConversation(id) {
     loadHistory();
     loadConversations();
     closeSidebar();
+
+    setTimeout(() => document.getElementById('chat-scroll').classList.remove('switching'), 350); 
 }
 
 async function renameConvPrompt(id, currentTitle) {
