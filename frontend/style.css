@@ -7991,7 +7991,7 @@ body.sidebar-open .input-shell {
 [data-theme="light"] .upgrade-terms { color: #8a8a8a; }
 [data-theme="light"] .upgrade-ad-note { color: #a3a3a3; }
 /* ═══════════════════════════════════════════════════════
-   LIGHT MODE v2 — ChatGPT-style native app feel
+   LIGHT MODE v2
    Overrides all prior light mode rules
    ═══════════════════════════════════════════════════════ */
 
@@ -8327,4 +8327,63 @@ body.sidebar-open .input-shell {
 [data-theme="light"] .plugin-icon-gray {
     background: rgba(0, 0, 0, 0.06);
     color: #5d5d5d;
+}
+/* ═══════════════════════════════════════════════════════
+   ROUND: blue chat pill + flat user bubble + about logo
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── SIDEBAR CHAT PILL ─── */
+.sidebar-new-chat {
+    width: 144px !important;
+    height: 48px !important;
+    border-radius: 9999px !important;
+    background-color: #3b82f6 !important;
+    border: none !important;
+    color: #ffffff !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.3px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    margin: 0 auto !important;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3) !important;
+    transition: transform 0.15s ease, background-color 0.2s ease !important;
+    cursor: pointer !important;
+    font-family: inherit !important;
+}
+.sidebar-new-chat:hover {
+    background-color: #2563eb !important;
+    transform: none !important;
+}
+.sidebar-new-chat:active {
+    transform: scale(0.96) !important;
+}
+.sidebar-new-chat svg { flex-shrink: 0; }
+
+/* ─── USER MESSAGE BUBBLE — flat, no tail ─── */
+.msg.user .msg-bubble {
+    border-radius: 20px !important;
+    box-shadow: none !important;
+    background-image: none !important;
+}
+[data-theme="dark"] .msg.user .msg-bubble {
+    background: #262626 !important;
+    color: #ffffff !important;
+    border: none !important;
+}
+[data-theme="light"] .msg.user .msg-bubble {
+    background: #f0f0f0 !important;
+    color: #171717 !important;
+    border: none !important;
+}
+
+/* ─── ABOUT LOGO IMAGE ─── */
+.about-logo-img {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto 12px;
 }
