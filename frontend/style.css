@@ -3945,7 +3945,7 @@ body::before {
 
    .flashcard {
         min-height: 120px; /* Compact but readable on phones */
-        height: auto;
+        height: auto; }
   .flashcard-q { font-size: 13px; }
   .flashcard-a { font-size: 13px; }
   .flashcard-deck { grid-template-columns: 1fr; gap: 10px; }
@@ -3956,7 +3956,6 @@ body::before {
 
   .simulation-toggle { font-size: 8px; padding: 2px 6px; }
   .sim-limit-badge { font-size: 7px; padding: 0 4px; }
-}
 
 body.offline #app { padding-top: 44px; }
 body.offline .top-bar { top: 44px; }
@@ -8386,4 +8385,53 @@ body.sidebar-open .input-shell {
     object-fit: contain;
     display: block;
     margin: 0 auto 12px;
+}
+/* ═══════════════════════════════════════════════════════
+   OVERLAY CHROME FIXES — hide top bar + input when panels open
+   ═══════════════════════════════════════════════════════ */
+
+/* Settings open → hide floating chrome */
+body:has(#settings-panel:not(.hidden)) .top-bar-floating,
+body:has(#settings-panel:not(.hidden)) .top-bar-desktop,
+body:has(#settings-panel:not(.hidden)) .input-shell {
+    display: none !important;
+}
+
+/* Sidebar open → hide floating chrome */
+body.sidebar-open .top-bar-floating,
+body.sidebar-open .top-bar-desktop,
+body.sidebar-open .input-shell {
+    display: none !important;
+}
+
+/* Upgrade page open → hide floating chrome */
+body:has(.upgrade-page:not(.hidden)) .top-bar-floating,
+body:has(.upgrade-page:not(.hidden)) .top-bar-desktop,
+body:has(.upgrade-page:not(.hidden)) .input-shell {
+    display: none !important;
+}
+
+/* ─── Sidebar height — dynamic for mobile URL bar ─── */
+#sidebar {
+    height: 100vh;
+    height: 100dvh;
+}
+#app {
+    height: 100vh;
+    height: 100dvh;
+}
+
+/* ─── Force overlay panels above everything else ─── */
+#settings-panel,
+.upgrade-page {
+    isolation: isolate;
+}
+/* ═══════════════════════════════════════════════════════
+   CRITICAL FIX — messages must always be visible
+   The old animation-based approach fails silently on mobile
+   ═══════════════════════════════════════════════════════ */
+.msg {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
 }
