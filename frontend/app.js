@@ -828,7 +828,7 @@ function switchConversation(id) {
         <div class="skeleton"><div class="skeleton-line"></div><div class="skeleton-line medium"></div></div>
         <div class="skeleton"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
     `;
-    
+
     loadHistory();
     loadConversations();
     closeSidebar();
@@ -2874,11 +2874,27 @@ function refreshUserInfo() {
         });
 }
 
+[{
+	"resource": "/c:/Users/User/Desktop/veyronis/frontend/app.js",
+	"owner": "typescript",
+	"code": "1128",
+	"severity": 8,
+	"message": "Declaration or statement expected.",
+	"source": "ts",
+	"startLineNumber": 2918,
+	"startColumn": 1,
+	"endLineNumber": 2918,
+	"endColumn": 2,
+	"modelVersionId": 17,
+	"origin": "extHost1"
+}]
+
 // ─── INIT ───
-function initApp() {
+  function initApp() {
+    preloadButtonIcons();   // ← ADD THIS LINE FIRST
+
     const nameEl = document.getElementById('sidebar-name');
     const tierLabelEl = document.getElementById('sidebar-tier-label');
-    if (state.user) {
         const displayName = state.user.full_name
             || state.user.name
             || (state.user.email ? state.user.email.split('@')[0] : 'You');
@@ -2914,7 +2930,6 @@ if (micBtn) micBtn.style.display = 'flex';
     if (state.user && state.user.is_pro) setProUi();
     setTimeout(() => { if (state.apiUrl) { updateConnStatus('checking'); checkServerHealth(); } }, 100);
     updateSendButton();
-}
 
 function initScrollHeader() {
     const sc = document.getElementById('chat-scroll');

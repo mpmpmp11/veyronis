@@ -8866,3 +8866,17 @@ body.sidebar-open .input-shell {
 [data-theme="light"] .auth-legal-footer a:hover {
     color: #0d0d0d;
 }
+/* ─── Keep send button size stable during icon swaps ─── */
+.composer-btn.send-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+}
+.composer-btn.send-btn img.btn-icon {
+    width: 22px !important;
+    height: 22px !important;
+    object-fit: contain !important;
+    display: block !important;
+}
