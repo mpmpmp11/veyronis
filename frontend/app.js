@@ -828,9 +828,11 @@ function switchConversation(id) {
         <div class="skeleton"><div class="skeleton-line"></div><div class="skeleton-line medium"></div></div>
         <div class="skeleton"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>
     `;
+    
     loadHistory();
     loadConversations();
     closeSidebar();
+    updateSendButton();   // ← ADD THIS: entering an existing chat → send icon
 
     setTimeout(() => document.getElementById('chat-scroll').classList.remove('switching'), 350); 
 }
@@ -943,6 +945,8 @@ function newChat() {
             sc.classList.add('transitioning-in');
             setTimeout(() => sc.classList.remove('transitioning-in'), 340);
         }
+
+        updateSendButton();   // ← ADD THIS: refresh icon for fresh chat state
     }, delay);
 }
 
