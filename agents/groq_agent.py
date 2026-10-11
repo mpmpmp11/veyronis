@@ -3,6 +3,7 @@ import time
 from typing import Optional, List, Dict, Generator
 from settings import get_groq_client, Config
 
+
 class GroqAgent:
     MAX_RETRIES = 3
     BASE_DELAY = 1.0
@@ -27,7 +28,7 @@ class GroqAgent:
         temperature: float = 0.3,
         max_tokens: int = 4096
     ) -> str:
-        """Non-streaming response with retry."""
+        """Non-streaming response with retry. Reasoning is hidden from the user."""
         messages = []
         if system_context:
             messages.append({"role": "system", "content": system_context})
@@ -43,14 +44,15 @@ class GroqAgent:
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
-                    stream=False
+                    stream=False,
+                    reasoning_format="hidden"
                 )
                 return completion.choices[0].message.content.strip()
             except Exception as e:
                 last_error = e
                 if self._is_rate_limit(e) and attempt < self.MAX_RETRIES - 1:
                     delay = self.BASE_DELAY * (2 ** attempt)
-                    time.sleep(delay)
+                    time.sleep(delay)   # retry silently
                     continue
                 elif self._is_server_error(e) and attempt < self.MAX_RETRIES - 1:
                     time.sleep(self.BASE_DELAY)
@@ -70,7 +72,7 @@ class GroqAgent:
         temperature: float = 0.3,
         max_tokens: int = 4096
     ) -> Generator[str, None, None]:
-        """Streaming response with retry."""
+        """Streaming response with silent retry. Reasoning is hidden from the user."""
         messages = []
         if system_context:
             messages.append({"role": "system", "content": system_context})
@@ -86,7 +88,8 @@ class GroqAgent:
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
-                    stream=True
+                    stream=True,
+                    reasoning_format="hidden"
                 )
                 for chunk in completion:
                     if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
@@ -96,11 +99,9 @@ class GroqAgent:
                 last_error = e
                 if self._is_rate_limit(e) and attempt < self.MAX_RETRIES - 1:
                     delay = self.BASE_DELAY * (2 ** attempt)
-                    yield f"[RETRYING] Rate limited. Retrying in {delay}s...\n"
-                    time.sleep(delay)
+                    time.sleep(delay)   # retry silently
                     continue
                 elif self._is_server_error(e) and attempt < self.MAX_RETRIES - 1:
-                    yield "[RETRYING] Server error. Retrying...\n"
                     time.sleep(self.BASE_DELAY)
                     continue
                 break
