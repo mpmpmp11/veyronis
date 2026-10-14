@@ -8880,3 +8880,153 @@ body.sidebar-open .input-shell {
     object-fit: contain !important;
     display: block !important;
 }
+/* ═══════════════════════════════════════════════════════
+   VOICE ORB v2 — clean morphing ellipse (ChatGPT-style)
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+    /* Themeable orb colors — change these to rebrand */
+    --voice-orb-color: #ffffff;
+    --voice-orb-listening-color: #ffffff;
+    --voice-orb-speaking-color: #ffffff;
+    --voice-orb-thinking-color: #fbbf24;
+    --voice-orb-error-color: #ef4444;
+}
+
+[data-theme="light"] {
+    --voice-orb-color: #0d0d0d;
+    --voice-orb-listening-color: #0d0d0d;
+    --voice-orb-speaking-color: #0d0d0d;
+    --voice-orb-thinking-color: #f59e0b;
+    --voice-orb-error-color: #dc2626;
+}
+
+/* ─── Base orb — one solid shape, GPU-accelerated morph ─── */
+.voice-orb {
+    width: 180px !important;
+    height: 180px !important;
+    border-radius: 50% !important;
+    background: var(--voice-orb-color) !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    position: relative !important;
+    transform-origin: center center !important;
+    will-change: transform, background;
+    transition: background 0.5s ease;
+}
+
+/* Hide any orphaned pill/inner markup if the HTML wasn't updated */
+.voice-orb .voice-orb-inner,
+.voice-orb .voice-pill {
+    display: none !important;
+}
+
+/* ─── STATE: IDLE — slow gentle breathing ─── */
+.voice-orb.state-idle {
+    animation: voiceOrbIdle 4.5s cubic-bezier(0.45, 0, 0.55, 1) infinite !important;
+    background: var(--voice-orb-color) !important;
+}
+
+@keyframes voiceOrbIdle {
+    0%   { transform: scaleX(1)    scaleY(1); }
+    25%  { transform: scaleX(0.94) scaleY(1.06); }
+    50%  { transform: scaleX(1.06) scaleY(0.94); }
+    75%  { transform: scaleX(0.96) scaleY(1.04); }
+    100% { transform: scaleX(1)    scaleY(1); }
+}
+
+/* ─── STATE: LISTENING — full calm morph ─── */
+.voice-orb.state-listening {
+    animation: voiceOrbMorph 5s cubic-bezier(0.45, 0, 0.55, 1) infinite !important;
+    background: var(--voice-orb-listening-color) !important;
+}
+
+@keyframes voiceOrbMorph {
+    0%   { transform: scaleX(1)    scaleY(1); }
+    20%  { transform: scaleX(0.7)  scaleY(1.22); }
+    40%  { transform: scaleX(1.05) scaleY(0.96); }
+    60%  { transform: scaleX(1.24) scaleY(0.72); }
+    80%  { transform: scaleX(0.95) scaleY(1.06); }
+    100% { transform: scaleX(1)    scaleY(1); }
+}
+
+/* ─── STATE: SPEAKING — same motion, faster energy ─── */
+.voice-orb.state-speaking {
+    animation: voiceOrbMorph 3.6s cubic-bezier(0.45, 0, 0.55, 1) infinite !important;
+    background: var(--voice-orb-speaking-color) !important;
+}
+
+/* ─── STATE: THINKING — full rotation + gentle breathe ─── */
+.voice-orb.state-thinking {
+    animation: voiceOrbThink 4s cubic-bezier(0.45, 0, 0.55, 1) infinite !important;
+    background: var(--voice-orb-thinking-color) !important;
+}
+
+@keyframes voiceOrbThink {
+    0%   { transform: rotate(0deg)   scaleX(1)    scaleY(1); }
+    25%  { transform: rotate(90deg)  scaleX(0.92) scaleY(1.08); }
+    50%  { transform: rotate(180deg) scaleX(1)    scaleY(1); }
+    75%  { transform: rotate(270deg) scaleX(1.08) scaleY(0.92); }
+    100% { transform: rotate(360deg) scaleX(1)    scaleY(1); }
+}
+
+/* ─── STATE: TRANSCRIBING — soft pulse ─── */
+.voice-orb.state-transcribing {
+    animation: voiceOrbPulse 1.6s ease-in-out infinite !important;
+    background: var(--voice-orb-listening-color) !important;
+}
+
+@keyframes voiceOrbPulse {
+    0%, 100% { transform: scaleX(1)    scaleY(1);    opacity: 1; }
+    50%      { transform: scaleX(1.08) scaleY(1.08); opacity: 0.85; }
+}
+
+/* ─── STATE: INTERRUPTED — brief flash on barge-in ─── */
+.voice-orb.state-interrupted {
+    animation: voiceOrbInterrupt 0.5s ease-out !important;
+}
+
+@keyframes voiceOrbInterrupt {
+    0%   { transform: scaleX(1.15) scaleY(1.15); opacity: 0.6; }
+    100% { transform: scaleX(1)    scaleY(1);    opacity: 1; }
+}
+
+/* ─── STATE: ERROR — solid, gentle pulse ─── */
+.voice-orb.state-error {
+    animation: voiceOrbError 1.2s ease-in-out infinite !important;
+    background: var(--voice-orb-error-color) !important;
+}
+
+@keyframes voiceOrbError {
+    0%, 100% { transform: scaleX(1)    scaleY(1); }
+    50%      { transform: scaleX(0.94) scaleY(0.94); }
+}
+
+/* ─── Mobile sizing ─── */
+@media (max-width: 768px) {
+    .voice-orb {
+        width: 150px !important;
+        height: 150px !important;
+    }
+}
+
+/* ─── Light theme: soften the voice overlay so the dark orb reads clearly ─── */
+[data-theme="light"] .voice-mode-overlay {
+    background: rgba(245, 245, 247, 0.85) !important;
+    backdrop-filter: blur(24px) saturate(140%) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(140%) !important;
+}
+
+[data-theme="light"] .voice-bg {
+    background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.10), transparent 60%) !important;
+}
+
+[data-theme="light"] .voice-state-label {
+    color: rgba(13, 13, 13, 0.6) !important;
+}
+
+[data-theme="light"] .voice-status {
+    color: rgba(13, 13, 13, 0.5) !important;
+}

@@ -9,7 +9,7 @@
     <title>VEYRONIS</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b5cf6'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white' font-weight='bold'%3EV%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="stylesheet" href="/static/style.css?v=2.1">
+    <link rel="stylesheet" href="/static/style.css?v=2.5">
     <link rel="preload" as="image" href="/static/icons/call.png">
 <link rel="preload" as="image" href="/static/icons/send.png">
 <link rel="preload" as="image" href="/static/assets/stop-gen-icon.png">
@@ -1195,13 +1195,7 @@
             <div class="voice-transcript-line voice-ai" id="voice-ai-text"></div>
         </div>
         <div class="voice-orb-wrap">
-            <div class="voice-orb state-idle" id="voice-orb">
-                <div class="voice-orb-inner">
-                    <div class="voice-pill pill-1"></div>
-                    <div class="voice-pill pill-2"></div>
-                    <div class="voice-pill pill-3"></div>
-                </div>
-            </div>
+            <div class="voice-orb state-idle" id="voice-orb"></div>
             <div class="voice-state-label" id="voice-state-label">Tap to start</div>
         </div>
                 <button class="voice-interrupt-btn" id="voice-interrupt-btn" onclick="voiceMode.onInterrupt()">
@@ -1228,7 +1222,7 @@
     </div>
 
     
-    <script src="/static/app.js?v=2.1"></script>
+    <script src="/static/app.js?v=2.5"></script>
     <script src="/static/voice-mode.js"></script>
 </body>
 </html>
