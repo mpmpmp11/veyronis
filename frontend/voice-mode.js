@@ -190,13 +190,11 @@ const voiceMode = (() => {
     }
 
     async function playIntros() {
-        setStatus('Welcome to VEYRONIS');
-        console.log('[Voice] Playing English intro...');
-        await playIntroFile(CONFIG.INTRO_EN_PATH);
-        console.log('[Voice] Playing Georgian intro...');
-        await playIntroFile(CONFIG.INTRO_KA_PATH);
-        console.log('[Voice] Intros done');
-    }
+    // Intros disabled — they were causing an indefinite hang on some devices.
+    // Voice mode now opens instantly. Re-enable later once intro playback is stable.
+    setStatus('Welcome to VEYRONIS');
+    return;
+}
 
     // ─── ORB REVEAL ───
     function showOrb() {
