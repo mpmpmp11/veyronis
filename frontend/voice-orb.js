@@ -22,37 +22,38 @@
     const RETURN_THRESHOLD = 80; // px dragged up from parked to un-park
 
     function init() {
-        overlay = document.getElementById(OVERLAY_ID);
-        stage = document.getElementById(STAGE_ID);
-        orb = document.getElementById(ORB_ID);
-        chatScroll = document.getElementById(CHAT_SCROLL_ID);
-        if (!overlay || !stage || !orb) return;
+    overlay = document.getElementById(OVERLAY_ID);
+    stage = document.getElementById(STAGE_ID);
+    orb = document.getElementById(ORB_ID);
+    chatScroll = document.getElementById(CHAT_SCROLL_ID);
+    if (!overlay || !stage || !orb) return;
 
-        // Pointer events (works for mouse + touch + pen)
-        orb.addEventListener('pointerdown', onPointerDown);
-        document.addEventListener('pointermove', onPointerMove);
-        document.addEventListener('pointerup', onPointerUp);
-        document.addEventListener('pointercancel', onPointerUp);
+    orb.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+    document.addEventListener('pointercancel', onPointerUp);
 
-        // Watch when voice mode opens/closes
-        const observer = new MutationObserver(() => {
-            const isOpen = !overlay.classList.contains('hidden');
-            if (isOpen) {
-                startAmplitudeLoop();
-                resetPosition();
-            } else {
-                stopAmplitudeLoop();
-            }
-        });
-        observer.observe(overlay, { attributes: true, attributesFilter: ['class'] });
-
-        // Chat content sync (mirror #messages whenever it changes)
-        const messagesEl = document.getElementById('messages');
-        if (messagesEl) {
-            const chatObserver = new MutationObserver(() => syncChat());
-            chatObserver.observe(messagesEl, { childList: true, subtree: true });
+    // ✅ FIXED: attributeFilter (not attributesFilter) + state-change guard
+    let lastIsOpen = overlay.classList.contains('hidden') ? false : true;
+    const observer = new MutationObserver(() => {
+        const isOpen = !overlay.classList.contains('hidden');
+        if (isOpen === lastIsOpen) return;   // ← no state change, bail
+        lastIsOpen = isOpen;
+        if (isOpen) {
+            startAmplitudeLoop();
+            resetPosition();
+        } else {
+            stopAmplitudeLoop();
         }
+    });
+    observer.observe(overlay, { attributes: true, attributeFilter: ['class'] });
+
+    const messagesEl = document.getElementById('messages');
+    if (messagesEl) {
+        const chatObserver = new MutationObserver(() => syncChat());
+        chatObserver.observe(messagesEl, { childList: true, subtree: true });
     }
+}
 
     function resetPosition() {
         parkedAtBottom = false;
