@@ -2889,6 +2889,21 @@ function refreshUserInfo() {
 	"origin": "extHost1"
 }]
 
+// ─── PRELOAD BUTTON ICONS ───
+function preloadButtonIcons() {
+    const ICONS = [
+        '/static/icons/call.png',
+        '/static/icons/send.png',
+        '/static/assets/stop-gen-icon.png',
+        '/static/assets/mic-icon.png',
+        '/static/assets/stop-mic-icon.png'
+    ];
+    ICONS.forEach(src => {
+        const img = new Image();
+        img.src = src;
+    });
+}
+
 // ─── INIT ───
   function initApp() {
     preloadButtonIcons();   // ← ADD THIS LINE FIRST

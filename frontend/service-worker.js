@@ -39,6 +39,12 @@ self.addEventListener('fetch', (e) => {
     const { request } = e;
     const url = new URL(request.url);
 
+    // ─── Skip range requests entirely (video streaming returns 206, not cacheable) ───
+    if (request.headers.has('range')) return;
+
+    // ─── Only handle GET ───
+    if (request.method !== 'GET') return;
+
     // API calls: network only, but queue if offline
     if (url.pathname.startsWith('/chat') || url.pathname.startsWith('/upload') || url.pathname === '/execute') {
         e.respondWith(networkOrQueue(request));
@@ -61,13 +67,17 @@ self.addEventListener('fetch', (e) => {
         caches.match(request).then(cached => {
             if (cached) return cached;
             return fetch(request).then(response => {
-                if (response.ok && request.method === 'GET') {
+                // ✅ Only cache FULL 200 responses (not 206, not opaque, not partial)
+                if (
+                    response.status === 200 &&
+                    response.type === 'basic' &&
+                    url.origin === self.location.origin
+                ) {
                     const clone = response.clone();
-                    caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+                    caches.open(CACHE_NAME).then(cache => cache.put(request, clone)).catch(() => {});
                 }
                 return response;
             }).catch(() => {
-                // If HTML request fails, return cached index
                 if (request.mode === 'navigate') {
                     return caches.match('/');
                 }
