@@ -173,29 +173,7 @@ const voiceMode = (() => {
         voiceMinutesLogged = 0;
     }
 
-    // ─── INTRO AUDIO ───
-    function playIntroFile(src) {
-        return new Promise(resolve => {
-            const audio = new Audio(src);
-            let done = false;
-            const finish = () => { if (!done) { done = true; resolve(); } };
-            audio.onended = finish;
-            audio.onerror = () => {
-                console.warn('[Voice] Intro audio missing/failed:', src);
-                finish();
-            };
-            audio.play().catch(() => finish());
-            setTimeout(finish, 20000);
-        });
-    }
-
-    async function playIntros() {
-    // Intros disabled — they were causing an indefinite hang on some devices.
-    // Voice mode now opens instantly. Re-enable later once intro playback is stable.
-    setStatus('Welcome to VEYRONIS');
-    return;
-}
-
+    // 
     // ─── ORB REVEAL ───
     function showOrb() {
         const wrap = document.querySelector('.voice-orb-wrap');
@@ -625,59 +603,80 @@ const voiceMode = (() => {
             setStatus('Speak now');
         }
     }
-
     // ─── OPEN ───
-    async function open() {
-        const overlay = $('voice-mode-overlay');
-        if (!overlay) return;
+async function open() {
+    const overlay = $('voice-mode-overlay');
+    if (!overlay) {
+        console.error('[Voice] Overlay element not found');
+        return;
+    }
 
-        if (!state.conversationId) {
-            try {
-                const headers = { 'Content-Type': 'application/json' };
-                if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
-                const convRes = await fetch(`${state.apiUrl}/conversations`, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify({ user_id: state.userId, title: 'Voice Chat' })
-                });
-                if (convRes.ok) {
-                    const convData = await convRes.json();
-                    state.conversationId = convData.id;
-                    if (typeof loadConversations === 'function') loadConversations();
-                }
-            } catch (e) {
-                console.warn('[Voice] Could not create conversation:', e);
-            }
-        }
+    // ─── SHOW OVERLAY IMMEDIATELY — no awaits before this ───
+    overlay.classList.remove('hidden');
+    overlay.dataset.orbPosition = 'center';
+    overlay.style.removeProperty('--orb-offset-y');
 
-        showUserText('');
-        showAiText('');
-        hideInterruptButton();
-        overlay.classList.remove('hidden');
-        hideOrb();
-        setState('idle', 'Starting...');
-        setStatus('Welcome to VEYRONIS');
+    showUserText('');
+    showAiText('');
+    hideInterruptButton();
+    setState('idle', 'Starting...');
+    setStatus('Welcome to VEYRONIS');
+    console.log('[Voice] Overlay shown');
 
+    // ─── Kick off background setup ───
+    setupVoiceSession().catch(err => {
+        console.error('[Voice] Setup failed:', err);
+        setStatus('Failed: ' + (err?.message || 'Unknown error'));
+        setState('error', 'Error');
+    });
+}
+
+async function setupVoiceSession() {
+    // 1. Ensure we have a conversation row
+    if (!state.conversationId) {
         try {
-            await playIntros();
-            console.log('[Voice] Intros complete, revealing orb');
-
-            showOrb();
-            startTimer();
-            startMinuteLogger();
-            setStatus('Connecting...');
-
-            const token = await fetchToken();
-            await startAudioCapture();
-            await connectElevenLabs(token);
-        } catch (err) {
-            console.error('[Voice] Open failed:', err);
-            setStatus('Failed: ' + err.message);
-            setState('error', 'Error');
-            setTimeout(close, 2500);
+            const headers = { 'Content-Type': 'application/json' };
+            if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+            const convRes = await fetch(`${state.apiUrl}/conversations`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ user_id: state.userId, title: 'Voice Chat' })
+            });
+            if (convRes.ok) {
+                const convData = await convRes.json();
+                state.conversationId = convData.id;
+                if (typeof loadConversations === 'function') loadConversations();
+            }
+        } catch (e) {
+            console.warn('[Voice] Could not create conversation:', e);
         }
     }
 
+    // 2. Start timer + minute logger (local only, no awaits)
+    startTimer();
+    startMinuteLogger();
+
+    // 3. Get ElevenLabs token with a hard timeout
+    setStatus('Connecting...');
+    console.log('[Voice] Fetching streaming token...');
+    const token = await Promise.race([
+        fetchToken(),
+        new Promise((_, rej) =>
+            setTimeout(() => rej(new Error('Token request timed out (10s)')), 10000)
+        )
+    ]);
+    console.log('[Voice] Token received');
+
+    // 4. Microphone capture
+    setStatus('Requesting microphone...');
+    await startAudioCapture();
+    console.log('[Voice] Microphone ready');
+
+    // 5. Connect STT websocket
+    setStatus('Connecting to speech engine...');
+    await connectElevenLabs(token);
+    console.log('[Voice] Voice session fully online');
+}
     // ─── CLOSE ───
     function close() {
         if (bargeInInterval) {
