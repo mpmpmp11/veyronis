@@ -9,7 +9,7 @@
     <title>VEYRONIS</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b5cf6'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white' font-weight='bold'%3EV%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="stylesheet" href="/static/style.css?v=2.5">
+    <link rel="stylesheet" href="/static/style.css?v=4.2">
     <link rel="preload" as="image" href="/static/icons/call.png">
 <link rel="preload" as="image" href="/static/icons/send.png">
 <link rel="preload" as="image" href="/static/assets/stop-gen-icon.png">
@@ -1188,41 +1188,87 @@
     </div>
 
     <!-- VOICE MODE OVERLAY -->
-    <div id="voice-mode-overlay" class="voice-mode-overlay hidden">
-        <div class="voice-bg"></div>
-        <div class="voice-transcript" id="voice-transcript">
-            <div class="voice-transcript-line voice-user" id="voice-user-text"></div>
-            <div class="voice-transcript-line voice-ai" id="voice-ai-text"></div>
-        </div>
-        <div class="voice-orb-wrap">
-            <div class="voice-orb state-idle" id="voice-orb"></div>
-            <div class="voice-state-label" id="voice-state-label">Tap to start</div>
-        </div>
-                <button class="voice-interrupt-btn" id="voice-interrupt-btn" onclick="voiceMode.onInterrupt()">
-            Tap To Interrupt
-        </button>
+    <div id="voice-mode-overlay" class="voice-mode-overlay hidden" data-orb-position="center">
 
-        <div class="voice-controls">
-            <button class="voice-ctrl-btn" id="voice-mute-btn" onclick="voiceMode.toggleMute()" title="Mute">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                    <line x1="12" y1="19" x2="12" y2="23"/>
-                    <line x1="8" y1="23" x2="16" y2="23"/>
-                </svg>
-            </button>
-            <button class="voice-ctrl-btn danger" id="voice-close-btn" onclick="voiceMode.close()" title="End session">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-            </button>
-        </div>
-        <div class="voice-status" id="voice-status"></div>
+    <!-- Background layers -->
+    <div class="voice-bg"></div>
+
+    <!-- TOP BAR -->
+    <div class="voice-topbar">
+        <button class="voice-top-btn" onclick="voiceMode.close()" aria-label="Menu">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="4" y1="6" x2="20" y2="6"/>
+                <line x1="4" y1="12" x2="20" y2="12"/>
+                <line x1="4" y1="18" x2="20" y2="18"/>
+            </svg>
+        </button>
+        <button class="voice-top-btn" aria-label="Settings">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="4" y1="21" x2="4" y2="14"/>
+                <line x1="4" y1="10" x2="4" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="12"/>
+                <line x1="12" y1="8" x2="12" y2="3"/>
+                <line x1="20" y1="21" x2="20" y2="16"/>
+                <line x1="20" y1="12" x2="20" y2="3"/>
+                <line x1="1" y1="14" x2="7" y2="14"/>
+                <line x1="9" y1="8" x2="15" y2="8"/>
+                <line x1="17" y1="16" x2="23" y2="16"/>
+            </svg>
+        </button>
     </div>
 
+    <!-- CHAT AREA — hidden by default, revealed when orb is parked at the bottom -->
+    <div class="voice-chat-area" id="voice-chat-area">
+        <div class="voice-chat-scroll" id="voice-chat-scroll"></div>
+    </div>
+
+    <!-- ORB STAGE — full-screen container that the orb lives in -->
+    <div class="voice-orb-stage" id="voice-orb-stage">
+        <div class="voice-orb" id="voice-orb">
+            <div class="voice-orb-layer layer-1"></div>
+            <div class="voice-orb-layer layer-2"></div>
+            <div class="voice-orb-layer layer-3"></div>
+            <div class="voice-orb-layer layer-4"></div>
+        </div>
+    </div>
+
+    <!-- BOTTOM BAR -->
+    <div class="voice-bottom-bar">
+        <button class="voice-bar-btn" aria-label="More">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+        </button>
+        <input type="text" id="voice-bar-input" class="voice-bar-input" placeholder="Ask Veyronis" autocomplete="off" />
+        <button class="voice-bar-btn" id="voice-mute-btn" onclick="voiceMode.toggleMute()" aria-label="Mute">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+        </button>
+        <button class="voice-bar-btn voice-bar-close" onclick="voiceMode.close()" aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Hidden elements kept for voice-mode.js compatibility -->
+    <div class="voice-transcript" id="voice-transcript" style="display:none;">
+        <div class="voice-transcript-line voice-user" id="voice-user-text"></div>
+        <div class="voice-transcript-line voice-ai" id="voice-ai-text"></div>
+    </div>
+    <div class="voice-status" id="voice-status" style="display:none;"></div>
+    <div class="voice-state-label" id="voice-state-label" style="display:none;"></div>
+</div>
+
     
-    <script src="/static/app.js?v=2.5"></script>
+    <script src="/static/app.js?v=4.2"></script>
     <script src="/static/voice-mode.js"></script>
+    <script src="/static/voice-orb.js"></script>
 </body>
 </html>

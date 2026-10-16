@@ -735,5 +735,14 @@ const voiceMode = (() => {
         setStatus(muted ? 'Muted' : 'Speak now');
     }
 
-    return { open, close, toggleMute, onInterrupt: onInterruptTap };
+        // ─── Public: expose the mic analyser for the voice-orb amplitude hook ───
+    function getAmplitude() {
+        if (!analyser || !analyserData) return 0;
+        analyser.getByteFrequencyData(analyserData);
+        let sum = 0;
+        for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
+        return Math.min(1, (sum / analyserData.length) / 100); // 0..1
+    }
+
+    return { open, close, toggleMute, onInterrupt: onInterruptTap, getAmplitude };
 })();
