@@ -9031,20 +9031,12 @@ body.sidebar-open .input-shell {
     color: rgba(13, 13, 13, 0.5) !important;
 }
 /* ═══════════════════════════════════════════════════════
-   VOICE MODE v3 — painterly reactive orb + drag + chat reveal
+   VOICE MODE V4 — Painterly Orb, 2D Drag, Top Bar & Chat
    ═══════════════════════════════════════════════════════ */
 
 :root {
     --voice-bg-dark: #050508;
-    --voice-bg-light: #f5f5f7;
     --voice-panel-dark: rgba(30, 30, 34, 0.72);
-    --voice-panel-light: rgba(255, 255, 255, 0.85);
-    --voice-bar-border-dark: rgba(255, 255, 255, 0.10);
-    --voice-bar-border-light: rgba(0, 0, 0, 0.08);
-    --voice-text-dark: #ffffff;
-    --voice-text-light: #0d0d0d;
-
-    /* Painterly palette — change these to rebrand */
     --orb-c1: #06b6d4;   /* cyan */
     --orb-c2: #14b8a6;   /* teal */
     --orb-c3: #3b82f6;   /* blue */
@@ -9058,27 +9050,19 @@ body.sidebar-open .input-shell {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     overflow: hidden;
-    touch-action: none;
+    /* Don't put touch-action: none on the whole overlay, it breaks chat scrolling */
 }
-[data-theme="light"] .voice-mode-overlay {
-    background: var(--voice-bg-light) !important;
-}
+.voice-mode-overlay.hidden { display: none !important; }
 
 .voice-mode-overlay .voice-bg {
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(circle at 50% 45%, rgba(139, 92, 246, 0.08), transparent 55%),
-        radial-gradient(circle at 50% 55%, rgba(6, 182, 212, 0.06), transparent 60%);
+    background: radial-gradient(circle at 50% 45%, rgba(139, 92, 246, 0.08), transparent 55%),
+                radial-gradient(circle at 50% 55%, rgba(6, 182, 212, 0.06), transparent 60%);
     pointer-events: none;
 }
-[data-theme="light"] .voice-mode-overlay .voice-bg {
-    background:
-        radial-gradient(circle at 50% 45%, rgba(139, 92, 246, 0.10), transparent 55%),
-        radial-gradient(circle at 50% 55%, rgba(6, 182, 212, 0.08), transparent 60%);
-}
 
-/* ─── TOP BAR ─── */
+/* ─── TOP BAR (Hamburger & Settings) ─── */
 .voice-topbar {
     position: absolute;
     top: 0;
@@ -9097,7 +9081,7 @@ body.sidebar-open .input-shell {
     border-radius: 50%;
     border: none;
     background: transparent;
-    color: var(--voice-text-dark);
+    color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -9106,12 +9090,10 @@ body.sidebar-open .input-shell {
     transition: background 0.2s ease, transform 0.15s ease;
     -webkit-tap-highlight-color: transparent;
 }
-[data-theme="light"] .voice-top-btn { color: var(--voice-text-light); }
 .voice-top-btn:hover { background: rgba(255, 255, 255, 0.08); }
-[data-theme="light"] .voice-top-btn:hover { background: rgba(0, 0, 0, 0.05); }
 .voice-top-btn:active { transform: scale(0.92); }
 
-/* ─── ORB STAGE — full-screen, orb lives inside ─── */
+/* ─── ORB STAGE — moved by 2D variables ─── */
 .voice-orb-stage {
     position: absolute;
     inset: 0;
@@ -9120,14 +9102,15 @@ body.sidebar-open .input-shell {
     justify-content: center;
     pointer-events: none;
     z-index: 2;
-    transform: translateY(var(--orb-offset-y, 0px));
+    transform: translate(var(--orb-offset-x, 0px), var(--orb-offset-y, 0px));
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .voice-mode-overlay.dragging .voice-orb-stage {
-    transition: none;
+    transition: none; /* Instant follow while dragging */
 }
 
-/* ─── THE ORB — painted circle, layered gradients inside ─── */
+/* ─── THE ORB ─── */
 .voice-orb {
     width: 280px;
     height: 280px;
@@ -9136,23 +9119,20 @@ body.sidebar-open .input-shell {
     overflow: hidden;
     pointer-events: auto;
     cursor: grab;
-    filter: blur(0.5px) saturate(140%);
-    box-shadow:
-        0 0 80px rgba(139, 92, 246, 0.25),
-        0 0 160px rgba(6, 182, 212, 0.15),
-        inset 0 0 60px rgba(255, 255, 255, 0.05);
-    /* Amplitude-driven boost from JS */
+    background: #0a0a0a !important; /* Crucial for mix-blend-mode */
+    box-shadow: 0 0 80px rgba(139, 92, 246, 0.25), 0 0 160px rgba(6, 182, 212, 0.15);
     transform: scale(var(--orb-boost, 1));
     transition: transform 0.15s ease-out, width 0.4s cubic-bezier(0.16, 1, 0.3, 1), height 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     user-select: none;
     -webkit-user-select: none;
+    touch-action: none; /* CRITICAL: Stops mobile scrolling ONLY when touching the orb */
 }
+
 .voice-mode-overlay.dragging .voice-orb {
-    transition: none;
     cursor: grabbing;
 }
 
-/* Inner painted layers — rotated at different speeds for organic flow */
+/* ─── PAINTERLY LAYERS ─── */
 .voice-orb-layer {
     position: absolute;
     inset: -30%;
@@ -9163,15 +9143,17 @@ body.sidebar-open .input-shell {
 }
 
 .voice-orb-layer.layer-1 {
-    background: radial-gradient(circle at 30% 35%, var(--orb-c1) 0%, transparent 55%);
-    animation: orbSpin1 14s linear infinite;
-    filter: blur(16px);
+    background: radial-gradient(circle at 30% 35%, var(--orb-c1) 0%, transparent 60%);
+    animation: orbSpin1 12s linear infinite;
+    filter: blur(20px);
 }
+
 .voice-orb-layer.layer-2 {
-    background: radial-gradient(circle at 70% 65%, var(--orb-c4) 0%, transparent 55%);
-    animation: orbSpin2 18s linear infinite reverse;
-    filter: blur(18px);
+    background: radial-gradient(circle at 70% 65%, var(--orb-c4) 0%, transparent 60%);
+    animation: orbSpin2 16s linear infinite reverse;
+    filter: blur(24px);
 }
+
 .voice-orb-layer.layer-3 {
     background: conic-gradient(
         from 0deg,
@@ -9182,87 +9164,42 @@ body.sidebar-open .input-shell {
         var(--orb-c5) 288deg,
         var(--orb-c1) 360deg
     );
-    animation: orbSpin3 22s linear infinite;
-    filter: blur(24px);
+    animation: orbSpin3 20s linear infinite;
+    filter: blur(30px);
     opacity: 0.85;
 }
+
 .voice-orb-layer.layer-4 {
-    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.35) 0%, transparent 45%);
+    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.4) 0%, transparent 50%);
     animation: orbPulse4 7s ease-in-out infinite;
-    filter: blur(30px);
+    filter: blur(35px);
 }
 
-@keyframes orbSpin1 {
-    from { transform: rotate(0deg) scale(1); }
-    to { transform: rotate(360deg) scale(1); }
-}
-@keyframes orbSpin2 {
-    from { transform: rotate(0deg) scale(1.05); }
-    to { transform: rotate(360deg) scale(1.05); }
-}
-@keyframes orbSpin3 {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-@keyframes orbPulse4 {
-    0%, 100% { opacity: 0.55; transform: scale(1); }
-    50% { opacity: 0.85; transform: scale(1.1); }
+/* Painterly Noise Texture */
+.voice-orb-layer.layer-noise {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.25;
+    mix-blend-mode: overlay;
+    filter: blur(1px);
+    animation: noiseShift 0.5s steps(2) infinite;
 }
 
-/* ─── STATE: IDLE — soft breathe ─── */
-.voice-orb.state-idle {
-    animation: orbBreathe 4.5s ease-in-out infinite;
-}
-@keyframes orbBreathe {
-    0%, 100% { box-shadow: 0 0 80px rgba(139, 92, 246, 0.25), 0 0 160px rgba(6, 182, 212, 0.15), inset 0 0 60px rgba(255, 255, 255, 0.05); }
-    50% { box-shadow: 0 0 100px rgba(139, 92, 246, 0.35), 0 0 200px rgba(6, 182, 212, 0.20), inset 0 0 80px rgba(255, 255, 255, 0.08); }
-}
+@keyframes orbSpin1 { from { transform: rotate(0deg) scale(1); } to { transform: rotate(360deg) scale(1); } }
+@keyframes orbSpin2 { from { transform: rotate(0deg) scale(1.05); } to { transform: rotate(360deg) scale(1.05); } }
+@keyframes orbSpin3 { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes orbPulse4 { 0%, 100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.1); } }
+@keyframes noiseShift { 0% { transform: translate(0,0); } 25% { transform: translate(-2%, 1%); } 50% { transform: translate(1%, -2%); } 75% { transform: translate(2%, 2%); } 100% { transform: translate(-1%, -1%); } }
 
-/* ─── STATE: LISTENING — same breathe, brighter glow ─── */
-.voice-orb.state-listening {
-    animation: orbBreathe 3.6s ease-in-out infinite;
-}
-
-/* ─── STATE: SPEAKING — energetic ─── */
-.voice-orb.state-speaking {
-    animation: orbBreathe 2.2s ease-in-out infinite;
-}
-.voice-orb.state-speaking .voice-orb-layer.layer-3 {
-    animation-duration: 12s;
-}
-.voice-orb.state-speaking .voice-orb-layer.layer-1 {
-    animation-duration: 8s;
-}
-
-/* ─── STATE: THINKING — pulse ─── */
-.voice-orb.state-thinking {
-    animation: orbThink 2.4s ease-in-out infinite;
-}
-@keyframes orbThink {
-    0%, 100% { box-shadow: 0 0 90px rgba(251, 191, 36, 0.30), 0 0 160px rgba(251, 191, 36, 0.12), inset 0 0 60px rgba(255, 255, 255, 0.05); }
-    50% { box-shadow: 0 0 130px rgba(251, 191, 36, 0.55), 0 0 220px rgba(251, 191, 36, 0.25), inset 0 0 80px rgba(255, 255, 255, 0.10); }
-}
-
-/* ─── STATE: ERROR ─── */
-.voice-orb.state-error {
-    animation: orbError 1.2s ease-in-out infinite;
-}
-@keyframes orbError {
-    0%, 100% { filter: blur(0.5px) saturate(140%) hue-rotate(0deg); }
-    50% { filter: blur(0.5px) saturate(180%) hue-rotate(-30deg); }
-}
-
-/* ─── MUTED STATE — dimmed, slowed ─── */
+/* ─── MUTED STATE ─── */
 .voice-mode-overlay.muted .voice-orb {
     opacity: 0.45;
     filter: blur(2px) saturate(60%) grayscale(40%);
-    animation-duration: 8s !important;
 }
 .voice-mode-overlay.muted .voice-orb-layer {
     animation-duration: 30s !important;
 }
 
-/* ─── ORB PARKED AT BOTTOM ─── */
+/* ─── PARKED AT BOTTOM ─── */
 .voice-mode-overlay[data-orb-position="bottom"] .voice-orb {
     width: 190px;
     height: 190px;
@@ -9272,7 +9209,7 @@ body.sidebar-open .input-shell {
     padding-bottom: 130px;
 }
 
-/* ─── CHAT AREA — revealed when orb is parked ─── */
+/* ─── CHAT AREA ─── */
 .voice-chat-area {
     position: absolute;
     top: 76px;
@@ -9297,8 +9234,6 @@ body.sidebar-open .input-shell {
     margin: 0 auto;
     -webkit-overflow-scrolling: touch;
 }
-.voice-chat-scroll::-webkit-scrollbar { width: 3px; }
-.voice-chat-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
 
 /* ─── BOTTOM BAR ─── */
 .voice-bottom-bar {
@@ -9314,16 +9249,11 @@ body.sidebar-open .input-shell {
     padding: 8px 10px;
     border-radius: 28px;
     background: var(--voice-panel-dark);
-    border: 1px solid var(--voice-bar-border-dark);
+    border: 1px solid rgba(255, 255, 255, 0.10);
     backdrop-filter: blur(24px) saturate(140%);
     -webkit-backdrop-filter: blur(24px) saturate(140%);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
     z-index: 20;
-}
-[data-theme="light"] .voice-bottom-bar {
-    background: var(--voice-panel-light);
-    border-color: var(--voice-bar-border-light);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
 .voice-bar-btn {
@@ -9332,34 +9262,23 @@ body.sidebar-open .input-shell {
     border-radius: 50%;
     border: none;
     background: transparent;
-    color: var(--voice-text-dark);
+    color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     flex-shrink: 0;
     transition: background 0.15s ease, transform 0.15s ease;
-    -webkit-tap-highlight-color: transparent;
 }
-[data-theme="light"] .voice-bar-btn { color: var(--voice-text-light); }
 .voice-bar-btn:hover { background: rgba(255, 255, 255, 0.08); }
-[data-theme="light"] .voice-bar-btn:hover { background: rgba(0, 0, 0, 0.05); }
 .voice-bar-btn:active { transform: scale(0.92); }
-.voice-bar-btn.muted {
-    background: #ef4444;
-    color: #ffffff;
-}
+.voice-bar-btn.muted { background: #ef4444; color: #ffffff; }
 
 .voice-bar-close {
     background: #ffffff;
     color: #000000;
 }
 .voice-bar-close:hover { background: #e5e5e5; }
-[data-theme="light"] .voice-bar-close {
-    background: #0d0d0d;
-    color: #ffffff;
-}
-[data-theme="light"] .voice-bar-close:hover { background: #262626; }
 
 .voice-bar-input {
     flex: 1;
@@ -9368,20 +9287,14 @@ body.sidebar-open .input-shell {
     padding: 0 8px;
     border: none;
     background: transparent;
-    color: var(--voice-text-dark);
+    color: #ffffff;
     font-size: 15px;
     font-family: inherit;
     outline: none;
 }
-[data-theme="light"] .voice-bar-input { color: var(--voice-text-light); }
-.voice-bar-input::placeholder {
-    color: rgba(255, 255, 255, 0.4);
-}
-[data-theme="light"] .voice-bar-input::placeholder {
-    color: rgba(0, 0, 0, 0.35);
-}
+.voice-bar-input::placeholder { color: rgba(255, 255, 255, 0.4); }
 
-/* ─── Live timer (JS injects this) — reposition for new layout ─── */
+/* ─── TIMER (Injected by JS) ─── */
 .voice-timer {
     position: absolute !important;
     top: max(20px, env(safe-area-inset-top)) !important;
@@ -9389,15 +9302,16 @@ body.sidebar-open .input-shell {
     right: auto !important;
     transform: translateX(-50%) !important;
     font-size: 13px !important;
+    font-weight: 600 !important;
     color: rgba(255, 255, 255, 0.5) !important;
     background: transparent !important;
     border: none !important;
     padding: 0 !important;
     backdrop-filter: none !important;
+    z-index: 10;
 }
-[data-theme="light"] .voice-timer { color: rgba(0, 0, 0, 0.4) !important; }
 
-/* ─── Mobile sizing ─── */
+/* ─── MOBILE SIZING ─── */
 @media (max-width: 480px) {
     .voice-orb { width: 220px; height: 220px; }
     .voice-mode-overlay[data-orb-position="bottom"] .voice-orb {
