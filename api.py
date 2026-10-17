@@ -162,17 +162,15 @@ from fastapi.responses import Response
 
 @app.get("/.well-known/assetlinks.json", include_in_schema=False)
 async def assetlinks():
-    data = [{
-        "relation": ["delegate_permission/common.handle_all_urls"],
-        "target": {
-            "namespace": "android_app",
-            "package_name": "com.veyronis.twa",  # Check the assetlinks.json file to confirm this exact name!
-            "sha256_cert_fingerprints": [
-                "99:68:5E:DB:F1:0A:AC:2C:1E:03:7B:97:0D:74:70:92:61:38:48:5B:97:91:9B:4B:B9:8E:34:A9:D0:D8:6F:E2"
-            ]
-        }
-    }]
-    return Response(content=_json.dumps(data), media_type="application/json")
+    json_content = '''[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.onrender.veyronis.twa",
+    "sha256_cert_fingerprints": ["99:68:5E:DB:F1:0A:AC:2C:1E:03:7B:97:0D:74:70:92:61:38:48:5B:97:91:9B:4B:B9:8E:34:A9:D0:D8:6F:E2"]
+  }
+}]'''
+    return Response(content=json_content, media_type="application/json")
 
 # ─── HTTPS REDIRECT MIDDLEWARE ───
 @app.middleware("http")
