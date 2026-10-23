@@ -832,6 +832,11 @@ function switchConversation(id) {
         return;
     }
 
+     // Only close the sidebar on mobile
+    if (window.innerWidth < 768) {
+        closeSidebar();
+    }
+
     state.conversationId = parseInt(id);
     document.getElementById('chat-scroll').classList.add('switching');   // ← ADD THIS
     showEmpty(false);

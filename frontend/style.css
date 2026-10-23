@@ -9466,3 +9466,36 @@ body.sidebar-open .input-shell {
         background: rgba(0,0,0,0.1) !important;
     }
 }
+/* ─── SIDEBAR HEADER BUTTONS ─── */
+.sidebar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sidebar-icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--glass-border);
+    background: transparent;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.sidebar-icon-btn:hover {
+    background: var(--glass-hover);
+    color: var(--text);
+}
+
+/* ─── DESKTOP TOGGLE VISIBILITY ─── */
+@media (min-width: 768px) {
+    /* Hide the top-bar open button if the sidebar is open */
+    #sidebar.open ~ #main #desktop-sidebar-toggle {
+        display: none !important;
+    }
+}
