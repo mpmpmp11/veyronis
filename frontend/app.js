@@ -3792,3 +3792,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+// ─── DESKTOP MORE MENU FIX ───
+function toggleMoreMenuDesktop(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const menu = document.getElementById('more-menu-desktop');
+    if (!menu) return;
+    
+    const willOpen = !menu.classList.contains('open');
+
+    // Close mobile floating menu if open
+    const mobileMenu = document.getElementById('more-menu');
+    if (mobileMenu) mobileMenu.classList.remove('open');
+
+    // Toggle desktop menu
+    if (willOpen) {
+        menu.classList.add('open');
+    } else {
+        menu.classList.remove('open');
+    }
+}
