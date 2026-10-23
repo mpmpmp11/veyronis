@@ -955,6 +955,7 @@ function newChat() {
         if (emptyState) emptyState.style.display = 'none';
         loadConversations();
         closeSidebar();
+        if (window.innerWidth < 768) closeSidebar();
 
         if (sc) {
             sc.classList.remove('transitioning-out');
