@@ -740,13 +740,24 @@ function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const backdrop = document.getElementById('sidebar-backdrop');
     if (!sidebar) return;
+    
     const isOpen = sidebar.classList.contains('open');
-    if (isOpen) { closeSidebar(); }
-    else {
+    const isDesktop = window.innerWidth >= 768;
+
+    if (isOpen) {
+        sidebar.classList.remove('open');
+        if (!isDesktop) {
+            document.body.classList.remove('sidebar-open');
+            if (backdrop) backdrop.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    } else {
         sidebar.classList.add('open');
-        document.body.classList.add('sidebar-open');
-        if (backdrop) backdrop.classList.add('active');
-        document.body.style.overflow = 'hidden';
+        if (!isDesktop) {
+            document.body.classList.add('sidebar-open');
+            if (backdrop) backdrop.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
     }
 }
 
@@ -2905,8 +2916,13 @@ function preloadButtonIcons() {
 }
 
 // ─── INIT ───
-  function initApp() {
-    preloadButtonIcons();   // ← ADD THIS LINE FIRST
+function initApp() {
+    // ADD THIS LINE:
+    if (window.innerWidth >= 768) {
+        document.getElementById('sidebar').classList.add('open');
+    }
+
+    preloadButtonIcons();
 
     const nameEl = document.getElementById('sidebar-name');
     const tierLabelEl = document.getElementById('sidebar-tier-label');
