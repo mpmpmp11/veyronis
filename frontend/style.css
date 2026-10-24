@@ -9812,3 +9812,13 @@ body.sidebar-open .input-shell {
     color: #0d0d0d !important;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1) !important;
 }
+/* ─── SEARCH MESSAGE HIGHLIGHT ─── */
+.highlight-flash {
+    animation: messageHighlight 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    border-radius: var(--radius-lg);
+}
+
+@keyframes messageHighlight {
+    0%, 100% { background: transparent; box-shadow: none; }
+    15%, 85% { background: rgba(167, 139, 250, 0.12); box-shadow: 0 0 0 2px var(--accent); }
+}

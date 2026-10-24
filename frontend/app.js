@@ -825,7 +825,8 @@ function makeConvItem(c) {
     </div>`;
 }
 
-function switchConversation(id) {
+function switchConversation(id, highlightId = null) {
+    state.highlightMessageId = highlightId; 
     const convItem = document.querySelector(`.conv-item[data-id="${id}"]`);
     if (convItem && convItem.classList.contains('archived')) {
         toast('📂 This chat is archived. Please restore it to access.', 'info');
@@ -1045,22 +1046,26 @@ async function performSearch() {
         }
         let html = '';
         conversations.forEach(conv => {
+            // 1. We removed the onclick from this parent div
             html += `
-                <div class="search-result-group" onclick="switchConversation(${conv.conversation_id}); closeModal('modal-search');">
+                <div class="search-result-group">
                     <div class="search-result-title">
                         <span>${escapeHtml(conv.title || 'New Chat')}</span>
                         <span class="search-result-count">${conv.messages.length} results</span>
                     </div>
                     <div class="search-result-list">
             `;
+            
+            // 2. We added the onclick to each individual message
             conv.messages.forEach(msg => {
                 html += `
-                    <div class="search-result-item">
+                    <div class="search-result-item" onclick="switchConversation(${conv.conversation_id}, ${msg.message_id}); closeModal('modal-search');" style="cursor:pointer;">
                         <div class="search-result-snippet">${msg.snippet || msg.content.substring(0, 150) + '...'}</div>
                         <div class="search-result-time">${msg.created_at ? new Date(msg.created_at).toLocaleString() : ''}</div>
                     </div>
                 `;
             });
+            
             html += `
                     </div>
                 </div>
@@ -1378,6 +1383,7 @@ async function loadHistory() {
     const headers = {};
     if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
     const url = `${state.apiUrl}/history?user_id=${encodeURIComponent(state.userId)}&conversation_id=${state.conversationId}`;
+    
     try {
         const res = await fetch(url, { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1385,20 +1391,48 @@ async function loadHistory() {
         const msgs = data.messages || [];
         const container = document.getElementById('messages');
         container.innerHTML = '';
+        
         if (!msgs.length) { showEmpty(true); return; }
         showEmpty(false);
+        
         msgs.forEach(m => {
+            let elId; // <--- 1. Create a variable to hold the returned ID
+
             if (m.role === 'user') {
-                if (m.image_data) addHistoricalImageMsg(m.content, m.image_data);
-                else addUserMsg(m.content);
+                if (m.image_data) elId = addHistoricalImageMsg(m.content, m.image_data);
+                else elId = addUserMsg(m.content);
             } else {
-                const id = addAiShell();
-                document.getElementById('thinking-' + id).style.display = 'none';
-                const textEl = document.getElementById('text-' + id);
+                elId = addAiShell();
+                document.getElementById('thinking-' + elId).style.display = 'none';
+                const textEl = document.getElementById('text-' + elId);
                 if (textEl) renderMarkdown(textEl, m.content);
             }
+            
+            // <--- 2. NEW: Attach the database ID to the HTML element
+            const msgEl = document.getElementById(elId);
+            if (msgEl && m.id) {
+                msgEl.setAttribute('data-db-id', m.id);
+            }
         });
+        
         scrollBottom();
+
+        // <--- 3. NEW: Check if we need to highlight a searched message
+        if (state.highlightMessageId) {
+            setTimeout(() => {
+                const targetEl = document.querySelector(`[data-db-id="${state.highlightMessageId}"]`);
+                if (targetEl) {
+                    // Scroll to the message smoothly
+                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Add the flash animation
+                    targetEl.classList.add('highlight-flash');
+                    // Remove it after 2 seconds
+                    setTimeout(() => targetEl.classList.remove('highlight-flash'), 2000);
+                }
+                state.highlightMessageId = null; // Reset it so it doesn't happen again
+            }, 300); // 300ms delay lets the messages render first
+        }
+
     } catch (err) {
         console.error('[History] Error:', err);
         document.getElementById('messages').innerHTML = `<div class="conv-error">⚠️ Failed to load chat.</div>`;
@@ -3717,21 +3751,23 @@ function hidePluginDropdown() {
 }
 
 function selectPlugin(id) {
-    if (!state.activePlugins.includes(id)) {
-        state.activePlugins.push(id);
-    }
+    // Only allow one active plugin
+    state.activePlugins = [id];
+    
     hidePluginDropdown();
     renderPluginChips();
 
-    // Auto-activate the corresponding mode
+    // Auto-activate the corresponding mode and reset the other
     if (id === 'hindsight') {
         state.simulationMode = true;
-        const t = document.getElementById('sim-toggle');
-        if (t) t.classList.add('active');
+        state.model = 'instant';
+        if (document.getElementById('sim-toggle')) document.getElementById('sim-toggle').classList.add('active');
+        if (document.getElementById('model-label')) document.getElementById('model-label').textContent = 'Instant';
     } else if (id === 'research') {
+        state.simulationMode = false;
         state.model = 'research';
-        const lbl = document.getElementById('model-label');
-        if (lbl) lbl.textContent = 'Research';
+        if (document.getElementById('sim-toggle')) document.getElementById('sim-toggle').classList.remove('active');
+        if (document.getElementById('model-label')) document.getElementById('model-label').textContent = 'Research';
     }
 
     // Clear the @ symbol from the input

@@ -262,16 +262,16 @@ def get_history(user_id: str, limit: int = 50, conversation_id: Optional[int] = 
         with conn.cursor() as cur:
             if conversation_id:
                 cur.execute(
-                    "SELECT role, content, created_at, image_data FROM messages WHERE user_id = %s AND conversation_id = %s ORDER BY id DESC LIMIT %s",
+                    "SELECT id, role, content, created_at, image_data FROM messages WHERE user_id = %s AND conversation_id = %s ORDER BY id DESC LIMIT %s",
                     (user_id, conversation_id, limit)
                 )
             else:
                 cur.execute(
-                    "SELECT role, content, created_at, image_data FROM messages WHERE user_id = %s AND conversation_id IS NULL ORDER BY id DESC LIMIT %s",
+                    "SELECT id, role, content, created_at, image_data FROM messages WHERE user_id = %s AND conversation_id IS NULL ORDER BY id DESC LIMIT %s",
                     (user_id, limit)
                 )
             rows = cur.fetchall()
-    return [{"role": r["role"], "content": r["content"], "time": r["created_at"], "image_data": r["image_data"]} for r in reversed(rows)]
+    return [{"id": r["id"], "role": r["role"], "content": r["content"], "time": r["created_at"], "image_data": r["image_data"]} for r in reversed(rows)]
 
 
 def clear_history(user_id: str, conversation_id: Optional[int] = None):
