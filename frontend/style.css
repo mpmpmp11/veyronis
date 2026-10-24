@@ -9722,3 +9722,93 @@ body.sidebar-open .input-shell {
     opacity: 1 !important;
     visibility: visible !important;
 }
+/* ═══════════════════════════════════════════════════════
+   ULTIMATE Z-INDEX & DROP-DOWN ANIMATIONS
+   ═══════════════════════════════════════════════════════ */
+
+/* 1. MODALS: Drop from top + float above Settings */
+.modal-overlay {
+    z-index: 2147483647 !important; /* Max z-index */
+}
+
+.modal-overlay:not(.hidden) {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+.modal-overlay:not(.hidden) .modal-card {
+    animation: modalDropIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+@keyframes modalDropIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-60px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* 2. TOAST MESSAGES: Drop from top like a notification */
+#toast-box {
+    position: fixed;
+    top: max(16px, env(safe-area-inset-top)) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 2147483647 !important; /* Same max z-index as modals */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+    width: 100%;
+    max-width: 420px;
+    padding: 0 16px;
+}
+
+.toast {
+    background: rgba(30, 30, 34, 0.85) !important;
+    backdrop-filter: blur(24px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #ffffff !important;
+    padding: 14px 20px !important;
+    border-radius: 16px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255,255,255,0.1) !important;
+    animation: toastDropIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    border-left: 4px solid var(--accent) !important; /* Default accent */
+}
+
+.toast.success { border-left-color: #22c55e !important; }
+.toast.error { border-left-color: #ef4444 !important; }
+.toast.info { border-left-color: #3b82f6 !important; }
+.toast.warning { border-left-color: #f59e0b !important; }
+
+@keyframes toastDropIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-40px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Light Theme Support for Toasts */
+[data-theme="light"] .toast {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+    color: #0d0d0d !important;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1) !important;
+}
