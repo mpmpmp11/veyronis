@@ -9634,3 +9634,78 @@ body.sidebar-open .input-shell {
 .report-reason-option input {
     accent-color: var(--accent);
 }
+/* ═══════════════════════════════════════════════════════
+   DESKTOP EMPTY STATE — Premium Suggestion Cards
+   ═══════════════════════════════════════════════════════ */
+@media (min-width: 768px) {
+    /* Push the whole empty state down a bit for better vertical centering */
+    .empty-state {
+        margin-top: 12vh !important;
+        padding-bottom: 0 !important;
+    }
+
+    /* Container for the chips */
+    .chips {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 16px !important;
+        max-width: 760px !important;
+        width: 100% !important;
+        margin-bottom: 60px !important;
+    }
+
+    /* The Chip (Card) styling */
+    .chip {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 14px !important;
+        
+        padding: 18px 24px !important;
+        border-radius: 16px !important;
+        
+        background: var(--surface) !important;
+        border: 1px solid var(--glass-border-strong) !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
+        
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        color: var(--text-secondary) !important;
+        
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        text-align: left !important;
+    }
+
+    /* The Emoji/Icon */
+    .chip::first-letter {
+        font-size: 24px !important; /* Make emojis bigger */
+        margin-right: 4px !important;
+    }
+
+    /* Hover Effect */
+    .chip:hover {
+        background: var(--surface-2) !important;
+        border-color: var(--accent) !important;
+        color: var(--text) !important;
+        transform: translateY(-4px) !important;
+        box-shadow: 0 12px 32px var(--accent-glow), 0 0 0 1px var(--accent) inset !important;
+    }
+
+    /* Make the last chip span full width if it's the 7th item (odd number) */
+    .chip:last-child:nth-child(odd) {
+        grid-column: span 2;
+        justify-content: center;
+    }
+
+    /* Light mode adjustments */
+    [data-theme="light"] .chip {
+        background: #ffffff !important;
+        border-color: rgba(0, 0, 0, 0.08) !important;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04) !important;
+    }
+    [data-theme="light"] .chip:hover {
+        background: #f9f9f9 !important;
+        border-color: var(--accent) !important;
+        box-shadow: 0 12px 32px rgba(124, 58, 237, 0.15), 0 0 0 1px var(--accent) inset !important;
+    }
+}
