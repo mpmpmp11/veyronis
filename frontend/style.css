@@ -9709,3 +9709,16 @@ body.sidebar-open .input-shell {
         box-shadow: 0 12px 32px rgba(124, 58, 237, 0.15), 0 0 0 1px var(--accent) inset !important;
     }
 }
+/* ═══════════════════════════════════════════════════════
+   ULTIMATE MODAL Z-INDEX FIX
+   Forces all modals to appear above Settings, Sidebar, etc.
+   ═══════════════════════════════════════════════════════ */
+.modal-overlay {
+    z-index: 2147483647 !important; /* Maximum 32-bit integer z-index */
+}
+
+.modal-overlay:not(.hidden) {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
