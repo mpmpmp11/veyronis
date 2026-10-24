@@ -157,6 +157,23 @@ BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 app = FastAPI(title="VEYRONIS API")
+
+from fastapi.responses import JSONResponse, FileResponse
+
+@app.exception_handler(404)
+async def custom_404_handler(request: Request, exc):
+    # If the user is trying to access a missing API route or static file, 
+    # return the default JSON error so the frontend JS can handle it.
+    if request.url.path.startswith('/api/') or request.url.path.startswith('/static/'):
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    
+    # Otherwise, serve the beautiful 404 HTML page
+    file_path = FRONTEND_DIR / "404.html"
+    if file_path.exists():
+        return FileResponse(str(file_path), status_code=404)
+    
+    return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    
 # ─── Digital Asset Links for TWA (removes Chrome URL bar) ───
 import json as _json
 from fastapi.responses import Response
