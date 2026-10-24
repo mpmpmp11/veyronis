@@ -1350,6 +1350,8 @@ function switchAdminTab(tab) {
     document.querySelector(`.admin-tab[data-tab="${tab}"]`).classList.add('active');
     document.getElementById('admin-users').style.display = tab === 'users' ? 'block' : 'none';
     document.getElementById('admin-reports').style.display = tab === 'reports' ? 'block' : 'none';
+    
+    if (tab === 'reports') loadAdminReports();
 }
 
 async function checkAdminStatus() {
@@ -1515,6 +1517,9 @@ function addAiShell() {
             </button>
             <button class="msg-action-btn thumb-down" id="down-${id}" onclick="thumbDown('${id}')" title="Not helpful">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+            </button>
+            <button class="msg-action-btn" onclick="reportAiMsg('${id}')" title="Report">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             </button>
         </div>
     </div>`;
@@ -3834,5 +3839,89 @@ function toggleMoreMenuDesktop(event) {
         menu.classList.add('open');
     } else {
         menu.classList.remove('open');
+    }
+}
+// ─── REPORTING SYSTEM ───
+let reportingMsgId = null;
+
+function reportAiMsg(id) {
+    reportingMsgId = id;
+    // Uncheck any previously selected radios
+    document.querySelectorAll('input[name="report-reason"]').forEach(r => r.checked = false);
+    openModal('modal-report');
+}
+
+async function submitReport() {
+    const selected = document.querySelector('input[name="report-reason"]:checked');
+    if (!selected) {
+        toast('Please select a reason.', 'error');
+        return;
+    }
+    try {
+        const res = await authenticatedFetch('/report', {
+            method: 'POST',
+            body: JSON.stringify({
+                message_id: reportingMsgId,
+                reason: selected.value
+            })
+        });
+        if (res.ok) {
+            toast('✅ Report submitted. Thank you!', 'success');
+            closeModal('modal-report');
+        } else {
+            toast('❌ Failed to submit report.', 'error');
+        }
+    } catch (err) {
+        handleError(err, 'Report');
+    }
+}
+
+// ─── ADMIN REPORTS ───
+async function loadAdminReports() {
+    try {
+        const res = await authenticatedFetch('/admin/reports?status=pending');
+        const data = await res.json();
+        const container = document.getElementById('reports-list');
+        if (!container) return;
+        if (!data.reports || !data.reports.length) {
+            container.innerHTML = '<div class="admin-empty">No pending reports</div>';
+            return;
+        }
+        container.innerHTML = data.reports.map(r => `
+            <div class="admin-report-item">
+                <div class="admin-report-header">
+                    <span class="admin-report-status pending">PENDING</span>
+                    <span class="admin-report-reason">${escapeHtml(r.reason)}</span>
+                </div>
+                <div class="admin-report-details">
+                    <span>Reported by: ${escapeHtml(r.reporter_user_id)}</span>
+                    <span>Message ID: ${r.reported_message_id}</span>
+                    <span>${new Date(r.created_at).toLocaleString()}</span>
+                </div>
+                <div class="admin-report-actions">
+                    <button class="admin-btn success" onclick="reviewReport(${r.id}, 'resolved')">Resolve</button>
+                    <button class="admin-btn danger" onclick="reviewReport(${r.id}, 'dismissed')">Dismiss</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (err) {
+        console.error('[Admin Reports]', err);
+    }
+}
+
+async function reviewReport(id, status) {
+    const notes = await showPrompt('Review Report', 'Optional notes:', '');
+    if (notes === null) return;
+    try {
+        const res = await authenticatedFetch(`/admin/reports/${id}/review`, {
+            method: 'POST',
+            body: JSON.stringify({ status, notes })
+        });
+        if (res.ok) {
+            toast('✅ Report ' + status, 'success');
+            loadAdminReports();
+        }
+    } catch (err) {
+        handleError(err, 'Review Report');
     }
 }

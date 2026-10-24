@@ -9,7 +9,7 @@
     <title>VEYRONIS</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b5cf6'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white' font-weight='bold'%3EV%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="stylesheet" href="/static/style.css?v=5.6">
+    <link rel="stylesheet" href="/static/style.css?v=5.7">
     <link rel="preload" as="image" href="/static/icons/call.png">
 <link rel="preload" as="image" href="/static/icons/send.png">
 <link rel="preload" as="image" href="/static/assets/stop-gen-icon.png">
@@ -671,6 +671,31 @@
         </div>
     </div>
 
+        <!-- REPORT MODAL -->
+    <div id="modal-report" class="modal-overlay hidden">
+        <div class="modal-backdrop" onclick="closeModal('modal-report')"></div>
+        <div class="modal-card" style="max-width: 420px;">
+            <div class="modal-header">
+                <span class="modal-title">⚠️ Report AI Response</span>
+                <button class="modal-close" onclick="closeModal('modal-report')">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-text">Why are you reporting this response?</p>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
+                    <label class="report-reason-option"><input type="radio" name="report-reason" value="harmful"> Harmful or dangerous</label>
+                    <label class="report-reason-option"><input type="radio" name="report-reason" value="offensive"> Offensive or hateful</label>
+                    <label class="report-reason-option"><input type="radio" name="report-reason" value="inaccurate"> Completely inaccurate</label>
+                    <label class="report-reason-option"><input type="radio" name="report-reason" value="spam"> Spam or misleading</label>
+                    <label class="report-reason-option"><input type="radio" name="report-reason" value="other"> Other</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" onclick="closeModal('modal-report')">Cancel</button>
+                <button class="modal-btn primary" onclick="submitReport()">Submit Report</button>
+            </div>
+        </div>
+    </div>
+
     <!-- PRO UPGRADE -->
     <div id="modal-upgrade" class="modal-overlay hidden">
         <div class="modal-backdrop" onclick="closeModal('modal-upgrade')"></div>
@@ -1295,7 +1320,7 @@
 </div>
 
     
-    <script src="/static/app.js?v=5.3"></script>
+    <script src="/static/app.js?v=5.4"></script>
     <script src="/static/voice-mode.js?v=5.0"></script>
     <script src="/static/voice-orb.js?v=5.2"></script>
 </body>

@@ -663,5 +663,44 @@ def increment_upload_count(user_id: str, date: str, file_type: str) -> dict:
         conn.commit()
     return {"images": row["image_count"], "docs": row["doc_count"]}
 
+    # ─── REPORTS ───
+
+def save_report(reporter_user_id: str, reported_message_id: str, reason: str):
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO reports (reporter_user_id, reported_message_id, reason)
+                VALUES (%s, %s, %s) RETURNING id
+            """, (reporter_user_id, reported_message_id, reason))
+            report_id = cur.fetchone()["id"]
+        conn.commit()
+    return report_id
+
+
+def get_reports(status: str = None):
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            if status:
+                cur.execute(
+                    "SELECT * FROM reports WHERE status = %s ORDER BY created_at DESC",
+                    (status,)
+                )
+            else:
+                cur.execute("SELECT * FROM reports ORDER BY created_at DESC")
+            rows = cur.fetchall()
+    return [dict(r) for r in rows]
+
+
+def review_report(report_id: int, status: str, admin_user_id: str, notes: str = ""):
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE reports
+                SET status = %s, reviewed_by = %s, reviewed_at = CURRENT_TIMESTAMP, review_notes = %s
+                WHERE id = %s
+            """, (status, admin_user_id, notes, report_id))
+        conn.commit()
+    return True
+
 # ─── INIT ───
 init_db()

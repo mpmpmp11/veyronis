@@ -34,8 +34,9 @@ from database import (
     clear_reset_token, get_db,
     save_attachment, get_attachments, get_upload_counts,
     increment_upload_count,
-    get_archived_conversations, archive_conversation, unarchive_conversation, delete_old_attachments,
+    get_archived_conversations, archive_conversation, unarchive_conversation, delete_old_attachments, save_report, get_reports, review_report,
 )
+
 from settings import Config
 import base64
 import uvicorn
@@ -1475,6 +1476,48 @@ async def routes(current_user: dict = Depends(get_current_user_required)):
     for route in app.routes:
         route_list.append({"path": route.path, "methods": list(route.methods) if hasattr(route, "methods") else []})
     return {"routes": route_list}
+
+    # ─── REPORT ENDPOINTS ───
+
+@app.post("/report")
+async def submit_report(
+    request: dict,
+    current_user: dict = Depends(get_current_user_required)
+):
+    message_id = str(request.get("message_id", "")).strip()
+    reason = request.get("reason", "").strip()
+
+    if not message_id or not reason:
+        raise HTTPException(400, detail="Message ID and reason are required.")
+
+    report_id = save_report(current_user["email"], message_id, reason)
+    return {"status": "reported", "report_id": report_id}
+
+@app.get("/admin/reports")
+async def list_reports(
+    status: Optional[str] = None,
+    current_user: dict = Depends(get_current_user_required)
+):
+    if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
+        raise HTTPException(403, detail="Admin access required.")
+    return {"reports": get_reports(status)}
+
+@app.post("/admin/reports/{report_id}/review")
+async def review_report_endpoint(
+    report_id: int,
+    request: dict,
+    current_user: dict = Depends(get_current_user_required)
+):
+    if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
+        raise HTTPException(403, detail="Admin access required.")
+    
+    status = request.get("status")
+    notes = request.get("notes", "")
+    if status not in ("resolved", "dismissed"):
+        raise HTTPException(400, detail="Status must be 'resolved' or 'dismissed'.")
+    
+    review_report(report_id, status, current_user["id"], notes)
+    return {"status": status}
 
 # ─── ADMIN ENDPOINTS ───
 
