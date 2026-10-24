@@ -118,7 +118,7 @@ class Config:
 
     @classmethod
     def email_ready(cls) -> bool:
-        return bool(cls.RESEND_API_KEY)
+        return bool(cls.BREVO_API_KEY or cls.RESEND_API_KEY)
 
     @classmethod
     def smtp_ready(cls) -> bool:

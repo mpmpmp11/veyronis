@@ -34,7 +34,7 @@ from database import (
     clear_reset_token, get_db,
     save_attachment, get_attachments, get_upload_counts,
     increment_upload_count,
-    get_archived_conversations, archive_conversation, unarchive_conversation, delete_old_attachments, save_report, get_reports, review_report,
+    get_archived_conversations, archive_conversation, unarchive_conversation, delete_old_attachments, save_report, get_reports, review_report, save_message_feedback, save_general_feedback
 )
 
 from settings import Config
@@ -1700,15 +1700,32 @@ async def submit_feedback(
     request: dict,
     current_user: dict = Depends(get_current_user_required)
 ):
-    if not Config.email_ready():
-        raise HTTPException(503, detail="Email service not configured")
     message = request.get("message", "").strip()
     if not message:
         raise HTTPException(400, detail="Feedback message cannot be empty")
+    
+    # 1. Save to database
+    save_general_feedback(current_user["email"], message)
+    
+    # 2. Send email via Brevo
     admin_emails = Config.ADMIN_EMAILS.split(",")
     for admin in admin_emails:
         send_feedback_email(admin, current_user["email"], message)
+        
     return {"status": "Feedback sent"}
+
+@app.post("/message-feedback")
+async def submit_message_feedback(
+    request: dict,
+    current_user: dict = Depends(get_current_user_required)
+):
+    message_id = request.get("message_id")
+    is_helpful = request.get("is_helpful")
+    if not message_id or is_helpful is None:
+        raise HTTPException(400, detail="Invalid feedback data")
+        
+    save_message_feedback(current_user["email"], message_id, is_helpful)
+    return {"status": "success"}
 
 @app.get("/preview/{attachment_id}")
 async def preview_file(

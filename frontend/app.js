@@ -1578,21 +1578,43 @@ function shareAiMsg(id) {
     if (navigator.share) navigator.share({ text });
     else navigator.clipboard.writeText(text).then(() => toast('📋 Copied to share', 'success'));
 }
-function thumbUp(id) {
+
+async function thumbUp(id) {
     const btn = document.getElementById('up-' + id);
     const downBtn = document.getElementById('down-' + id);
     if (!btn) return;
-    btn.classList.toggle('active');
+    
+    btn.classList.add('active');
     if (downBtn) downBtn.classList.remove('active');
-    toast('👍 Thanks for the feedback!', 'success');
+    
+    try {
+        await authenticatedFetch('/message-feedback', {
+            method: 'POST',
+            body: JSON.stringify({ message_id: id, is_helpful: true })
+        });
+        toast('👍 Thanks for the feedback!', 'success');
+    } catch (err) {
+        handleError(err, 'Feedback');
+    }
 }
-function thumbDown(id) {
+
+async function thumbDown(id) {
     const btn = document.getElementById('down-' + id);
     const upBtn = document.getElementById('up-' + id);
     if (!btn) return;
-    btn.classList.toggle('active');
+    
+    btn.classList.add('active');
     if (upBtn) upBtn.classList.remove('active');
-    toast('👎 Thanks for the feedback!', 'success');
+    
+    try {
+        await authenticatedFetch('/message-feedback', {
+            method: 'POST',
+            body: JSON.stringify({ message_id: id, is_helpful: false })
+        });
+        toast('👎 Thanks for the feedback!', 'success');
+    } catch (err) {
+        handleError(err, 'Feedback');
+    }
 }
 
 // ─── SPEAK (TTS) with Fish Audio ───

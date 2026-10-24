@@ -702,5 +702,30 @@ def review_report(report_id: int, status: str, admin_user_id: str, notes: str = 
         conn.commit()
     return True
 
+    # ─── MESSAGE FEEDBACK (Helpful / Not Helpful) ───
+def save_message_feedback(user_id: str, message_id: str, is_helpful: bool) -> bool:
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO message_feedback (user_id, message_id, is_helpful)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id, message_id) 
+                DO UPDATE SET is_helpful = EXCLUDED.is_helpful
+            """, (user_id, message_id, is_helpful))
+        conn.commit()
+    return True
+
+# ─── GENERAL FEEDBACK ───
+def save_general_feedback(user_id: str, message: str) -> int:
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO general_feedback (user_id, message) 
+                VALUES (%s, %s) RETURNING id
+            """, (user_id, message))
+            fb_id = cur.fetchone()["id"]
+        conn.commit()
+    return fb_id
+
 # ─── INIT ───
 init_db()
