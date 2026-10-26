@@ -9970,3 +9970,85 @@ body.sidebar-open .input-shell {
     margin: 0 !important;
     overflow: hidden !important;
 }
+/* ═══════════════════════════════════════════════════════
+   SVG INPUT ICONS & PRO PILL FIX
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── 1. ADAPTIVE SVG ICONS ─── */
+.composer-btn {
+    color: var(--text-muted) !important;
+    transition: all 0.2s ease !important;
+}
+.composer-btn:hover {
+    color: var(--text) !important; /* Black in light mode, White in dark mode */
+    background: var(--glass-hover) !important;
+}
+.composer-btn svg {
+    width: 20px !important;
+    height: 20px !important;
+    pointer-events: none;
+}
+
+/* Send Button Active State */
+.composer-btn.send-btn {
+    background: var(--accent) !important;
+    color: #ffffff !important; /* Always white on accent background */
+    box-shadow: 0 2px 12px var(--accent-glow) !important;
+}
+.composer-btn.send-btn:hover {
+    transform: scale(1.05) !important;
+}
+.composer-btn.send-btn:disabled {
+    background: var(--glass-bg) !important;
+    color: var(--text-muted) !important;
+    box-shadow: none !important;
+    opacity: 0.5 !important;
+}
+
+/* Call Mode (Green) */
+.composer-btn.send-btn.call-mode {
+    background: #22c55e !important;
+    box-shadow: 0 2px 12px rgba(34, 197, 94, 0.3) !important;
+}
+
+/* Stop Mode (Red) */
+.composer-btn.send-btn.stop-mode {
+    background: #ef4444 !important;
+    box-shadow: 0 2px 12px rgba(239, 68, 68, 0.3) !important;
+}
+
+/* Hidden Mic Animation */
+.hidden-mic {
+    opacity: 0 !important;
+    transform: scale(0.8) !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+}
+
+/* ─── 2. FIX UPGRADE TO PRO PILL ─── */
+/* Give it a solid background so text doesn't bleed through */
+.pro-pill {
+    background: var(--surface-2) !important; 
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid var(--glass-border-strong) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    z-index: 10 !important;
+    position: relative !important;
+}
+
+.pro-pill:hover {
+    background: var(--surface) !important;
+    border-color: rgba(251, 191, 36, 0.4) !important;
+}
+
+[data-theme="light"] .pro-pill {
+    background: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+[data-theme="light"] .pro-pill:hover {
+    background: #f9f9f9 !important;
+}

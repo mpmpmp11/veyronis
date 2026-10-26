@@ -1913,35 +1913,39 @@ function updateSendButton() {
     const hasDoc = !!state.pendingDocContent;
     const inActiveChat = state.conversationId !== null;
 
-    // STOP mode — AI generating
+    // SVG Icons
+    const svgStop = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2" ry="2"/></svg>`;
+    const svgCall = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+    const svgSend = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>`;
+
+    // STOP mode
     if (state.isTyping && state.abortController) {
-        sendBtn.innerHTML = '<img src="/static/assets/stop-gen-icon.png" alt="Stop" class="btn-icon" />';
+        sendBtn.innerHTML = svgStop;
         sendBtn.onclick = stopGeneration;
         sendBtn.disabled = false;
-        // Hide mic during generation
+        sendBtn.classList.add('stop-mode');
         micBtn.classList.add('hidden-mic');
         return;
     }
 
-    // CALL mode — new chat, nothing typed
+    // CALL mode
     if (!inActiveChat && !hasText && !hasImage && !hasDoc) {
-        sendBtn.innerHTML = '<img src="/static/icons/call.png" alt="Call" class="btn-icon" />';
+        sendBtn.innerHTML = svgCall;
         sendBtn.onclick = () => voiceMode.open();
         sendBtn.disabled = false;
-        sendBtn.style.background = 'transparent'; // Match the new flat aesthetic
-        
-        // Show mic
+        sendBtn.classList.remove('stop-mode');
+        sendBtn.classList.add('call-mode');
         micBtn.classList.remove('hidden-mic');
         return;
     }
 
     // SEND mode
-    sendBtn.innerHTML = '<img src="/static/icons/send.png" alt="Send" class="btn-icon" />';
+    sendBtn.innerHTML = svgSend;
     sendBtn.onclick = sendMessage;
     sendBtn.disabled = !hasText && !hasImage && !hasDoc;
-    sendBtn.style.background = 'var(--accent)'; // Restore accent color
+    sendBtn.classList.remove('stop-mode');
+    sendBtn.classList.remove('call-mode');
     
-    // Smooth swap: Hide the mic if there's text/image/doc, otherwise show it
     if (hasText || hasImage || hasDoc) {
         micBtn.classList.add('hidden-mic');
     } else {
