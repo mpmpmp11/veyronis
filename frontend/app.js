@@ -1904,8 +1904,9 @@ function stopGeneration() {
 
 function updateSendButton() {
     const sendBtn = document.getElementById('send-btn');
+    const micBtn = document.getElementById('mic-btn');
     const input = document.getElementById('msg-input');
-    if (!sendBtn || !input) return;
+    if (!sendBtn || !input || !micBtn) return;
 
     const hasText = !!input.value.trim();
     const hasImage = !!state.pendingImageBase64;
@@ -1913,19 +1914,24 @@ function updateSendButton() {
     const inActiveChat = state.conversationId !== null;
 
     // STOP mode — AI generating
-    // STOP mode — AI generating
-if (state.isTyping && state.abortController) {
-    sendBtn.innerHTML = '<img src="/static/assets/stop-gen-icon.png" alt="Stop" class="btn-icon" />';
-    sendBtn.onclick = stopGeneration;
-    sendBtn.disabled = false;
-    return;
-}
+    if (state.isTyping && state.abortController) {
+        sendBtn.innerHTML = '<img src="/static/assets/stop-gen-icon.png" alt="Stop" class="btn-icon" />';
+        sendBtn.onclick = stopGeneration;
+        sendBtn.disabled = false;
+        // Hide mic during generation
+        micBtn.classList.add('hidden-mic');
+        return;
+    }
 
     // CALL mode — new chat, nothing typed
     if (!inActiveChat && !hasText && !hasImage && !hasDoc) {
         sendBtn.innerHTML = '<img src="/static/icons/call.png" alt="Call" class="btn-icon" />';
         sendBtn.onclick = () => voiceMode.open();
         sendBtn.disabled = false;
+        sendBtn.style.background = 'transparent'; // Match the new flat aesthetic
+        
+        // Show mic
+        micBtn.classList.remove('hidden-mic');
         return;
     }
 
@@ -1933,6 +1939,14 @@ if (state.isTyping && state.abortController) {
     sendBtn.innerHTML = '<img src="/static/icons/send.png" alt="Send" class="btn-icon" />';
     sendBtn.onclick = sendMessage;
     sendBtn.disabled = !hasText && !hasImage && !hasDoc;
+    sendBtn.style.background = 'var(--accent)'; // Restore accent color
+    
+    // Smooth swap: Hide the mic if there's text/image/doc, otherwise show it
+    if (hasText || hasImage || hasDoc) {
+        micBtn.classList.add('hidden-mic');
+    } else {
+        micBtn.classList.remove('hidden-mic');
+    }
 }
 
 function regenerateMsg(aiId) {

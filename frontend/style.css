@@ -9822,3 +9822,151 @@ body.sidebar-open .input-shell {
     0%, 100% { background: transparent; box-shadow: none; }
     15%, 85% { background: rgba(167, 139, 250, 0.12); box-shadow: 0 0 0 2px var(--accent); }
 }
+
+/* ═══════════════════════════════════════════════════════
+   PREMIUM UI POLISH 
+   ═══════════════════════════════════════════════════════ */
+
+/* ─── 1. WELCOME BLOCK ─── */
+.welcome-line-1 {
+    font-size: 20px !important;
+    font-weight: 500 !important;
+    color: var(--text-muted) !important; /* Muted gray */
+    letter-spacing: -0.2px !important;
+    margin-bottom: 0px !important;
+}
+
+.welcome-box {
+    background: transparent !important;
+    color: var(--text) !important; /* Crisp white */
+    padding: 0 !important;
+    font-size: 38px !important;
+    font-weight: 900 !important;
+    letter-spacing: -1.5px !important;
+    border-radius: 0 !important;
+    display: block !important;
+    margin-top: -4px !important;
+    box-shadow: none !important;
+}
+
+/* ─── 2. QUICK ACTION BUTTONS (CHIPS) ─── */
+.chip {
+    background: #1e1e1e !important; /* Solid deep charcoal */
+    border: 1px solid transparent !important; /* No borders */
+    border-radius: 12px !important; /* Smoother corners */
+    color: var(--text-secondary) !important;
+    padding: 12px 18px !important;
+    font-weight: 500 !important;
+    box-shadow: none !important; /* No glossy effects */
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease !important;
+}
+
+.chip:hover {
+    background: #2a2a2a !important;
+    color: var(--text) !important;
+    transform: translateY(-2px) !important;
+    border-color: transparent !important;
+}
+
+[data-theme="light"] .chip {
+    background: #f4f4f5 !important;
+    color: var(--text-secondary) !important;
+}
+[data-theme="light"] .chip:hover {
+    background: #e4e4e7 !important;
+    color: var(--text) !important;
+}
+
+/* ─── 3. CHAT INPUT BAR ─── */
+/* Remove dominant blue circle and make icons uniform muted */
+.composer-btn {
+    background: transparent !important;
+    color: var(--text-muted) !important;
+    box-shadow: none !important;
+    transition: color 0.2s ease, background 0.2s ease !important;
+}
+
+.composer-btn:hover {
+    background: var(--glass-hover) !important;
+    color: var(--text) !important;
+}
+
+.composer-btn.mic-btn {
+    background: transparent !important;
+    color: var(--text-muted) !important;
+}
+
+.composer-btn.mic-btn.listening {
+    background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+    color: #fff !important;
+}
+
+.composer-btn.send-btn {
+    background: var(--accent) !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 12px var(--accent-glow) !important;
+}
+
+/* Ensure perfect vertical centering */
+.input-composer {
+    display: flex !important;
+    align-items: center !important;
+    height: 100% !important;
+}
+.composer-btn, .composer-input-wrap {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* ─── 4. HEADER & PRO BUTTON ─── */
+/* Reduce Pro button bulk */
+.pro-pill {
+    height: 32px !important;
+    padding: 0 12px !important;
+    font-size: 11.5px !important;
+    gap: 6px !important;
+}
+.pro-pill svg {
+    width: 14px !important;
+    height: 14px !important;
+}
+
+/* Normalize header icon sizes */
+.hdr-icon-btn {
+    width: 38px !important;
+    height: 38px !important;
+}
+.fused-pill {
+    height: 38px !important;
+}
+.fused-btn {
+    width: 42px !important;
+}
+
+/* ─── 5. FOOTER NOTE ─── */
+.input-disclaimer {
+    font-size: 10px !important;
+    color: var(--text-muted) !important;
+    opacity: 0.6 !important;
+    margin-top: 6px !important;
+    letter-spacing: 0.2px !important;
+}
+
+/* ─── 6. SMOOTH MIC -> SEND SWAP ANIMATION ─── */
+/* Hide mic completely when sending, and vice versa */
+.composer-btn.mic-btn {
+    transition: opacity 0.15s ease, transform 0.15s ease !important;
+}
+.composer-btn.send-btn {
+    transition: opacity 0.15s ease, transform 0.15s ease, background 0.2s ease !important;
+}
+.hidden-mic {
+    opacity: 0 !important;
+    transform: scale(0.8) !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+}
