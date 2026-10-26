@@ -2535,7 +2535,11 @@ function pickModel(event, id, label) {
 // ─── ATTACH / UPLOAD ───
 function toggleAttach() {
     const pop = document.getElementById('attach-pop');
-    if (pop) pop.classList.toggle('open');
+    const btn = document.querySelector('.attach-btn');
+    if (pop) {
+        pop.classList.toggle('open');
+        if (btn) btn.classList.toggle('active', pop.classList.contains('open'));
+    }
     if (pop && pop.classList.contains('open')) {
         updateAttachLimits();
     }
@@ -2764,7 +2768,7 @@ function initVoice() {
 
     let finalTranscript = '';
 
-    state.recognition.onstart = () => {
+        state.recognition.onstart = () => {
         console.log('[Voice] Started');
         state.isListening = true;
         finalTranscript = '';
@@ -2772,7 +2776,15 @@ function initVoice() {
         const stopBtn = document.getElementById('voice-stop-btn');
         if (btn) {
             btn.classList.add('listening');
-            btn.innerHTML = '<img src="/static/assets/stop-mic-icon.png" alt="Stop" class="btn-icon" />';
+            // Replace mic SVG with Stop Square SVG
+            btn.innerHTML = `
+                <span class="mic-waves" id="mic-waves">
+                    <span class="wave"></span><span class="wave"></span><span class="wave"></span>
+                </span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="z-index:2; position:relative;">
+                    <rect x="6" y="6" width="12" height="12" rx="2" ry="2"/>
+                </svg>
+            `;
         }
         if (stopBtn) stopBtn.classList.remove('hidden');
         const ta = document.getElementById('msg-input');
@@ -2791,7 +2803,14 @@ function initVoice() {
         const stopBtn = document.getElementById('voice-stop-btn');
         if (btn) {
             btn.classList.remove('listening');
-            btn.innerHTML = '<img src="/static/assets/mic-icon.png" alt="Voice" class="btn-icon" />';
+            // Restore mic SVG
+            btn.innerHTML = `
+                <svg id="mic-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" x2="12" y1="19" y2="22"/>
+                </svg>
+            `;
         }
         if (stopBtn) stopBtn.classList.add('hidden');
         const ta = document.getElementById('msg-input');
