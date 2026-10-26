@@ -43,6 +43,7 @@ const state = {
     simulationCount: parseInt(localStorage.getItem('veyronis_sim_count') || '0'),
     simulationDate: localStorage.getItem('veyronis_sim_date') || '',
     adminUsers: []
+    showAllChats: false
     
 };
 
@@ -777,9 +778,16 @@ function loadConversations() {
     fetch(`${state.apiUrl}/conversations?user_id=${encodeURIComponent(state.userId)}`, { headers })
         .then(r => { if (!r.ok) throw new Error('Failed to load conversations'); return r.json(); })
         .then(data => {
-            const convs = data.conversations || [];
+            const allConvs = data.conversations || [];
+            const maxLimit = 10; // How many to show initially
+            const hasMore = allConvs.length > maxLimit;
+            
+            // Slice the array if we aren't showing all
+            const convs = (hasMore && !state.showAllChats) ? allConvs.slice(0, maxLimit) : allConvs;
+
             const today = [], yesterday = [], week = [];
             const now = new Date();
+            
             convs.forEach(c => {
                 const d = new Date(c.updated_at);
                 const diffDays = (now - d) / (1000 * 60 * 60 * 24);
@@ -788,10 +796,35 @@ function loadConversations() {
                 else if (diffDays < 2) yesterday.push(html);
                 else if (diffDays < 8) week.push(html);
             });
+            
             document.getElementById('conv-list-today').innerHTML = today.join('') || '<div class="conv-empty">No chats today</div>';
             document.getElementById('conv-list-yesterday').innerHTML = yesterday.join('') || '';
             document.getElementById('conv-list-week').innerHTML = week.join('') || '';
-                        if (!state.conversationId && !state.isNewChat) {
+
+            // ─── INJECT THE SHOW MORE LINK ───
+            const existingLink = document.getElementById('show-more-link');
+            if (existingLink) existingLink.remove();
+
+            if (hasMore) {
+                const link = document.createElement('button');
+                link.id = 'show-more-link';
+                link.className = 'sidebar-show-more';
+                link.textContent = state.showAllChats ? 'Show less' : `Show all (${allConvs.length})`;
+                link.onclick = () => {
+                    state.showAllChats = !state.showAllChats;
+                    loadConversations(); // Re-render
+                };
+                
+                // Insert it right before the Archived toggle
+                const archivedToggle = document.querySelector('.sidebar-archived-toggle');
+                if (archivedToggle) {
+                    archivedToggle.parentNode.insertBefore(link, archivedToggle);
+                } else {
+                    document.querySelector('.sidebar-scroll').appendChild(link);
+                }
+            }
+
+            if (!state.conversationId && !state.isNewChat) {
                 state.isNewChat = true;
                 showEmpty(true);
             }
@@ -4019,4 +4052,46 @@ async function reviewReport(id, status) {
     } catch (err) {
         handleError(err, 'Review Report');
     }
+}
+// ─── READ MORE / COLLAPSE LOGIC ───
+function applyReadMore(el) {
+    // Wait a tiny bit for markdown, KaTeX, and images to fully render
+    setTimeout(() => {
+        // If the content is shorter than 450px, do nothing
+        if (el.scrollHeight <= 450) return;
+        
+        // Prevent double-wrapping if the function runs twice
+        if (el.dataset.hasReadMore) return;
+        el.dataset.hasReadMore = 'true';
+
+        // 1. Collapse the text
+        el.classList.add('collapsed');
+
+        // 2. Create the button wrapper
+        const wrap = document.createElement('div');
+        wrap.className = 'read-more-wrap';
+        
+        const btn = document.createElement('button');
+        btn.className = 'read-more-btn';
+        btn.textContent = 'Read more';
+        
+        // 3. Click logic to toggle
+        btn.onclick = () => {
+            const isCollapsed = el.classList.contains('collapsed');
+            if (isCollapsed) {
+                el.classList.remove('collapsed');
+                btn.textContent = 'Show less';
+            } else {
+                el.classList.add('collapsed');
+                btn.textContent = 'Read more';
+                // Scroll back up to the start of the message when closing
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        };
+        
+        wrap.appendChild(btn);
+        
+        // Insert the button right after the message text
+        el.parentNode.insertBefore(wrap, el.nextSibling);
+    }, 150);
 }

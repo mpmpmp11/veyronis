@@ -10127,3 +10127,26 @@ body.sidebar-open .input-shell {
     box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4) !important;
     animation: none !important; /* Remove old pulse, we use waves now */
 }
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR SHOW MORE (Text Link)
+   ═══════════════════════════════════════════════════════ */
+.sidebar-show-more {
+    display: block;
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color 0.2s ease;
+    text-align: left;
+    border: none;
+    background: transparent;
+    width: 100%;
+    font-family: inherit;
+    text-decoration: none;
+}
+
+.sidebar-show-more:hover {
+    color: var(--text);
+    text-decoration: underline;
+}
