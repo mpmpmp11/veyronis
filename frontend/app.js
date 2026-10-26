@@ -4,7 +4,6 @@
 // ============================================================
 
 const state = {
-    
     apiUrl: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8000' : 'https://veyronis.onrender.com',
     token: localStorage.getItem('veyronis_token') || null,
     user: JSON.parse(localStorage.getItem('veyronis_user') || 'null'),
@@ -27,7 +26,7 @@ const state = {
     abortController: null,
     ttsEnabled: localStorage.getItem('veyronis_tts') !== 'false',
     autoTts: localStorage.getItem('veyronis_auto_tts') === 'true',
-        fishVoiceId: localStorage.getItem('veyronis_voice') || '933563129e564b19a115bedd57b7406a',
+    fishVoiceId: localStorage.getItem('veyronis_voice') || '933563129e564b19a115bedd57b7406a',
     speakingId: null,
     isSpeaking: false,
     currentUtterance: null,
@@ -42,9 +41,9 @@ const state = {
     simulationMode: false,
     simulationCount: parseInt(localStorage.getItem('veyronis_sim_count') || '0'),
     simulationDate: localStorage.getItem('veyronis_sim_date') || '',
-    adminUsers: []
-    showAllChats: false
-    
+    adminUsers: [],
+    showAllChats: false, // <--- THIS WAS MISSING A COMMA ABOVE IT
+    highlightMessageId: null // <--- JUST IN CASE THIS WAS MISSING TOO
 };
 
 
