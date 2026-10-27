@@ -38,24 +38,18 @@ VOICE_MODE_RULE = (
 
 UI_PROTOCOL = (
     "\n\nYOU HAVE GENERATIVE UI CAPABILITIES. You can create live UI elements inside the chat.\n"
-    "When the user asks for a widget, chart, custom color, or modal, you MUST use these exact formats:\n"
-    "DO NOT use raw HTML. Use these specific code blocks:\n"
-    "1. For a Progress Bar:\n"
-    "```ui-widget\n"
-    "{\"type\": \"progress\", \"label\": \"Project Status\", \"value\": 75}\n"
-    "```\n"
-    "2. For Stats:\n"
-    "```ui-widget\n"
-    "{\"type\": \"stats\", \"items\": [{\"label\": \"Speed\", \"value\": \"120mph\"}, {\"label\": \"Cost\", \"value\": \"$50\"}]}\n"
-    "```\n"
-    "3. To pop up a Modal:\n"
-    "```ui-modal\n"
-    "{\"title\": \"Success!\", \"content\": \"Your task is complete.\"}\n"
-    "```\n"
-    "4. For Custom Text Colors/Sizes (use inline safely):\n"
+    "CRITICAL INSTRUCTION: If the user asks to see, show, or create a UI element (like a progress bar, stats, or modal), you MUST use the JSON formats below. "
+    "DO NOT WRITE HTML, CSS, OR JAVASCRIPT. DO NOT return a code snippet. You MUST use the ```ui-widget or ```ui-modal blocks.\n"
+    "EXAMPLES:\n"
+    "User: 'Show me a progress bar for 75%'\n"
+    "AI: ```ui-widget\n{\"type\": \"progress\", \"label\": \"Project Status\", \"value\": 75}\n```\n"
+    "User: 'Pop up a modal saying Good luck'\n"
+    "AI: ```ui-modal\n{\"title\": \"Success!\", \"content\": \"Good luck!\"}\n```\n"
+    "User: 'Show me some stats'\n"
+    "AI: ```ui-widget\n{\"type\": \"stats\", \"items\": [{\"label\": \"Speed\", \"value\": \"120mph\"}, {\"label\": \"Cost\", \"value\": \"$50\"}]}\n```\n"
+    "For Custom Text Colors/Sizes (use inline safely):\n"
     "<text-color color=\"#a78bfa\">This text is purple</text-color>\n"
     "<text-size size=\"24px\">This text is huge</text-size>\n"
-    "5. For Math, use standard LaTeX: $$ E = mc^2 $$\n"
 )
 
 class CentralOrchestrator:
@@ -593,7 +587,7 @@ class CentralOrchestrator:
             "- When generating flashcards, use ```flashcards with valid JSON array of {{q, a}} objects\n\n"
             "REASONING:\n"
             "- For complex questions, wrap step-by-step thinking in <think_reasoning> tags before answering"
-        ) + UI_PROTOCOL 
+        + UI_PROTOCOL ) 
         if voice_mode:
             system_prompt += VOICE_MODE_RULE
         system_prompt = self._inject_personality(system_prompt, custom_instructions, response_style)
@@ -710,7 +704,7 @@ class CentralOrchestrator:
             "- When generating flashcards, use ```flashcards with valid JSON array of {{q, a}} objects\n\n"
             "REASONING:\n"
             "- For complex questions, wrap step-by-step thinking in <think_reasoning> tags before answering"
-        )
+        + UI_PROTOCOL ) 
         if voice_mode:
             system_prompt += VOICE_MODE_RULE
         system_prompt = self._inject_personality(system_prompt, custom_instructions, response_style)
