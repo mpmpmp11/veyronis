@@ -9,7 +9,7 @@
     <title>VEYRONIS</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b5cf6'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white' font-weight='bold'%3EV%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="stylesheet" href="/static/style.css?v=6.6">
+    <link rel="stylesheet" href="/static/style.css?v=6.7">
     <link rel="preload" as="image" href="/static/icons/call.png">
 <link rel="preload" as="image" href="/static/icons/send.png">
 <link rel="preload" as="image" href="/static/assets/stop-gen-icon.png">
@@ -1330,8 +1330,65 @@
     <div class="voice-state-label" id="voice-state-label" style="display:none;"></div>
 </div>
 
-    
-    <script src="/static/app.js?v=6.1"></script>
+        <!-- ═══════════════════════════════════════════════════════
+         IMAGE GENERATION EXPERIENCE OVERLAY
+         ═══════════════════════════════════════════════════════ -->
+    <div id="img-gen-overlay" class="img-gen-overlay hidden">
+        <!-- The Living Particle Field -->
+        <canvas id="particle-canvas"></canvas>
+        
+        <!-- UI Layer -->
+        <div class="img-gen-ui">
+            <div class="img-gen-status">
+                <div class="status-spinner"></div>
+                <span id="img-gen-text">Creating your image...</span>
+            </div>
+            
+            <button class="play-snake-btn" id="play-snake-btn" onclick="openSnakeGame()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="6" y1="11" x2="10" y2="11"/>
+                    <line x1="8" y1="9" x2="8" y2="13"/>
+                    <line x1="15" y1="12" x2="15.01" y2="12"/>
+                    <line x1="18" y1="10" x2="18.01" y2="10"/>
+                    <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/>
+                </svg>
+                Play Snake
+            </button>
+        </div>
+
+        <!-- Snake Game Panel (Hidden by default) -->
+        <div id="snake-panel" class="snake-panel hidden">
+            <div class="snake-header">
+                <div class="snake-score">Score: <span id="snake-score">0</span></div>
+                <div class="snake-controls">
+                    <button class="snake-icon-btn" id="snake-pause-btn" onclick="toggleSnakePause()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                    </button>
+                    <button class="snake-icon-btn" onclick="closeSnakeGame()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="snake-canvas-wrap">
+                <canvas id="snake-canvas"></canvas>
+                <div id="snake-gameover" class="snake-overlay hidden">
+                    <h2>Game Over</h2>
+                    <p>Score: <span id="snake-final-score">0</span></p>
+                    <button class="snake-primary-btn" onclick="startSnakeGame()">Play Again</button>
+                </div>
+                <div id="snake-paused" class="snake-overlay hidden">
+                    <h2>Paused</h2>
+                    <button class="snake-primary-btn" onclick="toggleSnakePause()">Resume</button>
+                </div>
+            </div>
+            <!-- Mobile Swipe Area -->
+            <div class="snake-mobile-controls" id="snake-mobile-controls">
+                <span>Swipe to move</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js?v=6.2"></script>
     <script src="/static/voice-mode.js?v=5.0"></script>
     <script src="/static/voice-orb.js?v=5.2"></script>
 </body>

@@ -1762,7 +1762,7 @@ async function sendMessage() {
         }
     }
 
-     if (state.simulationMode && text && !hasImage && !hasDoc) {
+    if (state.simulationMode && text && !hasImage && !hasDoc) {
         input.value = '';
         input.style.height = 'auto';
         updateSendButton();
@@ -1806,6 +1806,7 @@ async function sendMessage() {
     const aiId = addAiShell();
     const textEl = document.getElementById('text-' + aiId);
     const thinkingEl = document.getElementById('thinking-' + aiId);
+    
     if (state.model === 'research' && thinkingEl) {
         thinkingEl.innerHTML = `
             <div class="thinking-text">🔬 Research mode active</div>
@@ -1818,6 +1819,7 @@ async function sendMessage() {
         `;
         thinkingEl.classList.add('research-mode');
     }
+    
     if (textEl) textEl.textContent = '';
     state.isTyping = true;
     state.abortController = new AbortController();
@@ -1826,6 +1828,12 @@ async function sendMessage() {
     updateSendButton();
 
     try {
+        // ✅ START IMAGE GEN EXPERIENCE (MUST BE BEFORE requestBody)
+        const isImageRequest = isImagePrompt(text);
+        if (isImageRequest) {
+            startImageExperience();
+        }
+
         const requestBody = {
             message: text || '',
             pro_code: '',
@@ -1837,6 +1845,7 @@ async function sendMessage() {
             custom_instructions: state.customInstructions,
             response_style: state.responseStyle
         };
+        
         const _headers = { 'Content-Type': 'application/json' };
         if (state.token) _headers['Authorization'] = `Bearer ${state.token}`;
 
@@ -1854,20 +1863,24 @@ async function sendMessage() {
             err.status = response.status;
             throw err;
         }
+        
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '', fullResponse = '';
         let firstToken = true;
+        
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
+            
             for (const line of lines) {
                 if (!line.startsWith('data: ')) continue;
                 const jsonStr = line.slice(6).trim();
                 if (!jsonStr) continue;
+                
                 try {
                     const data = JSON.parse(jsonStr);
                     if (data.type === 'token') {
@@ -1880,6 +1893,9 @@ async function sendMessage() {
                     } else if (data.type === 'research_step') {
                         updateResearchProgress(aiId, data.content);
                     } else if (data.type === 'done') {
+                        // ✅ STOP IMAGE GEN EXPERIENCE ON SUCCESS
+                        if (isImageGenerating) stopImageExperience();
+
                         state.isTyping = false;
                         if (sendBtn) sendBtn.disabled = false;
                         if (thinkingEl) thinkingEl.style.display = 'none';
@@ -1894,15 +1910,29 @@ async function sendMessage() {
                         }
                         refreshUserInfo();
 
-                        if (state.autoTts && state.ttsEnabled) { setTimeout(() => { const speakBtn = document.getElementById('speak-' + aiId); if (speakBtn) toggleSpeak(aiId); }, 400); }
-                    } else if (data.type === 'error') throw new Error(data.content);
-                } catch (e) { if (e instanceof SyntaxError) continue; throw e; }
+                        if (state.autoTts && state.ttsEnabled) { 
+                            setTimeout(() => { 
+                                const speakBtn = document.getElementById('speak-' + aiId); 
+                                if (speakBtn) toggleSpeak(aiId); 
+                            }, 400); 
+                        }
+                    } else if (data.type === 'error') {
+                        throw new Error(data.content);
+                    }
+                } catch (e) { 
+                    if (e instanceof SyntaxError) continue; 
+                    throw e; 
+                }
             }
         }
     } catch (err) {
+        // ✅ STOP IMAGE GEN EXPERIENCE ON ERROR
+        if (isImageGenerating) stopImageExperience();
+
         state.isTyping = false;
         state.abortController = null;
         if (sendBtn) sendBtn.disabled = false;
+        
         if (err.name === 'AbortError') {
             if (textEl) textEl.textContent = textEl.textContent || '⏹️ Generation stopped.';
         } else if (!navigator.onLine) {
@@ -1921,8 +1951,10 @@ async function sendMessage() {
             if (textEl) textEl.textContent = '❌ ' + (err.message || 'Something went wrong');
             if (thinkingEl) thinkingEl.style.display = 'none';
         }
-    }
+    
     updateSendButton();
+
+    }
 }
 
 function stopGeneration() {
@@ -3053,7 +3085,6 @@ function preloadButtonIcons() {
 
 // ─── INIT ───
 function initApp() {
-    // ADD THIS LINE:
     if (window.innerWidth >= 768) {
         document.getElementById('sidebar').classList.add('open');
     }
@@ -3062,17 +3093,17 @@ function initApp() {
 
     const nameEl = document.getElementById('sidebar-name');
     const tierLabelEl = document.getElementById('sidebar-tier-label');
-        const displayName = state.user.full_name
-            || state.user.name
-            || (state.user.email ? state.user.email.split('@')[0] : 'You');
-        if (nameEl) nameEl.textContent = displayName;
-        if (tierLabelEl) {
-            tierLabelEl.textContent = state.user.is_pro ? 'PRO' : 'FREE';
-            tierLabelEl.className = 'sidebar-tier-label' + (state.user.is_pro ? ' pro' : '');
-        }
+    const displayName = state.user.full_name
+        || state.user.name
+        || (state.user.email ? state.user.email.split('@')[0] : 'You');
+    if (nameEl) nameEl.textContent = displayName;
+    if (tierLabelEl) {
+        tierLabelEl.textContent = state.user.is_pro ? 'PRO' : 'FREE';
+        tierLabelEl.className = 'sidebar-tier-label' + (state.user.is_pro ? ' pro' : '');
     }
+    
     if (!state.userId && state.user) state.userId = state.user.email;
-    // Hide localhost hint on render
+    
     if (state.apiUrl.includes('onrender.com') || window.location.hostname !== 'localhost') {
         const hint = document.getElementById('auth-hint');
         if (hint) hint.style.display = 'none';
@@ -3083,7 +3114,7 @@ function initApp() {
     loadConversations();
     setTimeout(runWelcomeTypeIn, 300);
     const micBtn = document.getElementById('mic-btn');
-if (micBtn) micBtn.style.display = 'flex';
+    if (micBtn) micBtn.style.display = 'flex';
     initScrollHeader();
     initSettings();
     initTextarea();
@@ -3097,6 +3128,8 @@ if (micBtn) micBtn.style.display = 'flex';
     if (state.user && state.user.is_pro) setProUi();
     setTimeout(() => { if (state.apiUrl) { updateConnStatus('checking'); checkServerHealth(); } }, 100);
     updateSendButton();
+} // ✅ ADDED THE MISSING CLOSING BRACKET HERE
+
 
 function initScrollHeader() {
     const sc = document.getElementById('chat-scroll');
@@ -4093,4 +4126,50 @@ function applyReadMore(el) {
         // Insert the button right after the message text
         el.parentNode.insertBefore(wrap, el.nextSibling);
     }, 150);
+}
+// ═══════════════════════════════════════════════════════
+// IMAGE GENERATION EXPERIENCE INTEGRATION
+// ═══════════════════════════════════════════════════════
+let particleField = null;
+let isImageGenerating = false;
+
+function isImagePrompt(text) {
+    const q = text.toLowerCase();
+    const triggers = [
+        "draw me", "draw a", "generate an image", "generate image", "create an image",
+        "make an image", "image of", "picture of", "photo of", "render", "illustration of",
+        "art of", "sketch", "paint", "visualize", "show me a picture", "show me an image"
+    ];
+    return triggers.some(t => q.includes(t));
+}
+
+function startImageExperience() {
+    isImageGenerating = true;
+    const overlay = document.getElementById('img-gen-overlay');
+    if (!overlay) return;
+    
+    overlay.classList.remove('hidden');
+    
+    // Initialize Particle Field (Assumes ParticleField class exists in image-gen.js)
+    if (typeof ParticleField !== 'undefined') {
+        particleField = new ParticleField('particle-canvas');
+        particleField.init();
+    }
+}
+
+function stopImageExperience() {
+    isImageGenerating = false;
+    const overlay = document.getElementById('img-gen-overlay');
+    if (overlay) overlay.classList.add('hidden');
+    
+    // Cleanup particles
+    if (particleField) {
+        particleField.destroy();
+        particleField = null;
+    }
+    
+    // Ensure Snake is closed and cleaned up (Assumes closeSnakeGame exists)
+    if (typeof closeSnakeGame === 'function') {
+        closeSnakeGame();
+    }
 }
