@@ -10321,3 +10321,56 @@ body.sidebar-open .input-shell {
 @media (pointer: coarse) {
     .snake-mobile-controls { display: block; }
 }
+/* ═══════════════════════════════════════════════════════
+   GENERATIVE UI WIDGETS
+   ═══════════════════════════════════════════════════════ */
+.ui-widget {
+    background: var(--surface-2);
+    border: 1px solid var(--glass-border-strong);
+    border-radius: 16px;
+    padding: 16px;
+    margin: 12px 0;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    animation: modalDropIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.progress-widget .widget-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+.progress-track {
+    width: 100%;
+    height: 8px;
+    background: var(--glass-bg);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #06b6d4);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+.stats-widget {
+    display: flex;
+    gap: 12px;
+    justify-content: space-around;
+}
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.stat-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+.stat-val {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--accent);
+}

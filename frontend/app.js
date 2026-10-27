@@ -2122,14 +2122,47 @@ function updateResearchProgress(aiId, stepData) {
 function renderMarkdown(el, raw) {
     if (!el) return;
     if (!window.marked) { el.textContent = raw; return; }
+
+    // 1. Protect Math
     const mathPlaceholders = [];
     let processed = raw.replace(/\$\$([\s\S]*?)\$\$/g, (match) => { mathPlaceholders.push(match); return `%%MATHBLOCK${mathPlaceholders.length-1}%%`; });
     processed = processed.replace(/\$([^\$\n]+?)\$/g, (match) => { mathPlaceholders.push(match); return `%%MATHINLINE${mathPlaceholders.length-1}%%`; });
     processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match) => { mathPlaceholders.push(match); return `%%MATHINLINE${mathPlaceholders.length-1}%%`; });
     processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match) => { mathPlaceholders.push(match); return `%%MATHBLOCK${mathPlaceholders.length-1}%%`; });
+
+    // 2. GENERATIVE UI: Extract UI Widgets
+    const widgetPlaceholders = [];
+    processed = processed.replace(/```ui-widget\s*\n([\s\S]*?)\n```/g, (match, jsonStr) => {
+        try {
+            const data = JSON.parse(jsonStr);
+            widgetPlaceholders.push(renderWidgetHTML(data));
+            return `%%WIDGET${widgetPlaceholders.length-1}%%`;
+        } catch (e) { return match; }
+    });
+
+    // 3. GENERATIVE UI: Extract UI Modals
+    processed = processed.replace(/```ui-modal\s*\n([\s\S]*?)\n```/g, (match, jsonStr) => {
+        try {
+            const data = JSON.parse(jsonStr);
+            setTimeout(() => showDynamicModal(data), 500);
+            return ''; 
+        } catch (e) { return match; }
+    });
+
+    // 4. GENERATIVE UI: Custom Text Styling
+    processed = processed.replace(/<text-color color="([^"]+)">([\s\S]*?)<\/text-color>/g, '<span style="color: $1; font-weight: 600;">$2</span>');
+    processed = processed.replace(/<text-size size="([^"]+)">([\s\S]*?)<\/text-size>/g, '<span style="font-size: $1; line-height: 1.2; display: inline-block; margin: 4px 0;">$2</span>');
+
+    // 5. Run Marked.js
     el.innerHTML = marked.parse(processed, { breaks: true, gfm: true, headerIds: false });
+
+    // 6. Restore Math and Widgets
     el.innerHTML = el.innerHTML.replace(/%%MATHBLOCK(\d+)%%/g, (_, i) => mathPlaceholders[i]);
     el.innerHTML = el.innerHTML.replace(/%%MATHINLINE(\d+)%%/g, (_, i) => mathPlaceholders[i]);
+    el.innerHTML = el.innerHTML.replace(/<p>%%WIDGET(\d+)%%<\/p>/g, (_, i) => widgetPlaceholders[i]);
+    el.innerHTML = el.innerHTML.replace(/%%WIDGET(\d+)%%/g, (_, i) => widgetPlaceholders[i]);
+
+    // 7. Existing Features (Mermaid, Charts, Flashcards)
     el.querySelectorAll('pre code.language-mermaid').forEach(b => {
         const d = document.createElement('div');
         d.className = 'mermaid';
@@ -2139,12 +2172,16 @@ function renderMarkdown(el, raw) {
     if (window.mermaid) mermaid.run({ querySelector: '.mermaid' }).catch(() => {});
     renderCharts(el);
     renderFlashcards(el);
+
+    // 8. Highlight.js
     if (typeof hljs !== 'undefined') {
         el.querySelectorAll('pre code').forEach(b => {
-            if (!b.classList.contains('language-mermaid') && !b.classList.contains('language-chart') && !b.classList.contains('language-flashcards'))
+            if (!b.classList.contains('language-mermaid') && !b.classList.contains('language-chart') && !b.classList.contains('language-flashcards') && !b.classList.contains('language-ui-widget') && !b.classList.contains('language-ui-modal'))
                 hljs.highlightElement(b);
         });
     }
+
+    // 9. Run Code Buttons & Image Lightbox
     injectRunButtons(el);
     el.querySelectorAll('img').forEach(img => {
         if (!img.closest('a')) {
@@ -2152,15 +2189,36 @@ function renderMarkdown(el, raw) {
             img.onclick = (e) => { e.stopPropagation(); openLightbox(img.src); };
         }
     });
+
+    // 10. KaTeX Math
     if (window.renderMathInElement) renderMathInElement(el, {
-        delimiters: [
-            {left: '$$', right: '$$', display: true},
-            {left: '$', right: '$', display: false},
-            {left: '\\(', right: '\\)', display: false},
-            {left: '\\[', right: '\\]', display: true}
-        ],
-        ignoredTags: ['pre', 'code'], throwOnError: false, trust: false
+        delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}],
+        ignoredTags: ['pre', 'code'], throwOnError: false
     });
+}
+
+// --- NEW GENUI HELPER FUNCTIONS ---
+function renderWidgetHTML(data) {
+    if (data.type === 'progress') {
+        return `<div class="ui-widget progress-widget">
+            <div class="widget-header"><span>${escapeHtml(data.label)}</span><span>${data.value}%</span></div>
+            <div class="progress-track"><div class="progress-fill" style="width: ${data.value}%"></div></div>
+        </div>`;
+    }
+    if (data.type === 'stats') {
+        const items = data.items.map(i => `<div class="stat-item"><span class="stat-label">${escapeHtml(i.label)}</span><span class="stat-val">${escapeHtml(i.value)}</span></div>`).join('');
+        return `<div class="ui-widget stats-widget">${items}</div>`;
+    }
+    return `<div class="ui-widget">Unknown widget</div>`;
+}
+
+function showDynamicModal(data) {
+    const titleEl = document.getElementById('modal-info-title');
+    const msgEl = document.getElementById('modal-info-message');
+    if (!titleEl || !msgEl) return;
+    titleEl.textContent = data.title || 'Notice';
+    msgEl.textContent = data.content || '';
+    openModal('modal-info');
 }
 
 function renderCharts(el) {
