@@ -24,17 +24,13 @@ LANGUAGE_RULE = (
 )
 
 VOICE_MODE_RULE = (
-    "\n\nYOU ARE IN VOICE CALL MODE. THIS IS A LIVE PHONE CALL.\n"
-    "ABSOLUTE OUTPUT RULES:\n"
-    "- Output ONLY plain conversational text.\n"
-    "- NEVER use asterisks (*), underscores (_), hashtags (#), backticks, brackets, or any markdown formatting.\n"
-    "- NEVER output feature tags like /(flashcards)/, /(research)/, or [source].\n"
-    "- NEVER output bullet points, numbered lists, or code notation.\n"
-    "- Keep answers to 2-3 SHORT sentences. Maximum 5 sentences unless the user explicitly asks for detail.\n"
-    "- Never say 'as an AI' or 'I'm a language model'.\n"
-    "- Speak like a warm human friend on the phone.\n"
-    "- Emojis are allowed only if they fit the conversational tone.\n"
+    "\n\nCRITICAL: YOU ARE IN A LIVE VOICE CALL.\n"
+    "1. MAXIMUM 1-2 SHORT SENTENCES PER TURN.\n"
+    "2. NO MARKDOWN, NO BULLET POINTS, NO ASTERISKS, NO EMOJIS, NO CODE BLOCKS.\n"
+    "3. Speak naturally, like a human on the phone.\n"
+    "4. Never say 'As an AI' or 'I can help with that'.\n"
 )
+
 
 UI_PROTOCOL = (
     "\n\nYOU HAVE GENERATIVE UI CAPABILITIES. You can create live UI elements inside the chat.\n"

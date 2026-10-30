@@ -1984,6 +1984,68 @@ async def preview_file(
 
     return HTMLResponse(content=html)
 
+# ═══════════════════════════════════════════════════════
+# REAL-TIME VOICE WEBSOCKET
+# ═══════════════════════════════════════════════════════
+import asyncio
+from fastapi import WebSocket, WebSocketDisconnect
+import edge_tts
+
+@app.websocket("/ws/voice")
+async def voice_stream(websocket: WebSocket):
+    await websocket.accept()
+    print("[WS] Voice client connected")
+    
+    try:
+        while True:
+            # 1. Receive text from the frontend (already transcribed by browser STT)
+            data = await websocket.receive_json()
+            user_text = data.get("text", "").strip()
+            user_id = data.get("user_id", "unknown")
+            
+            if not user_text:
+                continue
+                
+            print(f"[WS] User said: {user_text}")
+            
+            # Create a task to handle the LLM -> TTS pipeline
+            task = asyncio.create_task(generate_and_stream_tts(websocket, user_text, user_id))
+            
+            # Wait for a potential interrupt message while generating
+            try:
+                interrupt_msg = await asyncio.wait_for(websocket.receive_json(), timeout=0.1)
+                if interrupt_msg.get("type") == "INTERRUPT":
+                    print("[WS] 🛑 INTERRUPT RECEIVED. Killing pipeline.")
+                    task.cancel()
+            except asyncio.TimeoutError:
+                pass
+                
+    except WebSocketDisconnect:
+        print("[WS] Voice client disconnected")
+    except Exception as e:
+        print(f"[WS] Error: {e}")
+
+async def generate_and_stream_tts(websocket: WebSocket, text: str, user_id: str):
+    try:
+        # Using edge-tts for free testing
+        voice = "en-US-ChristopherNeural" 
+        
+        await websocket.send_json({"type": "start_speaking"})
+        
+        communicate = edge_tts.Communicate(text, voice)
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                # Send raw audio bytes directly over the WebSocket
+                await websocket.send_bytes(chunk["data"])
+                
+        await websocket.send_json({"type": "stop_speaking"})
+        
+    except asyncio.CancelledError:
+        print("[WS] Generation cancelled by user (barge-in).")
+        raise
+    except Exception as e:
+        print(f"[TTS Error] {e}")
+        
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
