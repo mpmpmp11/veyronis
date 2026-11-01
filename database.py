@@ -610,7 +610,7 @@ def increment_usage(user_id: str, date: str) -> int:
         conn.commit()
     return row["count"] if row else 1
 
-    def flush_usage_delta(user_id: str, day: str, delta: int) -> int:
+def flush_usage_delta(user_id: str, day: str, delta: int) -> int:
     """Add delta to a day's usage count. Returns new count."""
     if delta <= 0:
         return 0
@@ -626,7 +626,7 @@ def increment_usage(user_id: str, date: str) -> int:
             row = cur.fetchone()
         conn.commit()
     return row["count"] if row else delta
-    
+
 
 def delete_old_attachments(hours: int = 48) -> int:
     """Delete attachments older than X hours. Returns number deleted."""
