@@ -1647,16 +1647,21 @@ function shareAiMsg(id) {
 
 async function thumbUp(id) {
     const btn = document.getElementById('up-' + id);
-    const downBtn = document.getElementById('down-' + id);
-    if (!btn) return;
+    const msgEl = document.getElementById(id);
+    const dbId = msgEl ? msgEl.getAttribute('data-db-id') : null;
+    
+    if (!btn || !dbId) {
+        toast('⏳ Please wait for the message to finish generating.', 'info');
+        return;
+    }
     
     btn.classList.add('active');
-    if (downBtn) downBtn.classList.remove('active');
+    if (document.getElementById('down-' + id)) document.getElementById('down-' + id).classList.remove('active');
     
     try {
         await authenticatedFetch('/message-feedback', {
             method: 'POST',
-            body: JSON.stringify({ message_id: id, is_helpful: true })
+            body: JSON.stringify({ message_id: dbId, is_helpful: true }) // 👈 Send the integer DB ID
         });
         toast('👍 Thanks for the feedback!', 'success');
     } catch (err) {
@@ -1664,10 +1669,17 @@ async function thumbUp(id) {
     }
 }
 
+
 async function thumbDown(id) {
     const btn = document.getElementById('down-' + id);
     const upBtn = document.getElementById('up-' + id);
-    if (!btn) return;
+    const msgEl = document.getElementById(id);
+    const dbId = msgEl ? msgEl.getAttribute('data-db-id') : null;
+    
+    if (!btn || !dbId) {
+        toast('⏳ Please wait for the message to finish generating.', 'info');
+        return;
+    }
     
     btn.classList.add('active');
     if (upBtn) upBtn.classList.remove('active');
@@ -1675,7 +1687,7 @@ async function thumbDown(id) {
     try {
         await authenticatedFetch('/message-feedback', {
             method: 'POST',
-            body: JSON.stringify({ message_id: id, is_helpful: false })
+            body: JSON.stringify({ message_id: dbId, is_helpful: false }) // 👈 Sends the integer DB ID
         });
         toast('👎 Thanks for the feedback!', 'success');
     } catch (err) {
@@ -1844,6 +1856,7 @@ async function sendMessage() {
             ai_model: state.aiModel,
             custom_instructions: state.customInstructions,
             response_style: state.responseStyle
+            external_id: aiId
         };
         
         const _headers = { 'Content-Type': 'application/json' };
@@ -1892,7 +1905,7 @@ async function sendMessage() {
                         state.citations[aiId] = data.content;
                     } else if (data.type === 'research_step') {
                         updateResearchProgress(aiId, data.content);
-                    } else if (data.type === 'done') {
+                                        } else if (data.type === 'done') {
                         // ✅ STOP IMAGE GEN EXPERIENCE ON SUCCESS
                         if (isImageGenerating) stopImageExperience();
 
@@ -1900,7 +1913,15 @@ async function sendMessage() {
                         if (sendBtn) sendBtn.disabled = false;
                         if (thinkingEl) thinkingEl.style.display = 'none';
                         if (textEl) { renderMarkdown(textEl, fullResponse); renderCitations(aiId, state.citations[aiId]); }
+                        
+                        // ✅ ATTACH THE REAL DATABASE ID TO THE DOM
+                        if (data.message_id) {
+                            const msgEl = document.getElementById(aiId);
+                            if (msgEl) msgEl.setAttribute('data-db-id', data.message_id);
+                        }
+
                         if (data.conversation_id && !state.conversationId) { state.conversationId = data.conversation_id; loadConversations(); }
+                        
                         if (data.tier === 'pro') setProUi();
 
                         // ✅ optimistic decrement for instant UI
@@ -4062,9 +4083,18 @@ function toggleMoreMenuDesktop(event) {
 // ─── REPORTING SYSTEM ───
 let reportingMsgId = null;
 
+let reportingMsgId = null;
+
 function reportAiMsg(id) {
-    reportingMsgId = id;
-    // Uncheck any previously selected radios
+    const msgEl = document.getElementById(id);
+    const dbId = msgEl ? msgEl.getAttribute('data-db-id') : null;
+    
+    if (!dbId) {
+        toast('⏳ Please wait for the message to finish generating before reporting.', 'info');
+        return;
+    }
+    
+    reportingMsgId = dbId; // 👈 Set the integer DB ID
     document.querySelectorAll('input[name="report-reason"]').forEach(r => r.checked = false);
     openModal('modal-report');
 }
