@@ -37,6 +37,7 @@ from database import (
     get_archived_conversations, archive_conversation, unarchive_conversation, delete_old_attachments, save_report, get_reports, review_report, save_message_feedback, save_general_feedback
 )
 
+from usage_cache import usage_cache
 from settings import Config
 import base64
 import uvicorn
@@ -412,7 +413,7 @@ async def get_me(current_user: dict = Depends(get_current_user_required)):
     try:
         user = get_user_by_id(current_user["id"])
         today = str(date.today())
-        usage = get_usage_count(current_user["email"], today) if not user["is_pro"] else None
+        usage = usage_cache.get(current_user["email"]) if not user["is_pro"] else None
         remaining = max(0, 20 - usage) if usage is not None else None
 
         from datetime import datetime as dt, timedelta
@@ -984,7 +985,7 @@ async def chat(
 
         today = str(date.today())
         if not is_pro:
-            usage = get_usage_count(user_id, today)
+            usage = usage_cache.get(user_id)
             if usage >= 20:
                 raise HTTPException(429, detail="📊 You've reached your daily limit (20 messages). Upgrade to PRO for unlimited!")
 
@@ -999,7 +1000,8 @@ async def chat(
                 save_message(user_id, "user", f"🔮 {msg}", conversation_id=conversation_id)
                 save_message(user_id, "assistant", result.model_dump_json(), conversation_id=conversation_id)
                 if not is_pro:
-                    increment_usage(user_id, today)
+                    usage_cache.increment(user_id)
+
                 return ChatResponse(
                     response=result.model_dump_json(),
                     tier="pro" if is_pro else "free",
@@ -1038,7 +1040,7 @@ async def chat(
         save_message(user_id, "assistant", result["response"], conversation_id=conversation_id, external_id=request.external_id)
         if not is_pro:
             add_free_request(client_ip)
-            increment_usage(user_id, today)
+            usage_cache.increment(user_id)
         return ChatResponse(
             response=result["response"],
             tier="pro" if is_pro else "free",
@@ -1083,7 +1085,7 @@ async def chat_stream(
                 return StreamingResponse(voice_rl_error(), media_type="text/event-stream")
             
         if not is_pro:
-            usage = get_usage_count(user_id, today)
+            usage = usage_cache.get(user_id)
             if usage >= 20:
                 async def limit_error():
                     yield f"data: {json.dumps({'type': 'error', 'content': '📊 You\'ve reached your daily limit (20 messages). Upgrade to PRO for unlimited!'})}\n\n"
@@ -1114,13 +1116,14 @@ async def chat_stream(
             conversation_id = create_conversation(user_id, title=title)
         image_data_url = _b64_to_data_url(request.image) if has_image else None
         user_content = msg if has_text else "[Image uploaded for analysis]"
+        
         save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
 
         async def event_generator():
             full_response = ""
             effective_query = msg if has_text else ""
 
-            if request.mode == "simulation":
+            if request.mode == "simulation":        
                 try:
                     yield f"data: {json.dumps({'type': 'reasoning', 'content': '🔮 Running Hindsight simulation...'})}\n\n"
                     result, status = hindsight_engine.run(user_id, effective_query, is_pro=is_pro)
@@ -1129,7 +1132,7 @@ async def chat_stream(
                     yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free'})}\n\n"
                     save_message(user_id, "assistant", json_output, conversation_id=conversation_id)
                     if not is_pro:
-                        increment_usage(user_id, today)
+                        usage_cache.increment(user_id)
                     return
                 except RuntimeError as e:
                     yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
@@ -1158,21 +1161,19 @@ async def chat_stream(
                     elif event_type == "error":
                         yield f"data: {json.dumps({'type': 'error', 'content': '😕 An error occurred. Please try again.'})}\n\n"
                         return
-                
-                # Save the assistant message and capture the DB ID
+
                 new_msg_id = save_message(user_id, "assistant", full_response, conversation_id=conversation_id, external_id=request.external_id)
                 yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free', 'message_id': new_msg_id})}\n\n"
-                
+
                 if not is_pro:
                     add_free_request(client_ip)
-                    increment_usage(user_id, today)
-            
-            # --- THIS IS WHAT WAS MISSING ---
+                    usage_cache.increment(user_id)
+
             except GeneratorExit:
                 if full_response:
                     save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
                 raise
-                    
+
             except Exception as e:
                 print(f"[STREAM ERROR] {e}")
                 traceback.print_exc()
