@@ -1170,13 +1170,15 @@ async def chat_stream(
                         yield f"data: {json.dumps({'type': 'error', 'content': '😕 An error occurred. Please try again.'})}\n\n"
                         return
                 
-            new_msg_id = save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
+                # Save the assistant message and capture the DB ID
+                new_msg_id = save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
                 yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free', 'message_id': new_msg_id})}\n\n"
                 
                 if not is_pro:
                     add_free_request(client_ip)
                     increment_usage(user_id, today)
             
+            # --- THIS IS WHAT WAS MISSING ---
             except GeneratorExit:
                 if full_response:
                     save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
