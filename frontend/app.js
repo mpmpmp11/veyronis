@@ -1855,7 +1855,7 @@ async function sendMessage() {
             model_mode: state.model,
             ai_model: state.aiModel,
             custom_instructions: state.customInstructions,
-            response_style: state.responseStyle
+            response_style: state.responseStyle,
             external_id: aiId
         };
         

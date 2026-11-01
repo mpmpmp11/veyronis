@@ -1,18 +1,17 @@
-const CACHE_NAME = 'veyronis-v7.7';
+const CACHE_NAME = 'veyronis-v7.8';
 const STATIC_ASSETS = [
     '/',
-    '/static/style.css?v=1.5',
-    '/static/app.js?v=1.5',
+    '/static/style.css?v=6.8',
+    '/static/app.js?v=6.5',
     'https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js',
-    'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js',
-    'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css',
+    'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css',
     'https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js',
     'https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js',
     'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js',
     'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js',
     'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css'
 ];
-
 // Install: cache static assets
 self.addEventListener('install', (e) => {
     self.skipWaiting();
