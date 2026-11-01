@@ -4083,8 +4083,6 @@ function toggleMoreMenuDesktop(event) {
 // ─── REPORTING SYSTEM ───
 let reportingMsgId = null;
 
-let reportingMsgId = null;
-
 function reportAiMsg(id) {
     const msgEl = document.getElementById(id);
     const dbId = msgEl ? msgEl.getAttribute('data-db-id') : null;
