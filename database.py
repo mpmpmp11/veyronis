@@ -245,17 +245,18 @@ def row_to_dict(row):
 
 # ─── MESSAGES ───
 
-def save_message(user_id: str, role: str, content: str, conversation_id: Optional[int] = None, image_data: Optional[str] = None):
+def save_message(user_id: str, role: str, content: str, conversation_id: Optional[int] = None, image_data: Optional[str] = None, external_id: Optional[str] = None) -> int:
     with db_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO messages (user_id, role, content, conversation_id, image_data) VALUES (%s, %s, %s, %s, %s)",
-                (user_id, role, content, conversation_id, image_data)
+                "INSERT INTO messages (user_id, role, content, conversation_id, image_data, external_id) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                (user_id, role, content, conversation_id, image_data, external_id)
             )
+            new_id = cur.fetchone()["id"]
             if conversation_id:
                 cur.execute("UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = %s", (conversation_id,))
         conn.commit()
-
+    return new_id
 
 def get_history(user_id: str, limit: int = 50, conversation_id: Optional[int] = None) -> List[Dict[str, Any]]:
     with db_connection() as conn:

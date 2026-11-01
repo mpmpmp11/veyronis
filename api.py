@@ -309,6 +309,7 @@ class ChatRequest(BaseModel):
     custom_instructions: Optional[str] = None
     response_style: Optional[str] = None
     voice_mode: bool = False
+    external_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str
@@ -1031,7 +1032,7 @@ async def chat(
             conversation_id = create_conversation(user_id, title=title)
         image_data_url = _b64_to_data_url(request.image) if request.image else None
         user_content = msg or "[Image uploaded for analysis]"
-        save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
+        save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url, external_id=request.external_id)
 
         result = orchestrator.process_pipeline(
             msg, mode=request.mode, user_id=user_id, conversation_id=conversation_id,
@@ -1124,7 +1125,7 @@ async def chat_stream(
             conversation_id = create_conversation(user_id, title=title)
         image_data_url = _b64_to_data_url(request.image) if has_image else None
         user_content = msg if has_text else "[Image uploaded for analysis]"
-        save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
+        save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url, external_id=request.external_id)
 
         async def event_generator():
             full_response = ""
@@ -1168,15 +1169,19 @@ async def chat_stream(
                     elif event_type == "error":
                         yield f"data: {json.dumps({'type': 'error', 'content': '😕 An error occurred. Please try again.'})}\n\n"
                         return
-                yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free'})}\n\n"
-                save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
+                
+            new_msg_id = save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
+                yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free', 'message_id': new_msg_id})}\n\n"
+                
                 if not is_pro:
                     add_free_request(client_ip)
                     increment_usage(user_id, today)
+            
             except GeneratorExit:
                 if full_response:
                     save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
                 raise
+                    
             except Exception as e:
                 print(f"[STREAM ERROR] {e}")
                 traceback.print_exc()
@@ -1501,7 +1506,7 @@ async def submit_report(
     request: dict,
     current_user: dict = Depends(get_current_user_required)
 ):
-    message_id = str(request.get("message_id", "")).strip()
+    message_id = int(request.get("message_id", 0)) # <--- CONVERT TO INT
     reason = request.get("reason", "").strip()
 
     if not message_id or not reason:
@@ -1639,56 +1644,6 @@ async def admin_unban_user(
     conn.commit()
     return {"message": f"User {user_id} unbanned"}
 
-@app.get("/admin/reports")
-async def admin_list_reports(
-    status: Optional[str] = None,
-    current_user: dict = Depends(get_current_user_required),
-    conn = Depends(get_db)
-):
-    if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    cursor = conn.cursor()
-    query = """
-        SELECT r.*, u.email as reporter_email, m.content as message_content
-        FROM reports r
-        JOIN users u ON r.reporter_user_id = u.id
-        JOIN messages m ON r.reported_message_id = m.id
-    """
-    params = []
-    if status:
-        query += " WHERE r.status = %s"
-        params.append(status)
-    query += " ORDER BY r.created_at DESC"
-
-    cursor.execute(query, params)
-    reports = cursor.fetchall()
-    return {"reports": reports}
-
-@app.post("/admin/reports/{report_id}/review")
-async def admin_review_report(
-    report_id: str,
-    request: dict,
-    current_user: dict = Depends(get_current_user_required),
-    conn = Depends(get_db)
-):
-    if current_user["email"] not in Config.ADMIN_EMAILS.split(","):
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    status = request.get("status")
-    notes = request.get("notes", "")
-    if status not in ["resolved", "dismissed"]:
-        raise HTTPException(status_code=400, detail="Invalid status")
-
-    cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE reports
-        SET status = %s, reviewed_by = %s, reviewed_at = %s, review_notes = %s
-        WHERE id = %s
-    """, (status, current_user["id"], datetime.utcnow().isoformat(), notes, report_id))
-
-    conn.commit()
-    return {"message": f"Report {report_id} {status}"}
 
 _voice_minutes_tracker = {}
 
@@ -1736,7 +1691,7 @@ async def submit_message_feedback(
     request: dict,
     current_user: dict = Depends(get_current_user_required)
 ):
-    message_id = request.get("message_id")
+    message_id = int(request.get("message_id", 0)) # <--- CONVERT TO INT
     is_helpful = request.get("is_helpful")
     if not message_id or is_helpful is None:
         raise HTTPException(400, detail="Invalid feedback data")
@@ -2008,9 +1963,10 @@ async def voice_stream(websocket: WebSocket):
                 
             print(f"[WS] User said: {user_text}")
             
-            # Create a task to handle the LLM -> TTS pipeline
-            task = asyncio.create_task(generate_and_stream_tts(websocket, user_text, user_id))
-            
+                        # Create a task to handle the LLM -> TTS pipeline
+            conversation_id = data.get("conversation_id")
+            task = asyncio.create_task(process_voice_turn(websocket, user_text, user_id, conversation_id))
+
             # Wait for a potential interrupt message while generating
             try:
                 interrupt_msg = await asyncio.wait_for(websocket.receive_json(), timeout=0.1)
@@ -2025,24 +1981,56 @@ async def voice_stream(websocket: WebSocket):
     except Exception as e:
         print(f"[WS] Error: {e}")
 
-async def generate_and_stream_tts(websocket: WebSocket, text: str, user_id: str):
+async def process_voice_turn(websocket: WebSocket, text: str, user_id: str, conversation_id: int = None):
     try:
-        # Using edge-tts for free testing
-        voice = "en-US-ChristopherNeural" 
-        
         await websocket.send_json({"type": "start_speaking"})
+        
+        # 1. Get the LLM response from your Orchestrator
+        generator = orchestrator.process_pipeline_stream(
+            text, user_id=user_id, conversation_id=conversation_id, voice_mode=True
+        )
+        
+        full_response = ""
+        sentence_buffer = ""
+        
+        # 2. Read the LLM stream and buffer by sentence
+        for event_type, content in generator:
+            if event_type == "token":
+                full_response += content
+                sentence_buffer += content
+                
+                # If we hit punctuation, send to TTS immediately
+                if re.search(r'[.!?]\s*$', sentence_buffer) and len(sentence_buffer) > 10:
+                    await stream_tts(websocket, sentence_buffer)
+                    sentence_buffer = ""
+            elif event_type == "done":
+                break
+                
+        # Flush any remaining text
+        if sentence_buffer.strip():
+            await stream_tts(websocket, sentence_buffer)
+            
+        if full_response:
+            save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
+            
+        await websocket.send_json({"type": "stop_speaking", "text": full_response})
+        
+    except asyncio.CancelledError:
+        print("[WS] Generation cancelled.")
+        raise
+    except Exception as e:
+        print(f"[Pipeline Error] {e}")
+        await websocket.send_json({"type": "stop_speaking"})
+
+async def stream_tts(websocket: WebSocket, text: str):
+    try:
+        # Detect Georgian vs English
+        voice = "ka-GE-EkaNeural" if re.search(r'[\u10A0-\u10FF]', text) else "en-US-ChristopherNeural"
         
         communicate = edge_tts.Communicate(text, voice)
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
-                # Send raw audio bytes directly over the WebSocket
                 await websocket.send_bytes(chunk["data"])
-                
-        await websocket.send_json({"type": "stop_speaking"})
-        
-    except asyncio.CancelledError:
-        print("[WS] Generation cancelled by user (barge-in).")
-        raise
     except Exception as e:
         print(f"[TTS Error] {e}")
         
