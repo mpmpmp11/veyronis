@@ -1,4 +1,4 @@
-const CACHE_NAME = 'veyronis-v7.9';
+const CACHE_NAME = 'veyronis-v7.10';
 const STATIC_ASSETS = [
     '/',
     '/static/style.css?v=6.8',
@@ -45,10 +45,17 @@ self.addEventListener('fetch', (e) => {
     if (request.method !== 'GET') return;
 
     // API calls: network only, but queue if offline
-    if (url.pathname.startsWith('/chat') || url.pathname.startsWith('/upload') || url.pathname === '/execute') {
-        e.respondWith(networkOrQueue(request));
-        return;
-    }
+    const networkOnlyPrefixes = [
+    '/chat', '/upload', '/execute', '/me', '/history',
+    '/conversations', '/attachments', '/upload-limits',
+    '/message-feedback', '/report', '/feedback',
+    '/admin', '/api/voice', '/search', '/export'
+];
+if (networkOnlyPrefixes.some(p => url.pathname.startsWith(p))) {
+    e.respondWith(networkOrQueue(request));
+    return;
+}
+
 
     // Health check: network with timeout fallback
     if (url.pathname === '/health') {

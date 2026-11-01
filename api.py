@@ -425,9 +425,11 @@ async def get_me(current_user: dict = Depends(get_current_user_required)):
         if not user["is_pro"]:
             upload_counts = get_upload_counts(current_user["email"], today)
 
-        return {
-            "user": {
-                "id": user["id"],
+        return JSONResponse(
+            content={
+                "user": {
+                    "id": user["id"],
+        
                 "email": user["email"],
                 "is_pro": bool(user["is_pro"]),
                 "avatar_url": user.get("avatar_url"),
@@ -439,7 +441,9 @@ async def get_me(current_user: dict = Depends(get_current_user_required)):
                 "reset_at": reset_at_iso,
                 "uploads_today": upload_counts,
             }
-        }
+        },
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"}        
+)
     except Exception as e:
         print(f"[ME ERROR] {e}")
         raise HTTPException(500, detail="😕 Could not retrieve user info. Please try again.")
@@ -1116,7 +1120,7 @@ async def chat_stream(
             conversation_id = create_conversation(user_id, title=title)
         image_data_url = _b64_to_data_url(request.image) if has_image else None
         user_content = msg if has_text else "[Image uploaded for analysis]"
-        
+
         save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
 
         async def event_generator():
