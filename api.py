@@ -968,24 +968,19 @@ async def upload_document(
 async def chat(
     request: ChatRequest,
     req: Request,
-    current_user: Optional[dict] = Depends(get_current_user_optional)
+    current_user: dict = Depends(get_current_user_required)
 ):
     try:
         msg = request.message.strip()
-        user_id = request.user_id.strip()
         conversation_id = request.conversation_id
 
         client_ip = req.client.host
         if not _check_rate_limit(client_ip, max_requests=30, window_seconds=60):
             raise HTTPException(429, detail="⏳ You're moving too fast! Please wait a moment.")
 
-        if current_user:
-            user_id = current_user["email"]
-            is_pro = current_user["is_pro"]
-        else:
-            is_pro = False
-            if not user_id:
-                user_id = "u_" + str(int(time.time()))
+        user_id = current_user["email"]
+        is_pro  = current_user["is_pro"]
+
 
         today = str(date.today())
         if not is_pro:
@@ -1062,11 +1057,10 @@ async def chat(
 async def chat_stream(
     request: ChatRequest,
     req: Request,
-    current_user: Optional[dict] = Depends(get_current_user_optional)
+    current_user: dict = Depends(get_current_user_required)
 ):
     try:
         msg = request.message.strip()
-        user_id = request.user_id.strip()
         conversation_id = request.conversation_id
 
         client_ip = req.client.host
@@ -1075,14 +1069,9 @@ async def chat_stream(
                 yield f"data: {json.dumps({'type': 'error', 'content': '⏳ You\'re moving too fast! Please wait a moment.'})}\n\n"
             return StreamingResponse(rate_limit_error(), media_type="text/event-stream")
 
-        if current_user:
-            user_id = current_user["email"]
-            is_pro = current_user["is_pro"]
-        else:
-            is_pro = False
-            if not user_id:
-                user_id = "u_" + str(int(time.time()))
-
+        user_id = current_user["email"]
+        is_pro  = current_user["is_pro"]
+    
         today = str(date.today())
                 # ✅ Voice mode rate limit — max 8 turns/min per user
         if request.voice_mode:
