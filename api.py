@@ -1027,7 +1027,7 @@ async def chat(
             conversation_id = create_conversation(user_id, title=title)
         image_data_url = _b64_to_data_url(request.image) if request.image else None
         user_content = msg or "[Image uploaded for analysis]"
-        save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url, external_id=request.external_id)
+        save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
 
         result = orchestrator.process_pipeline(
             msg, mode=request.mode, user_id=user_id, conversation_id=conversation_id,
@@ -1035,7 +1035,7 @@ async def chat(
             custom_instructions=request.custom_instructions, response_style=request.response_style,
             voice_mode=request.voice_mode
         )
-        save_message(user_id, "assistant", result["response"], conversation_id=conversation_id)
+        save_message(user_id, "assistant", result["response"], conversation_id=conversation_id, external_id=request.external_id)
         if not is_pro:
             add_free_request(client_ip)
             increment_usage(user_id, today)
@@ -1114,7 +1114,7 @@ async def chat_stream(
             conversation_id = create_conversation(user_id, title=title)
         image_data_url = _b64_to_data_url(request.image) if has_image else None
         user_content = msg if has_text else "[Image uploaded for analysis]"
-        save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url, external_id=request.external_id)
+        save_message(user_id, "user", user_content, conversation_id=conversation_id, image_data=image_data_url)
 
         async def event_generator():
             full_response = ""
@@ -1160,7 +1160,7 @@ async def chat_stream(
                         return
                 
                 # Save the assistant message and capture the DB ID
-                new_msg_id = save_message(user_id, "assistant", full_response, conversation_id=conversation_id)
+                new_msg_id = save_message(user_id, "assistant", full_response, conversation_id=conversation_id, external_id=request.external_id)
                 yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free', 'message_id': new_msg_id})}\n\n"
                 
                 if not is_pro:
