@@ -610,6 +610,24 @@ def increment_usage(user_id: str, date: str) -> int:
         conn.commit()
     return row["count"] if row else 1
 
+    def flush_usage_delta(user_id: str, day: str, delta: int) -> int:
+    """Add delta to a day's usage count. Returns new count."""
+    if delta <= 0:
+        return 0
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO usage_logs (user_id, date, count)
+                VALUES (%s, %s, %s)
+                ON CONFLICT(user_id, date) DO UPDATE
+                    SET count = usage_logs.count + EXCLUDED.count
+                RETURNING count
+            """, (user_id, day, delta))
+            row = cur.fetchone()
+        conn.commit()
+    return row["count"] if row else delta
+    
+
 def delete_old_attachments(hours: int = 48) -> int:
     """Delete attachments older than X hours. Returns number deleted."""
     from datetime import datetime, timedelta
