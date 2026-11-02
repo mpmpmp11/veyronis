@@ -9,7 +9,7 @@
     <title>VEYRONIS</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b5cf6'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white' font-weight='bold'%3EV%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="stylesheet" href="/static/style.css?v=6.8">
+    <link rel="stylesheet" href="/static/style.css?v=6.9">
     <link rel="preload" as="image" href="/static/icons/call.png">
 <link rel="preload" as="image" href="/static/icons/send.png">
 <link rel="preload" as="image" href="/static/assets/stop-gen-icon.png">
@@ -525,6 +525,34 @@
     TOAST CONTAINER
     ============================================================ -->
     <div id="toast-box"></div>
+
+
+<!-- ═══ Chat Action Popover (bubble) ═══ -->
+<div id="chat-action-menu" class="chat-action-menu hidden" role="menu" aria-label="Chat actions">
+    <button class="chat-action-item" onclick="chatActionRename(event)" role="menuitem">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+        <span>Rename</span>
+    </button>
+    <button class="chat-action-item" onclick="chatActionArchive(event)" role="menuitem">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="21 8 21 21 3 21 3 8"/>
+            <rect x="1" y="3" width="22" height="5"/>
+            <line x1="10" y1="12" x2="14" y2="12"/>
+        </svg>
+        <span>Archive</span>
+    </button>
+    <div class="chat-action-divider"></div>
+    <button class="chat-action-item chat-action-item-danger" onclick="chatActionDelete(event)" role="menuitem">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        </svg>
+        <span>Delete</span>
+    </button>
+</div>
 
     <!-- ============================================================
     DRAG OVERLAY
@@ -1264,6 +1292,80 @@
         </div>
     </div>
 
+
+<!-- ═══════════════════════════════════════════════════════
+     Veyronis-Style chat action modals
+     ═══════════════════════════════════════════════════════ -->
+
+<!-- Archive -->
+<div id="modal-archive-chat" class="modal-overlay hidden">
+    <div class="modal-backdrop" onclick="closeModal('modal-archive-chat')"></div>
+    <div class="modal-card chat-modal" role="dialog" aria-modal="true" aria-labelledby="archive-chat-title">
+        <div class="chat-modal-header">
+            <h2 id="archive-chat-title" class="chat-modal-title">Archive Conversation</h2>
+        </div>
+        <div class="chat-modal-body">
+            <p class="chat-modal-text">Archive this conversation?</p>
+        </div>
+        <div class="chat-modal-footer">
+            <button class="chat-modal-btn chat-modal-btn-cancel" onclick="closeModal('modal-archive-chat')">Cancel</button>
+            <button class="chat-modal-btn chat-modal-btn-primary" onclick="confirmArchiveChat()">Archive</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete -->
+<div id="modal-delete-chat" class="modal-overlay hidden">
+    <div class="modal-backdrop" onclick="closeModal('modal-delete-chat')"></div>
+    <div class="modal-card chat-modal" role="dialog" aria-modal="true" aria-labelledby="delete-chat-title">
+        <div class="chat-modal-header">
+            <h2 id="delete-chat-title" class="chat-modal-title">Delete Conversation</h2>
+        </div>
+        <div class="chat-modal-body">
+            <p class="chat-modal-text">Are you sure you want to delete this conversation?</p>
+        </div>
+        <div class="chat-modal-footer">
+            <button class="chat-modal-btn chat-modal-btn-cancel" onclick="closeModal('modal-delete-chat')">Cancel</button>
+            <button class="chat-modal-btn chat-modal-btn-danger" onclick="confirmDeleteChat()">Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- Clear history -->
+<div id="modal-clear-chat" class="modal-overlay hidden">
+    <div class="modal-backdrop" onclick="closeModal('modal-clear-chat')"></div>
+    <div class="modal-card chat-modal" role="dialog" aria-modal="true" aria-labelledby="clear-chat-title">
+        <div class="chat-modal-header">
+            <h2 id="clear-chat-title" class="chat-modal-title">Clear Chat History</h2>
+        </div>
+        <div class="chat-modal-body">
+            <p class="chat-modal-text">This will permanently delete all messages from this conversation. This action cannot be undone.</p>
+        </div>
+        <div class="chat-modal-footer">
+            <button class="chat-modal-btn chat-modal-btn-cancel" onclick="closeModal('modal-clear-chat')">Cancel</button>
+            <button class="chat-modal-btn chat-modal-btn-danger" onclick="confirmClearChat()">Clear history</button>
+        </div>
+    </div>
+</div>
+
+<!-- Rename -->
+<div id="modal-rename-chat" class="modal-overlay hidden">
+    <div class="modal-backdrop" onclick="closeModal('modal-rename-chat')"></div>
+    <div class="modal-card chat-modal" role="dialog" aria-modal="true" aria-labelledby="rename-chat-title">
+        <div class="chat-modal-header">
+            <h2 id="rename-chat-title" class="chat-modal-title">Rename Conversation</h2>
+        </div>
+        <div class="chat-modal-body">
+            <label for="rename-chat-input" class="chat-modal-label">Enter new title:</label>
+            <input type="text" id="rename-chat-input" class="chat-modal-input" placeholder="Conversation name" autocomplete="off">
+        </div>
+        <div class="chat-modal-footer">
+            <button class="chat-modal-btn chat-modal-btn-cancel" onclick="closeModal('modal-rename-chat')">Cancel</button>
+            <button class="chat-modal-btn chat-modal-btn-primary" onclick="confirmRenameChat()">Save</button>
+        </div>
+    </div>
+</div>
+
     <!-- VOICE MODE OVERLAY -->
     <div id="voice-mode-overlay" class="voice-mode-overlay hidden" data-orb-position="center">
 
@@ -1405,7 +1507,7 @@
         </div>
     </div>
     <script src="/static/image-gen.js?v=1.0"></script>
-    <script src="/static/app.js?v=6.6"></script>
+    <script src="/static/app.js?v=6.7"></script>
     <script src="/static/voice-mode.js?v=5.2"></script>
     <script src="/static/voice-orb.js?v=5.2"></script>
 </body>

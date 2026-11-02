@@ -837,23 +837,16 @@ function loadConversations() {
 
 function makeConvItem(c) {
     const isActive = state.conversationId === c.id ? 'active' : '';
-    const safeTitle = escapeHtml(c.title || 'New Chat').replace(/'/g, "\\'");
-    return `<div class="conv-item ${isActive}" data-id="${c.id}" onclick="switchConversation(${c.id})">
+    const safeTitle = escapeHtml(c.title || 'New Chat');
+    return `<div class="conv-item ${isActive}" data-id="${c.id}" data-title="${safeTitle}" onclick="switchConversation(${c.id})">
         <span class="conv-title">${safeTitle}</span>
-        <div class="conv-actions">
-            <button class="conv-action" onclick="event.stopPropagation(); renameConvPrompt(${c.id}, '${safeTitle}')" title="Rename">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-            </button>
-            <button class="conv-action" onclick="event.stopPropagation(); deleteConv(${c.id})" title="Delete">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                </svg>
-            </button>
-        </div>
+        <button class="conv-more-btn" onclick="event.stopPropagation(); showChatActionMenu(${c.id}, this, event)" title="More" aria-label="Chat options">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <circle cx="5" cy="12" r="2"/>
+                <circle cx="12" cy="12" r="2"/>
+                <circle cx="19" cy="12" r="2"/>
+            </svg>
+        </button>
     </div>`;
 }
 
@@ -886,18 +879,6 @@ function switchConversation(id, highlightId = null) {
     setTimeout(() => document.getElementById('chat-scroll').classList.remove('switching'), 350); 
 }
 
-async function renameConvPrompt(id, currentTitle) {
-    const newTitle = await showPrompt('Rename Conversation', 'Enter new title:', currentTitle);
-    if (newTitle === null || newTitle === undefined || newTitle.trim() === '' || newTitle.trim() === currentTitle) return;
-    try {
-        const res = await authenticatedFetch(`/conversations/${id}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ title: newTitle.trim() })
-        });
-        if (res.ok) { toast('✅ Renamed', 'success'); loadConversations(); }
-        else { const err = await res.json(); toast('❌ ' + (err.detail || 'Failed to rename'), 'error'); }
-    } catch (err) { handleError(err, 'Rename'); }
-}
 
 async function deleteConv(id) {
     const confirmed = await showConfirm('Delete Conversation', 'Are you sure you want to delete this conversation?');
@@ -941,24 +922,16 @@ function loadArchivedConversations() {
 }
 
 function makeArchivedConvItem(c) {
-    const safeTitle = escapeHtml(c.title || 'New Chat').replace(/'/g, "\\'");
-    return `<div class="conv-item archived" data-id="${c.id}" style="opacity: 0.7;">
+    const safeTitle = escapeHtml(c.title || 'New Chat');
+    return `<div class="conv-item archived" data-id="${c.id}" data-title="${safeTitle}" style="opacity: 0.7;">
         <span class="conv-title">${safeTitle}</span>
-        <div class="conv-actions">
-            <button class="conv-action" onclick="event.stopPropagation(); unarchiveConv(${c.id})" title="Unarchive">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <polyline points="1 4 1 10 7 10"/>
-                    <polyline points="23 20 23 14 17 14"/>
-                    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-                </svg>
-            </button>
-            <button class="conv-action" onclick="event.stopPropagation(); deleteConv(${c.id})" title="Delete">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                </svg>
-            </button>
-        </div>
+        <button class="conv-more-btn" onclick="event.stopPropagation(); showChatActionMenu(${c.id}, this, event)" title="More" aria-label="Chat options">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                <circle cx="5" cy="12" r="2"/>
+                <circle cx="12" cy="12" r="2"/>
+                <circle cx="19" cy="12" r="2"/>
+            </svg>
+        </button>
     </div>`;
 }
 
@@ -1011,13 +984,16 @@ function closeMoreMenu() {
     const menu = document.getElementById('more-menu');
     if (menu) menu.classList.remove('open');
 }
+
 function renameCurrentConv() {
     if (!state.conversationId) { toast('📝 No conversation to rename', 'error'); return; }
     const convItem = document.querySelector(`.conv-item[data-id="${state.conversationId}"]`);
     const title = convItem ? convItem.querySelector('.conv-title')?.textContent || 'New Chat' : 'New Chat';
     closeMoreMenu();
-    renameConvPrompt(state.conversationId, title);
+    openRenameChatModal(state.conversationId, title);
+
 }
+
 function archiveCurrentConv() {
     if (!state.conversationId) { toast('📝 No conversation to archive', 'error'); return; }
     closeMoreMenu();
@@ -3132,20 +3108,7 @@ function refreshUserInfo() {
         });
 }
 
-[{
-	"resource": "/c:/Users/User/Desktop/veyronis/frontend/app.js",
-	"owner": "typescript",
-	"code": "1128",
-	"severity": 8,
-	"message": "Declaration or statement expected.",
-	"source": "ts",
-	"startLineNumber": 2918,
-	"startColumn": 1,
-	"endLineNumber": 2918,
-	"endColumn": 2,
-	"modelVersionId": 17,
-	"origin": "extHost1"
-}]
+
 
 // ─── PRELOAD BUTTON ICONS ───
 function preloadButtonIcons() {
@@ -4259,3 +4222,240 @@ function stopImageExperience() {
         closeSnakeGame();
     }
 }
+// ═══════════════════════════════════════════════════════
+// CHAT ACTION MENU (bubble) + CHAT MODALS
+// ═══════════════════════════════════════════════════════
+let _chatActionState = { convId: null, title: '', anchorEl: null };
+
+function showChatActionMenu(convId, anchorEl, event) {
+    const convItem = anchorEl?.closest?.('.conv-item') || anchorEl;
+    const title = convItem?.dataset?.title || '';
+    _chatActionState.convId = convId;
+    _chatActionState.title = title;
+    _chatActionState.anchorEl = convItem;
+
+    const menu = document.getElementById('chat-action-menu');
+    if (!menu) return;
+    menu.classList.remove('hidden');
+    menu.style.visibility = 'hidden';
+    menu.style.left = '0px';
+    menu.style.top = '0px';
+
+    // Determine anchor point
+    let x, y;
+    if (event && typeof event.clientX === 'number') {
+        x = event.clientX;
+        y = event.clientY;
+    } else if (event && event.touches?.[0]) {
+        x = event.touches[0].clientX;
+        y = event.touches[0].clientY;
+    } else if (event && event.changedTouches?.[0]) {
+        x = event.changedTouches[0].clientX;
+        y = event.changedTouches[0].clientY;
+    } else if (convItem) {
+        const r = convItem.getBoundingClientRect();
+        x = r.right - 20;
+        y = r.bottom + 4;
+    } else {
+        x = window.innerWidth / 2;
+        y = window.innerHeight / 2;
+    }
+
+    // Clamp to viewport
+    const rect = menu.getBoundingClientRect();
+    const padding = 8;
+    if (x + rect.width > window.innerWidth - padding) {
+        x = window.innerWidth - rect.width - padding;
+    }
+    if (y + rect.height > window.innerHeight - padding) {
+        y = y - rect.height - 8;
+    }
+    menu.style.left = Math.max(padding, x) + 'px';
+    menu.style.top = Math.max(padding, y) + 'px';
+    menu.style.visibility = 'visible';
+}
+
+function hideChatActionMenu() {
+    document.getElementById('chat-action-menu')?.classList.add('hidden');
+}
+
+function chatActionRename(e) {
+    e?.stopPropagation();
+    const { convId, title } = _chatActionState;
+    hideChatActionMenu();
+    openRenameChatModal(convId, title);
+}
+
+function chatActionArchive(e) {
+    e?.stopPropagation();
+    const { convId } = _chatActionState;
+    hideChatActionMenu();
+    openModal('modal-archive-chat');
+}
+
+function chatActionDelete(e) {
+    e?.stopPropagation();
+    hideChatActionMenu();
+    openModal('modal-delete-chat');
+}
+
+// ─── Modal openers ───
+function openRenameChatModal(convId, title) {
+    _chatActionState.convId = convId;
+    _chatActionState.title = title || '';
+    const input = document.getElementById('rename-chat-input');
+    if (input) input.value = title || '';
+    openModal('modal-rename-chat');
+    setTimeout(() => {
+        const i = document.getElementById('rename-chat-input');
+        if (i) { i.focus(); i.select(); }
+    }, 80);
+}
+
+// ─── Modal confirmations ───
+async function confirmRenameChat() {
+    const input = document.getElementById('rename-chat-input');
+    const newTitle = (input?.value || '').trim();
+    const convId = _chatActionState.convId;
+    closeModal('modal-rename-chat');
+    if (!newTitle || newTitle === _chatActionState.title) return;
+
+    try {
+        const res = await authenticatedFetch(`/conversations/${convId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ title: newTitle })
+        });
+        if (res.ok) {
+            toast('✅ Renamed', 'success');
+            loadConversations();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            toast('❌ ' + (err.detail || 'Failed to rename'), 'error');
+        }
+    } catch (err) { handleError(err, 'Rename'); }
+}
+
+async function confirmArchiveChat() {
+    const convId = _chatActionState.convId;
+    closeModal('modal-archive-chat');
+
+    try {
+        const res = await authenticatedFetch(`/conversations/${convId}/archive`, { method: 'PATCH' });
+        if (res.ok) {
+            toast('📦 Conversation archived', 'success');
+            if (state.conversationId === convId) {
+                state.conversationId = null;
+                document.getElementById('messages').innerHTML = '';
+                showEmpty(true);
+            }
+            loadConversations();
+            const arch = document.getElementById('archived-list');
+            if (arch && arch.style.display !== 'none') loadArchivedConversations();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            toast('❌ ' + (err.detail || 'Failed to archive'), 'error');
+        }
+    } catch (err) { handleError(err, 'Archive'); }
+}
+
+async function confirmDeleteChat() {
+    const convId = _chatActionState.convId;
+    closeModal('modal-delete-chat');
+
+    try {
+        const res = await authenticatedFetch(`/conversations/${convId}`, { method: 'DELETE' });
+        if (res.ok) {
+            toast('🗑️ Deleted', 'success');
+            if (state.conversationId === convId) {
+                state.conversationId = null;
+                document.getElementById('messages').innerHTML = '';
+                showEmpty(true);
+            }
+            loadConversations();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            toast('❌ ' + (err.detail || 'Failed to delete'), 'error');
+        }
+    } catch (err) { handleError(err, 'Delete'); }
+}
+
+async function confirmClearChat() {
+    const convId = _chatActionState.convId;
+    closeModal('modal-clear-chat');
+
+    try {
+        const res = await authenticatedFetch('/clear', {
+            method: 'POST',
+            body: JSON.stringify({
+                user_id: state.userId || state.user?.email || '',
+                conversation_id: convId
+            })
+        });
+        if (res.ok) {
+            toast('🧹 History cleared', 'success');
+            if (state.conversationId === convId) {
+                document.getElementById('messages').innerHTML = '';
+                showEmpty(true);
+            }
+        } else {
+            const err = await res.json().catch(() => ({}));
+            toast('❌ ' + (err.detail || 'Failed to clear history'), 'error');
+        }
+    } catch (err) { handleError(err, 'Clear history'); }
+}
+
+// ─── Dismiss on outside click / Escape ───
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('chat-action-menu');
+    if (!menu || menu.classList.contains('hidden')) return;
+    if (menu.contains(e.target)) return;
+    hideChatActionMenu();
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideChatActionMenu();
+});
+
+// ─── Right-click + long-press on conv-items (event delegation) ───
+document.addEventListener('DOMContentLoaded', () => {
+    // Right-click (desktop)
+    document.addEventListener('contextmenu', (e) => {
+        const convItem = e.target.closest('.conv-item[data-id]');
+        if (!convItem) return;
+        e.preventDefault();
+        const convId = parseInt(convItem.dataset.id, 10);
+        showChatActionMenu(convId, convItem, e);
+    });
+
+    // Long-press (mobile)
+    let lpTimer = null, lpTriggered = false, lpStartX = 0, lpStartY = 0;
+    document.addEventListener('touchstart', (e) => {
+        const convItem = e.target.closest('.conv-item[data-id]');
+        if (!convItem || e.touches.length !== 1) return;
+        lpStartX = e.touches[0].clientX;
+        lpStartY = e.touches[0].clientY;
+        lpTriggered = false;
+        lpTimer = setTimeout(() => {
+            lpTriggered = true;
+            const convId = parseInt(convItem.dataset.id, 10);
+            showChatActionMenu(convId, convItem, {
+                clientX: lpStartX,
+                clientY: lpStartY
+            });
+            if (navigator.vibrate) navigator.vibrate(15);
+        }, 500);
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!lpTimer) return;
+        const t = e.touches[0];
+        if (Math.abs(t.clientX - lpStartX) > 10 || Math.abs(t.clientY - lpStartY) > 10) {
+            clearTimeout(lpTimer); lpTimer = null;
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+        if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+        if (lpTriggered) { e.preventDefault(); lpTriggered = false; }
+    }, { passive: false });
+});
