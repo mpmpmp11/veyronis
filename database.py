@@ -25,29 +25,97 @@ def generate_display_id() -> str:
 
 # ─── For FastAPI dependencies (plain generator) ───
 def get_db():
-    """FastAPI dependency – yields a connection from the pool."""
-    global connection_pool
-    if connection_pool is None:
-        init_db()
-    conn = connection_pool.getconn()
+    """FastAPI dependency – yields a live connection from the pool."""
+    conn = _get_healthy_conn()
     try:
         yield conn
-    finally:
-        connection_pool.putconn(conn)
+    except (psycopg2.OperationalError, psycopg2.InterfaceError):
+        try:
+            connection_pool.putconn(conn, close=True)
+        except Exception:
+            pass
+        raise
+    except Exception:
+        try:
+            connection_pool.putconn(conn)
+        except Exception:
+            pass
+        raise
+    else:
+        try:
+            connection_pool.putconn(conn)
+        except Exception:
+            try:
+                connection_pool.putconn(conn, close=True)
+            except Exception:
+                pass
 
 
 # ─── For internal use inside database.py (context manager) ───
-@contextlib.contextmanager
-def db_connection():
-    """Context manager for internal database functions."""
+def _is_connection_alive(conn) -> bool:
+    """Verify a pool connection is still usable."""
+    try:
+        if conn.closed:
+            return False
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+        return True
+    except Exception:
+        return False
+
+
+def _get_healthy_conn():
+    """Get a live connection from the pool, discarding dead ones."""
     global connection_pool
     if connection_pool is None:
         init_db()
-    conn = connection_pool.getconn()
+
+    for attempt in range(3):
+        try:
+            conn = connection_pool.getconn()
+        except Exception as e:
+            print(f"[DB] getconn failed (attempt {attempt+1}/3): {e}")
+            continue
+
+        if _is_connection_alive(conn):
+            return conn
+
+        # Dead connection — discard and retry
+        print(f"[DB] Discarding stale connection (attempt {attempt+1}/3)")
+        try:
+            connection_pool.putconn(conn, close=True)
+        except Exception:
+            pass
+
+    raise psycopg2.OperationalError("Could not acquire healthy DB connection after 3 attempts")
+
+
+@contextlib.contextmanager
+def db_connection():
+    """Context manager for internal database functions."""
+    conn = _get_healthy_conn()
     try:
         yield conn
-    finally:
-        connection_pool.putconn(conn)
+    except (psycopg2.OperationalError, psycopg2.InterfaceError):
+        try:
+            connection_pool.putconn(conn, close=True)
+        except Exception:
+            pass
+        raise
+    except Exception:
+        try:
+            connection_pool.putconn(conn)
+        except Exception:
+            pass
+        raise
+    else:
+        try:
+            connection_pool.putconn(conn)
+        except Exception:
+            try:
+                connection_pool.putconn(conn, close=True)
+            except Exception:
+                pass
 
 
 def init_db():
@@ -55,10 +123,18 @@ def init_db():
     global connection_pool
 
     if connection_pool is None:
+        # Append TCP keepalives so Neon doesn't drop idle connections
+        _dsn = Config.DATABASE_URL
+        _ka = "keepalives=1&keepalives_idle=30&keepalives_interval=10&keepalives_count=5"
+        if "?" in _dsn:
+            _dsn = _dsn + "&" + _ka
+        else:
+            _dsn = _dsn + "?" + _ka
+
         connection_pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=1,
+            minconn=2,
             maxconn=10,
-            dsn=Config.DATABASE_URL,
+            dsn=_dsn,
             cursor_factory=RealDictCursor
         )
 
