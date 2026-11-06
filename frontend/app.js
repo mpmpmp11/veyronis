@@ -1633,13 +1633,20 @@ async function thumbUp(id) {
     btn.classList.add('active');
     if (document.getElementById('down-' + id)) document.getElementById('down-' + id).classList.remove('active');
     
-    try {
-        await authenticatedFetch('/message-feedback', {
+        try {
+        const res = await authenticatedFetch('/message-feedback', {
             method: 'POST',
-            body: JSON.stringify({ message_id: dbId, is_helpful: true }) // 👈 Send the integer DB ID
+            body: JSON.stringify({ message_id: dbId, is_helpful: true })
         });
-        toast('👍 Thanks for the feedback!', 'success');
+        if (res.ok) {
+            toast('👍 Thanks for the feedback!', 'success');
+        } else {
+            btn.classList.remove('active');
+            const err = await res.json().catch(() => ({}));
+            toast('❌ ' + (err.detail || 'Could not save feedback'), 'error');
+        }
     } catch (err) {
+        btn.classList.remove('active');
         handleError(err, 'Feedback');
     }
 }
@@ -1659,13 +1666,20 @@ async function thumbDown(id) {
     btn.classList.add('active');
     if (upBtn) upBtn.classList.remove('active');
     
-    try {
-        await authenticatedFetch('/message-feedback', {
+        try {
+        const res = await authenticatedFetch('/message-feedback', {
             method: 'POST',
-            body: JSON.stringify({ message_id: dbId, is_helpful: false }) // 👈 Sends the integer DB ID
+            body: JSON.stringify({ message_id: dbId, is_helpful: true })
         });
-        toast('👎 Thanks for the feedback!', 'success');
+        if (res.ok) {
+            toast('👎 Thanks for the feedback!', 'success');
+        } else {
+            btn.classList.remove('active');
+            const err = await res.json().catch(() => ({}));
+            toast('❌ ' + (err.detail || 'Could not save feedback'), 'error');
+        }
     } catch (err) {
+        btn.classList.remove('active');
         handleError(err, 'Feedback');
     }
 }

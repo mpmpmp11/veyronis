@@ -163,16 +163,38 @@ from fastapi.responses import JSONResponse, FileResponse
 
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc):
-    # If the user is trying to access a missing API route or static file, 
-    # return the default JSON error so the frontend JS can handle it.
-    if request.url.path.startswith('/api/') or request.url.path.startswith('/static/'):
-        return JSONResponse(status_code=404, content={"detail": "Not Found"})
-    
-    # Otherwise, serve the beautiful 404 HTML page
+    # Return JSON for any API-ish request:
+    #  - any non-GET request (POST/PUT/PATCH/DELETE — always API)
+    #  - any path starting with a known API prefix
+    #  - any request with Accept: application/json
+    # Only serve the 404.html page for GET requests to unknown page routes.
+    api_prefixes = (
+        '/api/', '/static/',
+        '/chat', '/upload', '/execute', '/tts',
+        '/me', '/health', '/ping',
+        '/conversations', '/history', '/search', '/export',
+        '/attachments', '/preview',
+        '/message-feedback', '/report', '/feedback',
+        '/admin', '/subscription', '/usage',
+        '/upload-limits', '/account', '/clear',
+        '/register', '/login', '/forgot-password', '/reset-password',
+        '/verify-email',
+    )
+    is_api_request = (
+        request.method != "GET"
+        or request.url.path.startswith(api_prefixes)
+        or "application/json" in request.headers.get("accept", "")
+    )
+
+    if is_api_request:
+        # Reuse the original detail if FastAPI put one on the HTTPException
+        detail = getattr(exc, "detail", None) or "Not Found"
+        return JSONResponse(status_code=404, content={"detail": detail})
+
+    # Otherwise: genuine page-not-found → serve the beautiful 404 page
     file_path = FRONTEND_DIR / "404.html"
     if file_path.exists():
         return FileResponse(str(file_path), status_code=404)
-    
     return JSONResponse(status_code=404, content={"detail": "Not Found"})
     
 # ─── Digital Asset Links for TWA (removes Chrome URL bar) ───
