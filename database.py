@@ -574,26 +574,17 @@ def update_user_password(user_id: int, hashed_password: str) -> bool:
 
 
 def delete_user(user_id: int) -> bool:
+    """
+    Delete a user and all cascading data.
+    Relies on ON DELETE CASCADE from Phase 1 — attachments, conversations,
+    messages, usage_logs, upload_logs all cascade from users.email.
+    """
     with db_connection() as conn:
         with conn.cursor() as cur:
-            user = get_user_by_id(user_id)
-            if not user:
-                return False
-            email = user["email"]
-
-            cur.execute("""
-                DELETE FROM attachments WHERE conversation_id IN 
-                (SELECT id FROM conversations WHERE user_id = %s)
-            """, (email,))
-            cur.execute("""
-                DELETE FROM messages WHERE conversation_id IN 
-                (SELECT id FROM conversations WHERE user_id = %s)
-            """, (email,))
-            cur.execute("DELETE FROM conversations WHERE user_id = %s", (email,))
-            cur.execute("DELETE FROM usage_logs WHERE user_id = %s", (email,))
             cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            deleted = cur.rowcount > 0
         conn.commit()
-    return True
+    return deleted
 
 
 # ─── AUTH TOKENS ───
@@ -705,9 +696,62 @@ def flush_usage_delta(user_id: str, day: str, delta: int) -> int:
 
 
 def delete_old_attachments(hours: int = 48) -> int:
-    """Delete attachments older than X hours. Returns number deleted."""
+    """Delete attachments older than X hours (DB row + Cloudinary file). Returns number deleted."""
     from datetime import datetime, timedelta
     cutoff = datetime.utcnow() - timedelta(hours=hours)
+
+    # Fetch rows first so we know which Cloudinary files to delete
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, cloudinary_url
+                FROM attachments
+                WHERE created_at < %s
+            """, (cutoff,))
+            rows = cur.fetchall()
+
+    if not rows:
+        return 0
+
+    # Try to delete Cloudinary files first (best effort — failures don't block DB cleanup)
+    try:
+        import cloudinary.uploader
+        from settings import Config
+        if Config.cloudinary_ready():
+            for row in rows:
+                url = row.get("cloudinary_url") if isinstance(row, dict) else row["cloudinary_url"]
+                if not url:
+                    continue
+                try:
+                    # Extract public_id from URL, e.g.:
+                    # https://res.cloudinary.com/cloud/image/upload/v123/veyronis/uploads/user/file.pdf
+                    # public_id = "veyronis/uploads/user/file" (without extension)
+                    parts = url.split("/upload/")
+                    if len(parts) != 2:
+                        continue
+                    after_upload = parts[1]
+                    # Strip version segment if present (v12345/)
+                    if after_upload.startswith("v") and "/" in after_upload:
+                        after_upload = after_upload.split("/", 1)[1]
+                    public_id = after_upload.rsplit(".", 1)[0]  # strip extension
+                    cloudinary.uploader.destroy(public_id, resource_type="image", invalidate=True)
+                    cloudinary.uploader.destroy(public_id, resource_type="raw", invalidate=True)
+                except Exception as e:
+                    print(f"[CLEANUP] Cloudinary delete failed for {url}: {e}")
+    except Exception as e:
+        print(f"[CLEANUP] Cloudinary module error: {e}")
+
+    # Now delete DB rows
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            ids = [row["id"] if isinstance(row, dict) else row[0] for row in rows]
+            cur.execute("""
+                DELETE FROM attachments WHERE id = ANY(%s)
+            """, (ids,))
+            deleted = cur.rowcount
+        conn.commit()
+
+    return deleted
     
     with db_connection() as conn:
         with conn.cursor() as cur:

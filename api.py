@@ -1685,13 +1685,23 @@ async def submit_feedback(
 @app.post("/message-feedback")
 async def submit_message_feedback(
     request: dict,
-    current_user: dict = Depends(get_current_user_required)
+    current_user: dict = Depends(get_current_user_required),
+    conn = Depends(get_db)
 ):
-    message_id = int(request.get("message_id", 0)) # <--- CONVERT TO INT
+    message_id = int(request.get("message_id", 0))
     is_helpful = request.get("is_helpful")
     if not message_id or is_helpful is None:
         raise HTTPException(400, detail="Invalid feedback data")
-        
+
+    # SECURITY: verify the message belongs to the current user
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT 1 FROM messages WHERE id = %s AND user_id = %s LIMIT 1",
+        (message_id, current_user["email"])
+    )
+    if not cursor.fetchone():
+        raise HTTPException(404, detail="Message not found")
+
     save_message_feedback(current_user["email"], message_id, is_helpful)
     return {"status": "success"}
 
@@ -1944,28 +1954,27 @@ import edge_tts
 
 @app.websocket("/ws/voice")
 async def voice_stream(websocket: WebSocket, token: Optional[str] = Query(None)):
-    # Accept first so we can send a clean close code (1008) on rejection.
-    # If we close before accept(), the client sees 1006 (abnormal) and
-    # can't distinguish auth failure from network failure.
-    await websocket.accept()
-
-    # ─── AUTH ───
+    # AUTH FIRST — close before accept() so the client gets a clean 1008.
     if not token:
         await websocket.close(code=1008, reason="Missing auth token")
         return
+
     payload = decode_token(token)
     if not payload:
         await websocket.close(code=1008, reason="Invalid or expired token")
         return
+
     user_id_sub = payload.get("sub")
     if not user_id_sub:
         await websocket.close(code=1008, reason="Invalid token payload")
         return
+
     try:
         user = get_user_by_id(int(user_id_sub))
     except (ValueError, TypeError):
         await websocket.close(code=1008, reason="Invalid token subject")
         return
+
     if not user:
         await websocket.close(code=1008, reason="User not found")
         return
@@ -1974,28 +1983,23 @@ async def voice_stream(websocket: WebSocket, token: Optional[str] = Query(None))
         return
 
     authenticated_email = user["email"]
+
+    # Auth passed — now accept
+    await websocket.accept()
     print(f"[WS] Voice client connected: {authenticated_email}")
 
     try:
         while True:
             data = await websocket.receive_json()
             user_text = data.get("text", "").strip()
-
-            # ─── SECURITY: ignore client-supplied user_id, use authenticated identity ───
-            user_id = authenticated_email
-
+            user_id = authenticated_email  # ignore client-supplied user_id
             if not user_text:
                 continue
-
             print(f"[WS] User said ({authenticated_email}): {user_text}")
-
             conversation_id = data.get("conversation_id")
             task = asyncio.create_task(
                 process_voice_turn(websocket, user_text, user_id, conversation_id)
             )
-            # ... rest of the existing loop unchanged ...
-
-            # Wait for a potential interrupt message while generating
             try:
                 interrupt_msg = await asyncio.wait_for(websocket.receive_json(), timeout=0.1)
                 if interrupt_msg.get("type") == "INTERRUPT":
@@ -2003,9 +2007,8 @@ async def voice_stream(websocket: WebSocket, token: Optional[str] = Query(None))
                     task.cancel()
             except asyncio.TimeoutError:
                 pass
-                
     except WebSocketDisconnect:
-        print("[WS] Voice client disconnected")
+        print(f"[WS] Voice client disconnected: {authenticated_email}")
     except Exception as e:
         print(f"[WS] Error: {e}")
 
