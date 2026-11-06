@@ -59,6 +59,25 @@ from hindsight_engine import HindsightEngine
 # Google OAuth imports
 from auth import get_google_auth_url, handle_google_callback
 
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
+
+_SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
+if _SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=_SENTRY_DSN,
+        integrations=[
+            StarletteIntegration(transaction_style="endpoint"),
+            FastApiIntegration(transaction_style="endpoint"),
+        ],
+        environment=os.getenv("RENDER", "dev") or "dev",
+        send_default_pii=False,          # don't send user emails/IPs
+    )
+    print("[VEYRONIS] Sentry error monitoring enabled")
+else:
+    print("[VEYRONIS] Sentry not configured (SENTRY_DSN missing)")
+    
 # ─── CONFIGURE CLOUDINARY ───
 if Config.cloudinary_ready():
     cloudinary.config(
@@ -267,6 +286,12 @@ def _b64_to_data_url(b64_string: str) -> str:
 _rate_limit_tracker = {}
 
 def _check_rate_limit(client_ip: str, max_requests: int = 30, window_seconds: int = 60):
+    # Test mode: bypass rate limits so the smoke test suite can register
+    # multiple throwaway users in one session. Set VEYRONIS_TEST_MODE=1
+    # in the test environment. Never set this in production.
+    if os.environ.get("VEYRONIS_TEST_MODE") == "1":
+        return True
+
     now = time.time()
     key = client_ip
     if key not in _rate_limit_tracker:
