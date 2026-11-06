@@ -202,18 +202,16 @@ def init_db():
                 )
             """)
 
-            # Messages table
+                        # ─── MIGRATION: Add external_id column if missing ───
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS messages (
-                    id SERIAL PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    conversation_id INTEGER,
-                    role TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    image_data TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name='messages' AND column_name='external_id'
             """)
+            if not cur.fetchone():
+                print("[VEYRONIS] Adding external_id column to messages table...")
+                cur.execute("ALTER TABLE messages ADD COLUMN external_id TEXT")
+                print("[VEYRONIS] external_id column added.")
 
             # Attachments table
             cur.execute("""
