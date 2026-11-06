@@ -4,7 +4,7 @@ import requests
 import re
 from pathlib import Path
 from fastapi.responses import HTMLResponse
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
@@ -1943,25 +1943,57 @@ from fastapi import WebSocket, WebSocketDisconnect
 import edge_tts
 
 @app.websocket("/ws/voice")
-async def voice_stream(websocket: WebSocket):
+async def voice_stream(websocket: WebSocket, token: Optional[str] = Query(None)):
+    # Accept first so we can send a clean close code (1008) on rejection.
+    # If we close before accept(), the client sees 1006 (abnormal) and
+    # can't distinguish auth failure from network failure.
     await websocket.accept()
-    print("[WS] Voice client connected")
-    
+
+    # ─── AUTH ───
+    if not token:
+        await websocket.close(code=1008, reason="Missing auth token")
+        return
+    payload = decode_token(token)
+    if not payload:
+        await websocket.close(code=1008, reason="Invalid or expired token")
+        return
+    user_id_sub = payload.get("sub")
+    if not user_id_sub:
+        await websocket.close(code=1008, reason="Invalid token payload")
+        return
+    try:
+        user = get_user_by_id(int(user_id_sub))
+    except (ValueError, TypeError):
+        await websocket.close(code=1008, reason="Invalid token subject")
+        return
+    if not user:
+        await websocket.close(code=1008, reason="User not found")
+        return
+    if user.get("is_banned", False):
+        await websocket.close(code=1008, reason="Account banned")
+        return
+
+    authenticated_email = user["email"]
+    print(f"[WS] Voice client connected: {authenticated_email}")
+
     try:
         while True:
-            # 1. Receive text from the frontend (already transcribed by browser STT)
             data = await websocket.receive_json()
             user_text = data.get("text", "").strip()
-            user_id = data.get("user_id", "unknown")
-            
+
+            # ─── SECURITY: ignore client-supplied user_id, use authenticated identity ───
+            user_id = authenticated_email
+
             if not user_text:
                 continue
-                
-            print(f"[WS] User said: {user_text}")
-            
-                        # Create a task to handle the LLM -> TTS pipeline
+
+            print(f"[WS] User said ({authenticated_email}): {user_text}")
+
             conversation_id = data.get("conversation_id")
-            task = asyncio.create_task(process_voice_turn(websocket, user_text, user_id, conversation_id))
+            task = asyncio.create_task(
+                process_voice_turn(websocket, user_text, user_id, conversation_id)
+            )
+            # ... rest of the existing loop unchanged ...
 
             # Wait for a potential interrupt message while generating
             try:

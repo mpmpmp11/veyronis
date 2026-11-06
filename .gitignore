@@ -3,4 +3,8 @@ __pycache__/
 .env
 daily_limits.json
 veyronis_memory.db
+veyronis.dbapi_diff.txt
+phase0_diagnose.py
+api_diff.txt
+phase0_diagnose.py
 veyronis.db

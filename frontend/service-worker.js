@@ -1,9 +1,10 @@
-const CACHE_NAME = 'veyronis-v7.11';
+const CACHE_NAME = 'veyronis-v7.12';
 const STATIC_ASSETS = [
     '/',
-    '/static/style.css?v=6.8',
-    '/static/app.js?v=6.5',
+    '/static/style.css?v=6.9',
+    '/static/app.js?v=6.8',
     'https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js',
+    'https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js',
     'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css',
     'https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js',

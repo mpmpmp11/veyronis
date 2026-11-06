@@ -991,7 +991,6 @@ function renameCurrentConv() {
     const title = convItem ? convItem.querySelector('.conv-title')?.textContent || 'New Chat' : 'New Chat';
     closeMoreMenu();
     openRenameChatModal(state.conversationId, title);
-
 }
 
 function archiveCurrentConv() {
@@ -2150,14 +2149,24 @@ function renderMarkdown(el, raw) {
     processed = processed.replace(/<text-color color="([^"]+)">([\s\S]*?)<\/text-color>/g, '<span style="color: $1; font-weight: 600;">$2</span>');
     processed = processed.replace(/<text-size size="([^"]+)">([\s\S]*?)<\/text-size>/g, '<span style="font-size: $1; line-height: 1.2; display: inline-block; margin: 4px 0;">$2</span>');
 
-    // 5. Run Marked.js
-    el.innerHTML = marked.parse(processed, { breaks: true, gfm: true, headerIds: false });
+        // 5. Run Marked.js (produces raw HTML string — do NOT set as innerHTML yet)
+    let html = marked.parse(processed, { breaks: true, gfm: true, headerIds: false });
 
-    // 6. Restore Math and Widgets
-    el.innerHTML = el.innerHTML.replace(/%%MATHBLOCK(\d+)%%/g, (_, i) => mathPlaceholders[i]);
-    el.innerHTML = el.innerHTML.replace(/%%MATHINLINE(\d+)%%/g, (_, i) => mathPlaceholders[i]);
-    el.innerHTML = el.innerHTML.replace(/<p>%%WIDGET(\d+)%%<\/p>/g, (_, i) => widgetPlaceholders[i]);
-    el.innerHTML = el.innerHTML.replace(/%%WIDGET(\d+)%%/g, (_, i) => widgetPlaceholders[i]);
+    // 6. Restore Math and Widgets on the string
+    html = html.replace(/%%MATHBLOCK(\d+)%%/g, (_, i) => mathPlaceholders[i]);
+    html = html.replace(/%%MATHINLINE(\d+)%%/g, (_, i) => mathPlaceholders[i]);
+    html = html.replace(/<p>%%WIDGET(\d+)%%<\/p>/g, (_, i) => widgetPlaceholders[i]);
+    html = html.replace(/%%WIDGET(\d+)%%/g, (_, i) => widgetPlaceholders[i]);
+
+    // 6b. SECURITY: Sanitize the final HTML before inserting into DOM.
+    // Prevents XSS via prompt injection — e.g. AI emitting <img src=x onerror="...">
+    // which would steal JWT tokens from localStorage.
+    el.innerHTML = (typeof DOMPurify !== 'undefined')
+        ? DOMPurify.sanitize(html)
+        : html; // fallback if DOMPurify fails to load (log warning)
+    if (typeof DOMPurify === 'undefined') {
+        console.error('[Security] DOMPurify not loaded — markdown not sanitized!');
+    }
 
     // 7. Existing Features (Mermaid, Charts, Flashcards)
     el.querySelectorAll('pre code.language-mermaid').forEach(b => {

@@ -184,11 +184,23 @@ const voiceMode = (() => {
     }
 
     // ─── WEBSOCKET BACKEND (AI -> TTS) ───
-    function connectBackendWS() {
-        const wsUrl = state.apiUrl.replace('https://', 'wss://').replace('http://', 'ws://') + '/ws/voice';
-        backendWS = new WebSocket(wsUrl);
-        
-        backendWS.onopen = () => console.log('[WS] Connected to Voice Backend');
+function connectBackendWS() {
+    const baseUrl = state.apiUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+    const tokenParam = state.token ? `?token=${encodeURIComponent(state.token)}` : '';
+    const wsUrl = `${baseUrl}/ws/voice${tokenParam}`;
+    backendWS = new WebSocket(wsUrl);
+    
+    backendWS.onopen = () => console.log('[WS] Connected to Voice Backend');
+    backendWS.onclose = (e) => {
+        if (e.code === 1008) {
+            console.error('[WS] Rejected by server:', e.reason);
+            // Optionally: show a toast and close voice mode
+            if (typeof voiceMode !== 'undefined' && voiceMode.close) {
+                voiceMode.close();
+            }
+        }
+    };
+    
         
         backendWS.onmessage = (event) => {
             if (event.data instanceof Blob) {
