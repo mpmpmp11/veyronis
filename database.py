@@ -250,7 +250,44 @@ def init_db():
                     UNIQUE(user_id, date)
                 )
             """)
-                
+
+
+            # Tutor Mode Tables
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS tutor_sessions (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT REFERENCES users(email) ON DELETE CASCADE,
+                    subject TEXT NOT NULL,
+                    goal TEXT,
+                    level TEXT,
+                    state TEXT DEFAULT 'calibrate',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS tutor_messages (
+                    id BIGSERIAL PRIMARY KEY,
+                    session_id INT REFERENCES tutor_sessions(id) ON DELETE CASCADE,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    message_type TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS student_concepts (
+                    user_id TEXT REFERENCES users(email) ON DELETE CASCADE,
+                    concept TEXT NOT NULL,
+                    subject TEXT NOT NULL,
+                    mastery NUMERIC(3, 2) DEFAULT 0.00,
+                    last_practiced TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (user_id, subject, concept)
+                )
+            """)
+            
             # Simulation logs table
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS simulation_logs (
@@ -863,6 +900,59 @@ def save_general_feedback(user_id: str, message: str) -> int:
             fb_id = cur.fetchone()["id"]
         conn.commit()
     return fb_id
+
+
+# ─── TUTOR MODE QUERIES ───
+def create_tutor_session(user_id: str, subject: str, goal: str, level: str) -> int:
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO tutor_sessions (user_id, subject, goal, level)
+                VALUES (%s, %s, %s, %s) RETURNING id
+            """, (user_id, subject, goal, level))
+            session_id = cur.fetchone()["id"]
+        conn.commit()
+    return session_id
+
+def save_tutor_message(session_id: int, role: str, content: str, message_type: str = "chat"):
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO tutor_messages (session_id, role, content, message_type)
+                VALUES (%s, %s, %s, %s)
+            """, (session_id, role, content, message_type))
+            cur.execute("UPDATE tutor_sessions SET last_active = CURRENT_TIMESTAMP WHERE id = %s", (session_id,))
+        conn.commit()
+
+def get_tutor_history(session_id: int) -> list:
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT role, content FROM tutor_messages WHERE session_id = %s ORDER BY id ASC", (session_id,))
+            rows = cur.fetchall()
+    return [{"role": r["role"], "content": r["content"]} for r in rows]
+
+def update_mastery(user_id: str, subject: str, concept: str, is_correct: bool):
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            # Check if concept exists
+            cur.execute("SELECT mastery FROM student_concepts WHERE user_id = %s AND subject = %s AND concept = %s", (user_id, subject, concept))
+            row = cur.fetchone()
+            
+            if row:
+                current = float(row["mastery"])
+                delta = 0.15 if is_correct else -0.10
+                new_mastery = max(0.0, min(1.0, current + delta))
+                cur.execute("""
+                    UPDATE student_concepts SET mastery = %s, last_practiced = CURRENT_TIMESTAMP 
+                    WHERE user_id = %s AND subject = %s AND concept = %s
+                """, (new_mastery, user_id, subject, concept))
+            else:
+                new_mastery = 0.15 if is_correct else 0.0
+                cur.execute("""
+                    INSERT INTO student_concepts (user_id, subject, concept, mastery)
+                    VALUES (%s, %s, %s, %s)
+                """, (user_id, subject, concept, new_mastery))
+        conn.commit()
 
 # ─── INIT ───
 init_db()
