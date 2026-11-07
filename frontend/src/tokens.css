@@ -1,0 +1,70 @@
+/* ═══════════════════════════════════════════════════════
+   VEYRONIS DESIGN TOKENS
+   Single source of truth for colors, spacing, and fonts.
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  /* ─── COLORS: DARK THEME (Default) ─── */
+  --bg: #171717;             /* Main background */
+  --bg-elevated: #202123;    /* Modals, dropdowns */
+  --bg-hover: #2a2a2a;       /* Hover states */
+  --text: #ffffff;           /* Primary text */
+  --text-secondary: #a3a3a3; /* Muted text */
+  --text-muted: #737373;     /* Labels, placeholders */
+  
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  
+  --accent: #ffffff;         /* Primary button color */
+  --accent-text: #0d0d0d;    /* Text on primary button */
+  --danger: #ef4444;         /* Delete buttons */
+  --success: #22c55e;        /* Success toasts */
+
+  /* ─── SPACING ─── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ─── BORDER RADIUS ─── */
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 999px;
+
+  /* ─── TYPOGRAPHY ─── */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+
+  /* ─── SHADOWS (Used sparingly) ─── */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* ─── LIGHT THEME OVERRIDES ─── */
+[data-theme="light"] {
+  --bg: #ffffff;
+  --bg-elevated: #f9f9f9;
+  --bg-hover: #f0f0f0;
+  --text: #0d0d0d;
+  --text-secondary: #5d5d5d;
+  --text-muted: #8e8e8e;
+  
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  
+  --accent: #0d0d0d;
+  --accent-text: #ffffff;
+  
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.1);
+}
