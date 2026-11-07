@@ -10618,3 +10618,128 @@ body.sidebar-open .input-shell {
 }
 
 [data-theme="light"] .conv-more-btn:hover { background: rgba(0, 0, 0, 0.06); }
+/* ═══════════════════════════════════════════════════════
+   PHASE 2: NEW SIDEBAR (Using Design Tokens)
+   ═══════════════════════════════════════════════════════ */
+
+#sidebar {
+    width: 260px;
+    background: var(--bg) !important;
+    border-right: 1px solid var(--border) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+
+/* Header (Veyronis + Search) */
+.sidebar-header {
+    padding: var(--space-4) !important;
+    border-bottom: none !important;
+}
+
+.sidebar-brand-btn {
+    font-size: var(--text-lg) !important;
+    font-weight: 700 !important;
+    color: var(--text) !important;
+    letter-spacing: -0.5px !important;
+    background: none !important;
+    -webkit-text-fill-color: var(--text) !important;
+}
+
+/* Profile Area */
+.sidebar-profile {
+    padding: var(--space-3) var(--space-4) !important;
+    border-radius: var(--radius) !important;
+    margin: 0 var(--space-2) !important;
+    transition: background 0.2s !important;
+}
+
+.sidebar-profile:hover {
+    background: var(--bg-hover) !important;
+}
+
+.sidebar-avatar {
+    background: var(--text) !important;
+    color: var(--bg) !important;
+    font-weight: 800 !important;
+    box-shadow: none !important;
+    border-radius: var(--radius-sm) !important;
+}
+
+.sidebar-name {
+    font-size: var(--text-sm) !important;
+    font-weight: 600 !important;
+    color: var(--text) !important;
+}
+
+.sidebar-tier-label {
+    font-size: 10px !important;
+    color: var(--text-muted) !important;
+    font-weight: 600 !important;
+}
+
+/* Time Groupings (Today, Yesterday, etc.) */
+.sidebar-section {
+    padding: var(--space-3) var(--space-4) var(--space-1) !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: var(--text-muted) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+/* Chat Items */
+.conv-item {
+    padding: var(--space-2) var(--space-3) !important;
+    margin: 2px var(--space-2) !important;
+    border-radius: var(--radius) !important;
+    color: var(--text-secondary) !important;
+    font-size: var(--text-sm) !important;
+    font-weight: 500 !important;
+    border: none !important;
+}
+
+.conv-item:hover {
+    background: var(--bg-hover) !important;
+    color: var(--text) !important;
+}
+
+.conv-item.active {
+    background: var(--bg-hover) !important;
+    color: var(--text) !important;
+    font-weight: 600 !important;
+}
+
+/* The "..." Menu Button */
+.conv-more-btn {
+    color: var(--text-muted) !important;
+}
+
+.conv-more-btn:hover {
+    background: var(--border) !important;
+    color: var(--text) !important;
+}
+
+/* New Chat Button (Bottom Pill) */
+.sidebar-new-chat-pill {
+    background: var(--accent) !important;
+    color: var(--accent-text) !important;
+    border-radius: var(--radius-full) !important;
+    font-weight: 600 !important;
+    font-size: var(--text-sm) !important;
+    height: 44px !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: var(--space-4) !important;
+}
+
+.sidebar-new-chat-pill:hover {
+    background: var(--text-secondary) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Hide the old New Chat button that sits at the top */
+.sidebar-new-chat {
+    display: none !important;
+}
