@@ -10743,3 +10743,131 @@ body.sidebar-open .input-shell {
 .sidebar-new-chat {
     display: none !important;
 }
+/* ═══════════════════════════════════════════════════════
+   PHASE 2: THE INPUT COMPOSER (ChatGPT Style)
+   ═══════════════════════════════════════════════════════ */
+
+/* The outer wrapper that holds the composer at the bottom */
+.input-shell {
+    background: linear-gradient(to top, var(--bg) 70%, transparent) !important;
+    padding: var(--space-4) var(--space-4) var(--space-6) !important;
+    pointer-events: none;
+}
+
+/* The actual box */
+.input-glass {
+    max-width: 800px !important;
+    margin: 0 auto !important;
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border-strong) !important;
+    border-radius: var(--radius-xl) !important;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2) !important;
+    padding: var(--space-2) var(--space-3) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: var(--space-2) !important;
+    pointer-events: auto;
+}
+
+.input-glass:focus-within {
+    border-color: var(--text-muted) !important;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* The row with the textarea and buttons */
+.input-composer {
+    display: flex !important;
+    align-items: flex-end !important; /* Aligns buttons to bottom if text wraps */
+    gap: var(--space-2) !important;
+    width: 100% !important;
+}
+
+.composer-input-wrap {
+    flex: 1 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+/* The textarea itself */
+#msg-input {
+    width: 100% !important;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    color: var(--text) !important;
+    font-size: var(--text-base) !important;
+    line-height: 1.5 !important;
+    padding: var(--space-2) var(--space-1) !important;
+    resize: none !important;
+    max-height: 200px !important;
+    min-height: 24px !important;
+    font-family: var(--font-sans) !important;
+    overflow-y: auto !important;
+}
+
+#msg-input::placeholder {
+    color: var(--text-muted) !important;
+}
+
+/* Buttons (Attach, Mic, Send) */
+.composer-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: var(--radius-full) !important;
+    border: none !important;
+    background: transparent !important;
+    color: var(--text-muted) !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    flex-shrink: 0 !important;
+}
+
+.composer-btn:hover {
+    background: var(--bg-hover) !important;
+    color: var(--text) !important;
+}
+
+.composer-btn:active {
+    transform: scale(0.95) !important;
+}
+
+/* The Send Button (Solid White) */
+.composer-btn.send-btn {
+    background: var(--accent) !important;
+    color: var(--accent-text) !important;
+    width: 32px !important;
+    height: 32px !important;
+    margin-bottom: 2px !important; /* Slight alignment fix */
+}
+
+.composer-btn.send-btn:hover {
+    background: var(--text-secondary) !important;
+    color: var(--bg) !important;
+}
+
+.composer-btn.send-btn:disabled {
+    background: var(--bg-hover) !important;
+    color: var(--text-muted) !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+}
+
+/* Hide the old attachment button, we will add a better one later */
+.composer-btn.attach-btn {
+    display: none !important; 
+}
+
+/* The disclaimer text at the bottom */
+.input-disclaimer {
+    text-align: center !important;
+    font-size: 11px !important;
+    color: var(--text-muted) !important;
+    margin-top: var(--space-2) !important;
+    font-weight: 500 !important;
+}
