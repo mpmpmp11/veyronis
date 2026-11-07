@@ -36,7 +36,23 @@ from database import (
     increment_upload_count,
     get_archived_conversations, archive_conversation, unarchive_conversation, delete_old_attachments, save_report, get_reports, review_report, save_message_feedback, save_general_feedback
 )
-
+from app.dependencies import get_current_user_required, get_current_user_optional, get_current_user_from_token_or_query
+# Import shared dependencies
+from app.dependencies import (
+    get_current_user_required,
+    get_current_user_optional,
+    get_current_user_from_token_or_query,
+    decode_token
+)
+# Import auth helpers for the remaining routes in api.py
+from app.routers.auth import (
+    get_password_hash,
+    verify_password,
+    create_access_token,
+    LoginRequest,
+    RegisterRequest,
+    TokenResponse
+)
 from usage_cache import usage_cache
 from settings import Config
 import base64
@@ -95,88 +111,15 @@ SECRET_KEY = Config.JWT_SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
 
-def verify_password(plain: str, hashed: str) -> bool:
-    pwd_hash = hashlib.sha256(plain.encode()).hexdigest()
-    return bcrypt.checkpw(pwd_hash.encode("utf-8"), hashed.encode("utf-8"))
-
-def get_password_hash(password: str) -> str:
-    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
-    return bcrypt.hashpw(pwd_hash.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
-
-def create_access_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-def decode_token(token: str):
-    try:
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError:
-        return None
-
-def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme)):
-    if token is None:
-        return None
-    payload = decode_token(token)
-    if payload is None:
-        return None
-    user_id = payload.get("sub")
-    if user_id is None:
-        return None
-    user = get_user_by_id(int(user_id))
-    if user is None:
-        return None
-    return {"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])}
-
-def get_current_user_required(token: str = Depends(oauth2_scheme)):
-    if token is None:
-        raise HTTPException(401, detail="🔒 Please log in to continue.")
-    payload = decode_token(token)
-    if payload is None:
-        raise HTTPException(401, detail="🔒 Invalid session. Please log in again.")
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise HTTPException(401, detail="🔒 Invalid session. Please log in again.")
-    user = get_user_by_id(int(user_id))
-    if user is None:
-        raise HTTPException(401, detail="🔒 User not found. Please log in again.")
-    if user.get("is_banned", False):
-        raise HTTPException(403, detail="🚫 Your account has been banned. Contact support.")
-    return {"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])}
-
-async def get_current_user_from_token_or_query(
-    request: Request,
-    token: Optional[str] = None
-):
-    """Get current user from either Authorization header or query parameter 'token'."""
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-    if not token:
-        token = request.query_params.get("token")
-    if not token:
-        raise HTTPException(401, detail="Missing authentication token")
-    payload = decode_token(token)
-    if not payload:
-        raise HTTPException(401, detail="Invalid token")
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(401, detail="Invalid token")
-    user = get_user_by_id(int(user_id))
-    if not user:
-        raise HTTPException(401, detail="User not found")
-    if user.get("is_banned", False):
-        raise HTTPException(403, detail="Account banned")
-    return {"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"])}
 
 # ─── PATH SETUP ───
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = BASE_DIR / "frontend"
 
 app = FastAPI(title="VEYRONIS API")
+from app.routers import auth
+app.include_router(auth.router)
 
 from fastapi.responses import JSONResponse, FileResponse
 
@@ -373,145 +316,7 @@ class NewConversationRequest(BaseModel):
 class RenameRequest(BaseModel):
     title: str
 
-class RegisterRequest(BaseModel):
-    email: str
-    password: str
 
-class LoginRequest(BaseModel):
-    email: str
-    password: str
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str
-    user: dict
-
-# ─── AUTH ENDPOINTS ───
-
-@app.post("/register")
-async def register(req: RegisterRequest, request: Request):
-    client_ip = request.client.host
-    if not _check_rate_limit(client_ip, max_requests=3, window_seconds=300):
-        raise HTTPException(429, detail="⏳ Too many registration attempts. Please try again later.")
-
-    try:
-        if "@" not in req.email or "." not in req.email:
-            raise HTTPException(400, detail="📧 Please enter a valid email address.")
-        if len(req.password) < 6:
-            raise HTTPException(400, detail="🔑 Password must be at least 6 characters.")
-        existing = get_user_by_email(req.email)
-        if existing:
-            raise HTTPException(400, detail="📧 This email is already registered. Please log in instead.")
-        hashed = get_password_hash(req.password)
-        user_id = create_user(req.email, hashed)
-        token = create_access_token({"sub": str(user_id)})
-
-        if Config.email_ready():
-            verification_token = secrets.token_urlsafe(32)
-            expires = datetime.utcnow() + timedelta(hours=24)
-            set_verification_token(req.email, verification_token, expires)
-            base_url = Config.APP_BASE_URL
-            success = send_verification_email(req.email, verification_token, base_url)
-            if not success:
-                print(f"[VEYRONIS] Verification email failed to send for {req.email}")
-
-        user = get_user_by_id(user_id)
-        return TokenResponse(
-            access_token=token,
-            token_type="bearer",
-            user={"id": user_id, "email": req.email, "is_pro": False, "display_id": user.get("display_id") if user else None, "full_name": user.get("full_name") if user else None}
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[REGISTER ERROR] {e}")
-        traceback.print_exc()
-        raise HTTPException(500, detail="😕 Registration failed. Please try again.")
-
-@app.post("/login")
-async def login(req: LoginRequest, request: Request):
-    client_ip = request.client.host
-    if not _check_rate_limit(client_ip, max_requests=5, window_seconds=60):
-        raise HTTPException(429, detail="⏳ Too many login attempts. Please try again later.")
-
-    try:
-        user = get_user_by_email(req.email)
-        if not user:
-            raise HTTPException(400, detail="🔐 Invalid email or password.")
-        if not verify_password(req.password, user["hashed_password"]):
-            raise HTTPException(400, detail="🔐 Invalid email or password.")
-        if user.get("is_banned", False):
-            raise HTTPException(403, detail="🚫 Your account has been banned. Contact support.")
-        token = create_access_token({"sub": str(user["id"])})
-        return TokenResponse(
-            access_token=token,
-            token_type="bearer",
-            user={"id": user["id"], "email": user["email"], "is_pro": bool(user["is_pro"]), "display_id": user.get("display_id"), "full_name": user.get("full_name")}
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[LOGIN ERROR] {e}")
-        traceback.print_exc()
-        raise HTTPException(500, detail="😕 Login failed. Please try again.")
-    
-@app.get("/me")
-async def get_me(current_user: dict = Depends(get_current_user_required)):
-    try:
-        user = get_user_by_id(current_user["id"])
-        today = str(date.today())
-        usage = usage_cache.get(current_user["email"]) if not user["is_pro"] else None
-        remaining = max(0, 20 - usage) if usage is not None else None
-
-        from datetime import datetime as dt, timedelta
-        now = dt.utcnow()
-        tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        reset_at_iso = tomorrow.isoformat() + "Z"
-
-        upload_counts = {"images": 0, "docs": 0}
-        if not user["is_pro"]:
-            upload_counts = get_upload_counts(current_user["email"], today)
-
-        return JSONResponse(
-            content={
-                "user": {
-                    "id": user["id"],
-        
-                "email": user["email"],
-                "is_pro": bool(user["is_pro"]),
-                "avatar_url": user.get("avatar_url"),
-                "usage": usage,
-                "remaining": remaining,
-                "is_verified": bool(user.get("is_verified", False)),
-                "display_id": user.get("display_id"),
-                "full_name": user.get("full_name"),
-                "reset_at": reset_at_iso,
-                "uploads_today": upload_counts,
-            }
-        },
-        headers={"Cache-Control": "no-store, no-cache, must-revalidate"}        
-)
-    except Exception as e:
-        print(f"[ME ERROR] {e}")
-        raise HTTPException(500, detail="😕 Could not retrieve user info. Please try again.")
-
-@app.post("/upgrade")
-async def upgrade_to_pro(current_user: dict = Depends(get_current_user_required)):
-    try:
-        set_user_pro(current_user["id"], True)
-        return {"message": "✅ Upgraded to PRO", "is_pro": True}
-    except Exception as e:
-        print(f"[UPGRADE ERROR] {e}")
-        raise HTTPException(500, detail="😕 Upgrade failed. Please try again.")
-
-# ─── ACCOUNT DELETION ───
-@app.delete("/account")
-async def delete_account(current_user: dict = Depends(get_current_user_required)):
-    user_id = current_user["id"]
-    success = delete_user(user_id)
-    if not success:
-        raise HTTPException(500, detail="😕 Failed to delete account. Please try again.")
-    return {"message": "🗑️ Account deleted successfully"}
 
 # ─── FORGOT PASSWORD ───
 
