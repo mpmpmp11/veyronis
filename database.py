@@ -287,6 +287,28 @@ def init_db():
                     PRIMARY KEY (user_id, subject, concept)
                 )
             """)
+
+            # Rooms (Classrooms) Tables
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS rooms (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT REFERENCES users(email) ON DELETE CASCADE,
+                    name TEXT NOT NULL,
+                    subject TEXT NOT NULL,
+                    goal TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS room_messages (
+                    id BIGSERIAL PRIMARY KEY,
+                    room_id INT REFERENCES rooms(id) ON DELETE CASCADE,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             
             # Simulation logs table
             cur.execute("""
@@ -953,6 +975,43 @@ def update_mastery(user_id: str, subject: str, concept: str, is_correct: bool):
                     VALUES (%s, %s, %s, %s)
                 """, (user_id, subject, concept, new_mastery))
         conn.commit()
+
+
+# ─── ROOM QUERIES ───
+
+def create_room(user_id: str, name: str, subject: str, goal: str) -> int:
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO rooms (user_id, name, subject, goal)
+                VALUES (%s, %s, %s, %s) RETURNING id
+            """, (user_id, name, subject, goal))
+            room_id = cur.fetchone()["id"]
+        conn.commit()
+    return room_id
+
+def get_user_rooms(user_id: str) -> list:
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, name, subject, created_at FROM rooms WHERE user_id = %s ORDER BY created_at DESC", (user_id,))
+            rows = cur.fetchall()
+    return [dict(r) for r in rows]
+
+def save_room_message(room_id: int, role: str, content: str):
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO room_messages (room_id, role, content)
+                VALUES (%s, %s, %s)
+            """, (room_id, role, content))
+        conn.commit()
+
+def get_room_history(room_id: int) -> list:
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT role, content FROM room_messages WHERE room_id = %s ORDER BY id ASC", (room_id,))
+            rows = cur.fetchall()
+    return [{"role": r["role"], "content": r["content"]} for r in rows]
 
 # ─── INIT ───
 init_db()

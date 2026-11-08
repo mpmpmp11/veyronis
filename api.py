@@ -124,6 +124,9 @@ app.include_router(auth.router)
 from app.routers import chat
 app.include_router(chat.router)
 
+from app.routers import rooms
+app.include_router(rooms.router)
+
 from app.routers import tutor
 app.include_router(tutor.router)
 
