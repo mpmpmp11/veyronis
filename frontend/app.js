@@ -4482,3 +4482,47 @@ document.addEventListener('DOMContentLoaded', () => {
         if (lpTriggered) { e.preventDefault(); lpTriggered = false; }
     }, { passive: false });
 });
+
+// ═══════════════════════════════════════════════════════
+// ICON RAIL LOGIC & SIDEBAR SWAPPING
+// ═══════════════════════════════════════════════════════
+function switchRailMode(mode) {
+    // 1. Update active state on rail buttons
+    document.querySelectorAll('.rail-btn').forEach(btn => btn.classList.remove('active'));
+    const activeBtn = document.querySelector(`.rail-btn[data-mode="${mode}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    // 2. Hide all views
+    const chatsView = document.getElementById('sidebar-chats-view');
+    const tutorView = document.getElementById('sidebar-tutor-view');
+    const roomsView = document.getElementById('sidebar-rooms-view');
+    
+    if (chatsView) chatsView.classList.add('hidden');
+    if (tutorView) tutorView.classList.add('hidden');
+    if (roomsView) roomsView.classList.add('hidden');
+
+    // 3. Show the selected view & update the bottom button text
+    const btnText = document.getElementById('sidebar-action-btn-text');
+    
+    if (mode === 'chats') {
+        if (chatsView) chatsView.classList.remove('hidden');
+        if (btnText) btnText.textContent = 'New Chat';
+        toast('💬 Switched to Chats', 'info');
+    } 
+    else if (mode === 'tutor') {
+        if (tutorView) tutorView.classList.remove('hidden');
+        if (btnText) btnText.textContent = 'New Tutor Session';
+        toast('🎓 Switched to Tutor Mode', 'info');
+    } 
+    else if (mode === 'rooms') {
+        if (roomsView) roomsView.classList.remove('hidden');
+        if (btnText) btnText.textContent = 'Create Room';
+        toast('🏫 Switched to Rooms', 'info');
+    }
+
+    // 4. Ensure the sidebar is open when switching modes
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar && window.innerWidth < 768) {
+        sidebar.classList.add('open');
+    }
+}

@@ -288,6 +288,20 @@ def init_db():
                 )
             """)
 
+            # Usage Events (Cost Tracking)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS usage_events (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id TEXT REFERENCES users(email) ON DELETE CASCADE,
+                    provider TEXT NOT NULL,
+                    task_type TEXT NOT NULL,
+                    tokens_in INT DEFAULT 0,
+                    tokens_out INT DEFAULT 0,
+                    cost_cents NUMERIC(10, 4),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             # Rooms (Classrooms) Tables
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS rooms (
@@ -1012,6 +1026,39 @@ def get_room_history(room_id: int) -> list:
             cur.execute("SELECT role, content FROM room_messages WHERE room_id = %s ORDER BY id ASC", (room_id,))
             rows = cur.fetchall()
     return [{"role": r["role"], "content": r["content"]} for r in rows]
+
+
+def log_usage(user_id: str, provider: str, task_type: str, tokens_in: int, tokens_out: int, cost_cents: float):
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO usage_events (user_id, provider, task_type, tokens_in, tokens_out, cost_cents)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (user_id, provider, task_type, tokens_in, tokens_out, cost_cents))
+        conn.commit()
+
+def create_room(user_id: str, name: str, subject: str, goal: str) -> int:
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO rooms (user_id, name, subject, goal) VALUES (%s, %s, %s, %s) RETURNING id", (user_id, name, subject, goal))
+            room_id = cur.fetchone()["id"]
+        conn.commit()
+    return room_id
+        
+
+def get_weakest_concepts(user_id: str, limit: int = 3) -> list:
+    """Get the concepts with the lowest mastery for the daily warmup."""
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT subject, concept, mastery 
+                FROM student_concepts 
+                WHERE user_id = %s AND mastery < 0.8
+                ORDER BY mastery ASC 
+                LIMIT %s
+            """, (user_id, limit))
+            rows = cur.fetchall()
+    return [dict(r) for r in rows]
 
 # ─── INIT ───
 init_db()

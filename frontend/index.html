@@ -10,7 +10,7 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%238b5cf6'/%3E%3Ctext x='50' y='68' font-size='50' text-anchor='middle' fill='white' font-weight='bold'%3EV%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="/static/manifest.json">
     <link rel="stylesheet" href="/static/src/tokens.css?v=1.0">
-    <link rel="stylesheet" href="/static/style.css?v=7.1">
+    <link rel="stylesheet" href="/static/style.css?v=7.2">
     <link rel="preload" as="image" href="/static/icons/call.png">
 <link rel="preload" as="image" href="/static/icons/send.png">
 <link rel="preload" as="image" href="/static/assets/stop-gen-icon.png">
@@ -161,6 +161,17 @@
     MAIN APP
     ============================================================ -->
     <div id="app" class="hidden">
+    <!-- ═══ NEW: ICON RAIL ═══ -->
+    <nav class="icon-rail" id="icon-rail">
+        <div class="rail-top">
+            <button class="rail-btn active" data-mode="chats" onclick="switchRailMode('chats')" title="Chats">💬</button>
+            <button class="rail-btn" data-mode="tutor" onclick="switchRailMode('tutor')" title="Tutor Mode">🎓</button>
+            <button class="rail-btn" data-mode="rooms" onclick="switchRailMode('rooms')" title="Rooms">🏫</button>
+        </div>
+        <div class="rail-bottom">
+            <button class="rail-btn" onclick="openSettingsPanel()" title="Settings">⚙️</button>
+        </div>
+    </nav>
         <div id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
     <!-- SIDEBAR -->
@@ -198,6 +209,9 @@
     <div class="sidebar-divider"></div>
 
     <div class="sidebar-scroll">
+    
+    <!-- ═══ CHATS VIEW (Default) ═══ -->
+    <div id="sidebar-chats-view">
         <div class="sidebar-section">Today</div>
         <div id="conv-list-today" class="conv-list"></div>
         <div class="sidebar-section">Yesterday</div>
@@ -211,6 +225,23 @@
         <div id="archived-list" class="conv-list" style="display: none;"></div>
     </div>
 
+    <!-- ═══ TUTOR VIEW (Hidden by default) ═══ -->
+    <div id="sidebar-tutor-view" class="hidden">
+        <div class="sidebar-section">Active Sessions</div>
+        <div class="conv-item" style="opacity: 0.7;">🎓 Algebra 101 (45%)</div>
+        <div class="sidebar-section">Completed</div>
+        <div class="conv-item" style="opacity: 0.5;">🎓 Physics Kinematics</div>
+    </div>
+
+    <!-- ═══ ROOMS VIEW (Hidden by default) ═══ -->
+    <div id="sidebar-rooms-view" class="hidden">
+        <div class="sidebar-section">My Classrooms</div>
+        <div class="conv-item" style="opacity: 0.7;">🏫 AP Biology - Final Exam</div>
+        <div class="conv-item" style="opacity: 0.7;">🏫 History Project</div>
+    </div>
+
+</div>
+
     <!-- NEW CHAT PILL AT BOTTOM -->
     <div class="sidebar-bottom-pill-wrap">
         <button class="sidebar-new-chat-pill" onclick="newChat()">
@@ -218,7 +249,7 @@
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
-            <span>New Chat</span>
+             <span id="sidebar-action-btn-text">New Chat</span>
         </button>
     </div>
 </aside>
@@ -1509,7 +1540,7 @@
         </div>
     </div>
     <script src="/static/image-gen.js?v=1.0"></script>
-    <script src="/static/app.js?v=6.9"></script>
+    <script src="/static/app.js?v=7.0"></script>
     <script src="/static/voice-mode.js?v=5.2"></script>
     <script src="/static/voice-orb.js?v=5.2"></script>
 </body>

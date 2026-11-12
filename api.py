@@ -130,6 +130,9 @@ app.include_router(rooms.router)
 from app.routers import tutor
 app.include_router(tutor.router)
 
+from app.routers import warmup
+app.include_router(warmup.router)
+
 from fastapi.responses import JSONResponse, FileResponse
 
 @app.exception_handler(404)

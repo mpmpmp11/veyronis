@@ -10744,67 +10744,405 @@ body.sidebar-open .input-shell {
     display: none !important;
 }
 /* ═══════════════════════════════════════════════════════
-   PHASE 2: THE INPUT COMPOSER (ChatGPT Style)
+   PHASE 2: UNIQUE VEYRONIS COMPOSER (Claude/Gemini Style)
    ═══════════════════════════════════════════════════════ */
 
-/* The outer wrapper that holds the composer at the bottom */
+/* Outer wrapper */
 .input-shell {
     background: linear-gradient(to top, var(--bg) 70%, transparent) !important;
     padding: var(--space-4) var(--space-4) var(--space-6) !important;
     pointer-events: none;
 }
 
-/* The actual box */
+/* The main capsule */
 .input-glass {
     max-width: 800px !important;
     margin: 0 auto !important;
-    background: var(--bg-elevated) !important;
-    border: 1px solid var(--border-strong) !important;
-    border-radius: var(--radius-xl) !important;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2) !important;
-    padding: var(--space-2) var(--space-3) !important;
+    background: #1e1e1e !important; /* Slightly lighter than the chat background */
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 24px !important; /* Smooth, modern pill */
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important; 
+    padding: 8px 12px 12px 12px !important;
     backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
     display: flex !important;
     flex-direction: column !important;
-    gap: var(--space-2) !important;
     pointer-events: auto;
 }
 
 .input-glass:focus-within {
-    border-color: var(--text-muted) !important;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3) !important;
+    border-color: rgba(139, 92, 246, 0.5) !important; /* Veyronis Purple glow on focus */
 }
 
-/* The row with the textarea and buttons */
+/* The actual input row */
 .input-composer {
     display: flex !important;
-    align-items: flex-end !important; /* Aligns buttons to bottom if text wraps */
-    gap: var(--space-2) !important;
+    align-items: flex-end !important; /* Aligns buttons to the bottom */
+    gap: 8px !important;
     width: 100% !important;
 }
 
+/* Wrapper for textarea */
 .composer-input-wrap {
     flex: 1 !important;
     min-width: 0 !important;
     display: flex !important;
     align-items: center !important;
+    padding-bottom: 4px !important; /* Fixes text alignment */
 }
 
-/* The textarea itself */
+/* The textarea */
 #msg-input {
     width: 100% !important;
     background: transparent !important;
     border: none !important;
     outline: none !important;
-    color: var(--text) !important;
-    font-size: var(--text-base) !important;
+    color: #ffffff !important; 
+    font-size: 16px !important;
+    font-family: var(--font-sans) !important;
     line-height: 1.5 !important;
-    padding: var(--space-2) var(--space-1) !important;
+    padding: 10px 4px !important;
+    resize: none !important;
+    max-height: 200px !important;
+    min-height: 44px !important; /* Matches button height */
+    overflow-y: auto !important;
+}
+
+#msg-input::placeholder {
+    color: #888888 !important;
+}
+
+/* THE SVG FIX: Force perfect alignment */
+.composer-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 36px !important;
+    height: 36px !important;
+    padding: 0 !important; /* Removes any default button padding */
+    border-radius: 50% !important;
+    border: none !important;
+    background: transparent !important;
+    color: #888888 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    flex-shrink: 0 !important;
+    margin-bottom: 4px !important; /* Aligns with the text baseline */
+}
+
+.composer-btn svg {
+    width: 20px !important;
+    height: 20px !important;
+    margin: 0 !important; /* Forces SVG to center */
+}
+
+.composer-btn:hover {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: #ffffff !important;
+}
+
+/* The Unique Veyronis Send Button (Purple) */
+.composer-btn.send-btn {
+    background: #8b5cf6 !important; /* Veyronis Purple */
+    color: #ffffff !important;
+    box-shadow: 0 2px 12px rgba(139, 92, 246, 0.4) !important;
+}
+
+.composer-btn.send-btn:hover {
+    background: #7c3aed !important; /* Darker purple on hover */
+    transform: translateY(-1px) !important;
+}
+
+.composer-btn.send-btn:disabled {
+    background: #333333 !important;
+    color: #666666 !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+}
+
+/* Hide the old attach button for now */
+.composer-btn.attach-btn {
+    display: none !important;
+}
+
+/* Disclaimer */
+.input-disclaimer {
+    text-align: center !important;
+    font-size: 11px !important;
+    color: #666666 !important;
+    margin-top: 8px !important;
+}
+/* ═══════════════════════════════════════════════════════
+   PHASE 2: EMPTY STATE (Deep Research Spec)
+   ═══════════════════════════════════════════════════════ */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    max-width: 800px;
+    margin: 12vh auto 0 auto;
+    padding: 0 var(--space-4);
+}
+
+.empty-title {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: var(--space-2);
+    letter-spacing: -0.5px;
+}
+
+.empty-subtitle {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-8);
+}
+
+.suggestion-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+    width: 100%;
+}
+
+.suggestion-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s ease;
+}
+
+.suggestion-card:hover {
+    background: var(--bg-surface-hover);
+    border-color: var(--border-strong);
+}
+
+.suggestion-icon {
+    font-size: 20px;
+}
+
+.suggestion-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.suggestion-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+}
+
+.suggestion-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+/* ═══════════════════════════════════════════════════════
+   PHASE 2: CHAT MESSAGES (Deep Research Spec)
+   ═══════════════════════════════════════════════════════ */
+
+#messages {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-4) 150px var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+/* 1. USER BUBBLE (Right-aligned, dark gray) */
+.msg.user {
+    justify-content: flex-end;
+    display: flex;
+}
+
+.msg.user .msg-body {
+    max-width: 75%;
+}
+
+.msg.user .msg-bubble {
+    background: var(--bg-surface) !important;
+    color: var(--text) !important;
+    border: none !important;
+    border-radius: var(--radius-lg) !important;
+    border-bottom-right-radius: 4px !important;
+    padding: var(--space-3) var(--space-4) !important;
+    font-size: 15px !important;
+    line-height: 1.5 !important;
+    box-shadow: none !important;
+}
+
+/* 2. AI MESSAGE (Left-aligned, no bubble) */
+.msg.ai {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.msg.ai .msg-body {
+    max-width: 100%;
+    width: 100%;
+}
+
+.msg.ai .msg-text {
+    color: var(--text) !important;
+    font-size: 15px !important;
+    line-height: 1.6 !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+}
+
+/* 3. MESSAGE ACTIONS (Hidden until hover) */
+.msg-actions {
+    display: flex;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.msg:hover .msg-actions {
+    opacity: 1;
+}
+
+.msg-action-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.msg-action-btn:hover {
+    background: var(--bg-surface);
+    color: var(--text);
+}
+
+.msg-actions.bot-actions {
+    border-top: none !important;
+    padding-top: 0 !important;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   FIX: EMPTY STATE (Light/Dark Mode Compatible)
+   ═══════════════════════════════════════════════════════ */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    max-width: 800px;
+    margin: 12vh auto 0 auto;
+    padding: 0 var(--space-4);
+}
+
+.empty-title {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text) !important;
+    margin-bottom: var(--space-2);
+}
+
+.empty-subtitle {
+    font-size: 15px;
+    color: var(--text-secondary) !important;
+    margin-bottom: var(--space-8);
+}
+
+.suggestion-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+    width: 100%;
+}
+
+.suggestion-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s ease;
+}
+
+.suggestion-card:hover {
+    background: var(--bg-surface-hover) !important;
+    border-color: var(--border-strong) !important;
+}
+
+.suggestion-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text) !important;
+    margin-bottom: 2px;
+}
+
+.suggestion-desc {
+    font-size: 13px;
+    color: var(--text-secondary) !important;
+}
+/* ═══════════════════════════════════════════════════════
+   FIX: INPUT BAR (Bulletproof Layout)
+   ═══════════════════════════════════════════════════════ */
+.input-shell {
+    background: linear-gradient(to top, var(--bg) 70%, transparent) !important;
+    padding: var(--space-4) var(--space-4) var(--space-6) !important;
+    pointer-events: none;
+}
+
+.input-glass {
+    max-width: 800px !important;
+    margin: 0 auto !important;
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border-strong) !important;
+    border-radius: var(--radius-xl) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4) !important;
+    backdrop-filter: none !important;
+    display: flex !important;
+    align-items: flex-end !important; /* Aligns to bottom */
+    pointer-events: auto;
+    position: relative;
+}
+
+.input-glass:focus-within {
+    border-color: var(--text-muted) !important;
+}
+
+#msg-input {
+    width: 100% !important;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    color: var(--text) !important; 
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+    padding: 10px 0 !important; /* No side padding, it's on the wrapper */
+    padding-right: 80px !important; /* Space for the buttons */
     resize: none !important;
     max-height: 200px !important;
     min-height: 24px !important;
-    font-family: var(--font-sans) !important;
     overflow-y: auto !important;
 }
 
@@ -10812,62 +11150,177 @@ body.sidebar-open .input-shell {
     color: var(--text-muted) !important;
 }
 
-/* Buttons (Attach, Mic, Send) */
+/* Buttons container (floating right) */
+.input-composer {
+    display: flex !important;
+    align-items: center !important;
+    gap: var(--space-1) !important;
+    position: absolute !important;
+    right: 12px !important;
+    bottom: 8px !important; /* Anchored to bottom */
+    background: var(--bg-surface) !important; /* Hide text behind it */
+    padding-left: 8px !important;
+}
+
+/* Hide the attach button to clean up */
+.composer-btn.attach-btn {
+    display: none !important;
+}
+
 .composer-btn {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     width: 32px !important;
     height: 32px !important;
-    border-radius: var(--radius-full) !important;
+    border-radius: 50% !important;
     border: none !important;
     background: transparent !important;
     color: var(--text-muted) !important;
     cursor: pointer !important;
     transition: all 0.2s ease !important;
-    flex-shrink: 0 !important;
 }
 
 .composer-btn:hover {
-    background: var(--bg-hover) !important;
+    background: var(--bg-surface-hover) !important;
     color: var(--text) !important;
 }
 
-.composer-btn:active {
-    transform: scale(0.95) !important;
-}
-
-/* The Send Button (Solid White) */
+/* The Send/Stop Button */
 .composer-btn.send-btn {
-    background: var(--accent) !important;
-    color: var(--accent-text) !important;
-    width: 32px !important;
-    height: 32px !important;
-    margin-bottom: 2px !important; /* Slight alignment fix */
-}
-
-.composer-btn.send-btn:hover {
-    background: var(--text-secondary) !important;
+    background: var(--text) !important; /* White in dark mode, Black in light mode */
     color: var(--bg) !important;
 }
 
+.composer-btn.send-btn:hover {
+    opacity: 0.8 !important;
+}
+
 .composer-btn.send-btn:disabled {
-    background: var(--bg-hover) !important;
+    background: var(--bg-surface-hover) !important;
     color: var(--text-muted) !important;
     cursor: not-allowed !important;
-    transform: none !important;
 }
 
-/* Hide the old attachment button, we will add a better one later */
-.composer-btn.attach-btn {
-    display: none !important; 
+/* ⚠️ Fix for the stuck red Stop button */
+.composer-btn.send-btn.stop-mode {
+    background: var(--text) !important; 
+    color: var(--bg) !important;
+}
+.composer-btn.send-btn.stop-mode svg {
+    width: 14px !important;
+    height: 14px !important;
 }
 
-/* The disclaimer text at the bottom */
 .input-disclaimer {
     text-align: center !important;
     font-size: 11px !important;
     color: var(--text-muted) !important;
     margin-top: var(--space-2) !important;
-    font-weight: 500 !important;
+}
+/* ═══════════════════════════════════════════════════════
+   PHASE 2: CODEX-STYLE ICON RAIL
+   ═══════════════════════════════════════════════════════ */
+
+/* Ensure #app is a flex container that holds the rail, sidebar, and main */
+#app {
+    display: flex !important;
+    flex-direction: row !important;
+    height: 100vh !important;
+    width: 100vw !important;
+    overflow: hidden !important;
+}
+
+/* The Icon Rail */
+.icon-rail {
+    width: 60px;
+    background: #171717; /* Match main bg */
+    border-right: 1px solid var(--glass-border);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 0;
+    flex-shrink: 0;
+    z-index: 1001; /* Keep it above the mobile sidebar backdrop */
+}
+
+.rail-top, .rail-bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    width: 100%;
+}
+
+.rail-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    color: var(--text-secondary);
+}
+
+.rail-btn:hover {
+    background: var(--glass-hover);
+}
+
+.rail-btn.active {
+    background: var(--surface);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* ⚠️ Fix Sidebar Width & Z-Index */
+#sidebar {
+    width: 260px !important;
+    z-index: 1000 !important; /* Sidebar sits above rail on mobile */
+}
+
+/* On mobile, when the sidebar slides over, it should cover the rail */
+@media (max-width: 768px) {
+    #sidebar {
+        position: fixed !important;
+        left: 0;
+        top: 0;
+        bottom: 0;
+    }
+    .top-bar-floating {
+        padding-left: 70px !important; /* Prevent top bar from covering the rail */
+    }
+}
+/* ═══════════════════════════════════════════════════════
+   FIX: BOTTOM BUTTON CUT-OFF & SAFE AREAS
+   ═══════════════════════════════════════════════════════ */
+html, body {
+    height: 100dvh !important; /* Fixes mobile URL bar cutting off the bottom */
+    margin: 0;
+    overflow: hidden;
+}
+
+#app {
+    height: 100dvh !important;
+}
+
+.icon-rail {
+    height: 100dvh !important;
+    padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+}
+
+#sidebar {
+    height: 100dvh !important;
+    padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+}
+
+/* Ensure the sidebar bottom wrapper doesn't push out */
+.sidebar-bottom-pill-wrap {
+    padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+    margin-top: auto !important;
 }
