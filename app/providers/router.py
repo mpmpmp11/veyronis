@@ -12,21 +12,13 @@ class ProviderRouter:
             "openai": OpenAIProvider(),
         }
 
-    def get_provider(self, task_type: str = "chat", user_context: dict = None) -> BaseProvider:
-        user_context = user_context or {}
-        is_pro = user_context.get("is_pro", False)
+def get_provider(self, task_type: str = "chat", user_context: dict = None) -> BaseProvider:
+    user_context = user_context or {}
 
-        # 1. Free users ALWAYS get Qwen
-        if not is_pro:
-            return self.providers["qwen"]
-
-        # 2. PRO Users: Task-based routing
-        if task_type == "verify_math":
-            return self.providers.get("openai", self.providers["qwen"])
-            
-        if task_type in ["chat", "tutor", "room_chat"]:
-            return self.providers.get("deepseek", self.providers["qwen"])
-            
-        return self.providers.get("deepseek", self.providers["qwen"])
+    deepseek = self.providers.get("deepseek")
+    # Use DeepSeek if configured (client exists), else fall back to Qwen
+    if deepseek is not None and getattr(deepseek, "client", None) is not None:
+        return deepseek
+    return self.providers["qwen"]
 
 router = ProviderRouter()

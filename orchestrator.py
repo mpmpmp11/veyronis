@@ -31,6 +31,20 @@ VOICE_MODE_RULE = (
     "4. Never say 'As an AI' or 'I can help with that'.\n"
 )
 
+def get_mode_prompt(mode: str) -> str:
+    prompts = {
+        "explain": "\nMODE: EXPLAIN. Break down the concept clearly and simply, using analogies.",
+        
+        "tutor": "\nMODE: TUTOR. You are a Socratic tutor. NEVER give the final answer directly. "
+                 "Guide the student step-by-step, asking check-in questions.",
+                 
+        "drill": "\nMODE: DRILL. Rapid-fire quiz the student on the provided room notes. "
+                 "Keep questions short and evaluate their answers quickly.",
+                 
+        "reverse_tutor": "\nMODE: REVERSE TUTOR. Act like a confused classmate. "
+                         "Ask the student to explain the concept to you, and point out gaps in their logic."
+    }
+    return prompts.get(mode, "")
 
 UI_PROTOCOL = (
     "\n\nYOU HAVE GENERATIVE UI CAPABILITIES. You can create live UI elements inside the chat.\n"
@@ -586,6 +600,10 @@ class CentralOrchestrator:
         + UI_PROTOCOL ) 
         if voice_mode:
             system_prompt += VOICE_MODE_RULE
+            system_prompt += get_mode_prompt(mode)
+        if conversation_id:
+            from database import get_room_notes_by_chat
+            system_prompt += get_room_notes_by_chat(conversation_id)
         system_prompt = self._inject_personality(system_prompt, custom_instructions, response_style)
 
         user_lower = user_query.lower().strip()
@@ -647,6 +665,10 @@ class CentralOrchestrator:
         if mode == "canvas":
             history = self._get_history(user_id, user_query, conversation_id)
             system_prompt = "You are VEYRONIS Canvas, an AI that helps users create visualizations on a whiteboard."
+            system_prompt += get_mode_prompt(mode)
+            if conversation_id:
+              from database import get_room_notes_by_chat
+            system_prompt += get_room_notes_by_chat(conversation_id)
             result = self._run_canvas(user_query, system_prompt, history, model_mode)
             yield ("reasoning", result.get("reasoning", "Generating canvas..."))
             response = result["response"]

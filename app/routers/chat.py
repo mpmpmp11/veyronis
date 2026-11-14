@@ -13,13 +13,32 @@ from database import (
     save_message, get_history, clear_history, create_conversation, 
     get_conversations, rename_conversation, delete_conversation,
     get_archived_conversations, archive_conversation, unarchive_conversation,
-    get_usage_count, increment_usage
+    get_usage_count, increment_usage, get_db
 )
 from usage_cache import usage_cache
 from orchestrator import CentralOrchestrator
 from guardrails import check_input
 from hindsight_engine import HindsightEngine
 from settings import Config
+
+from database import check_daily_quota, log_usage
+
+_VALID_MODELS = {"deepseek", "openai", "gemini"}
+
+def _normalize_model(model: str) -> str:
+    if not model or model == "groq":
+        return "deepseek"
+    return model if model in _VALID_MODELS else "deepseek"
+
+def _estimate_cost_cents(provider: str, tokens_in: int, tokens_out: int) -> float:
+    rates = {
+        "deepseek": (0.14, 0.28),
+        "openai":   (0.15, 0.60),
+        "gemini":   (0.075, 0.30),
+        "qwen":     (0.80, 4.00),
+    }
+    r_in, r_out = rates.get(provider, (0.15, 0.60))
+    return ((tokens_in / 1_000_000) * r_in + (tokens_out / 1_000_000) * r_out) * 100
 
 router = APIRouter()
 orchestrator = CentralOrchestrator()
@@ -40,6 +59,9 @@ class ChatRequest(BaseModel):
     voice_mode: bool = False
     external_id: Optional[str] = None
 
+class MoveChatReq(BaseModel):
+    room_id: Optional[int] = None
+    
 class ChatResponse(BaseModel):
     response: str
     tier: str = "free"
@@ -193,6 +215,7 @@ async def chat(
     current_user: dict = Depends(get_current_user_required)
 ):
     try:
+        print(f"[GATE] /chat HIT user={current_user['email']} msg={request.message[:30]!r} ai_model={request.ai_model!r}")
         msg = request.message.strip()
         conversation_id = request.conversation_id
 
@@ -205,6 +228,14 @@ async def chat(
             usage = usage_cache.get(user_id)
             if usage >= 20:
                 raise HTTPException(429, detail="📊 You've reached your daily limit (20 messages). Upgrade to PRO for unlimited!")
+
+        # ── NEW: per-model quota check ──
+        ai_model = _normalize_model(request.ai_model)
+        allowed, used, limit = check_daily_quota(user_id, ai_model, is_pro)
+        if not allowed:
+            if limit == 0:
+                raise HTTPException(403, detail=f"🔒 {ai_model} is not available on your plan. Upgrade to PRO to unlock it.")
+            raise HTTPException(429, detail=f"📊 Daily limit reached for {ai_model} ({used}/{limit}). Upgrade to PRO for more!")
 
         if request.mode == "simulation":
             if not msg:
@@ -251,7 +282,23 @@ async def chat(
             custom_instructions=request.custom_instructions, response_style=request.response_style,
             voice_mode=request.voice_mode
         )
+
+
+                # ── NEW: cost logging ──
+        tokens_in = max(1, len(msg) // 4)
+        tokens_out = max(1, len(result["response"]) // 4)
+        print(f"[GATE] /chat ABOUT TO LOG user={user_id} model={ai_model} in={tokens_in} out={tokens_out}")
+        try:
+            log_usage(user_id, ai_model, "chat", tokens_in, tokens_out,
+                      _estimate_cost_cents(ai_model, tokens_in, tokens_out))
+            print(f"[GATE] /chat LOGGED OK for {user_id}")
+        except Exception as e:
+            print(f"[GATE FAIL] /chat {type(e).__name__}: {e}")
+            traceback.print_exc()
+
+
         save_message(user_id, "assistant", result["response"], conversation_id=conversation_id, external_id=request.external_id)
+    
         if not is_pro:
             usage_cache.increment(user_id)
         return ChatResponse(
@@ -275,6 +322,7 @@ async def chat_stream(
     current_user: dict = Depends(get_current_user_required)
 ):
     try:
+        print(f"[GATE] /chat/stream HIT user={current_user['email']} msg={request.message[:30]!r} ai_model={request.ai_model!r}")
         msg = request.message.strip()
         conversation_id = request.conversation_id
         client_ip = req.client.host
@@ -288,6 +336,17 @@ async def chat_stream(
                 async def limit_error():
                     yield f"data: {json.dumps({'type': 'error', 'content': '📊 You\'ve reached your daily limit (20 messages). Upgrade to PRO for unlimited!'})}\n\n"
                 return StreamingResponse(limit_error(), media_type="text/event-stream")
+
+        # ── NEW: per-model quota check ──
+        ai_model = _normalize_model(request.ai_model)
+        allowed, used, limit = check_daily_quota(user_id, ai_model, is_pro)
+        if not allowed:
+            err = (f"🔒 {ai_model} is not available on your plan. Upgrade to PRO."
+                   if limit == 0
+                   else f"📊 Daily limit reached for {ai_model} ({used}/{limit}).")
+            async def quota_error():
+                yield f"data: {json.dumps({'type': 'error', 'content': err})}\n\n"
+            return StreamingResponse(quota_error(), media_type="text/event-stream")
 
         has_image = request.image is not None and len(request.image) > 0
         has_text = len(msg) > 0
@@ -343,6 +402,19 @@ async def chat_stream(
                         yield f"data: {json.dumps({'type': 'error', 'content': '😕 An error occurred. Please try again.'})}\n\n"
                         return
 
+                              # ── NEW: cost logging ──
+                tokens_in = max(1, len(effective_query) // 4)
+                tokens_out = max(1, len(full_response) // 4)
+                print(f"[GATE] /chat/stream ABOUT TO LOG user={user_id} model={ai_model} in={tokens_in} out={tokens_out}")
+                try:
+                    log_usage(user_id, ai_model, "chat", tokens_in, tokens_out,
+                              _estimate_cost_cents(ai_model, tokens_in, tokens_out))
+                    print(f"[GATE] /chat/stream LOGGED OK for {user_id}")
+                except Exception as e:
+                    print(f"[GATE FAIL] /chat/stream {type(e).__name__}: {e}")
+                    traceback.print_exc()
+
+
                 new_msg_id = save_message(user_id, "assistant", full_response, conversation_id=conversation_id, external_id=request.external_id)
                 yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id, 'tier': 'pro' if is_pro else 'free', 'message_id': new_msg_id})}\n\n"
 
@@ -364,3 +436,24 @@ async def chat_stream(
         async def err_gen():
             yield f"data: {json.dumps({'type': 'error', 'content': '🔧 Service temporarily unavailable. Please try again.'})}\n\n"
         return StreamingResponse(err_gen(), media_type="text/event-stream")
+   
+@router.patch("/chats/{chat_id}/move")
+async def move_chat(chat_id: int, req: MoveChatReq, user: dict = Depends(get_current_user_required), conn = Depends(get_db)):
+    cur = conn.cursor()
+    
+    # 1. If moving to a room, verify the user owns it
+    if req.room_id is not None:
+        cur.execute("SELECT id FROM rooms WHERE id=%s AND user_id=%s", (req.room_id, user["email"]))
+        if not cur.fetchone(): 
+            raise HTTPException(404, "Room not found")
+            
+    # 2. Update the chat
+    cur.execute(
+        "UPDATE conversations SET room_id=%s WHERE id=%s AND user_id=%s RETURNING id", 
+        (req.room_id, chat_id, user["email"])
+    )
+    if not cur.fetchone(): 
+        raise HTTPException(404, "Chat not found")
+        
+    conn.commit()
+    return {"status": "moved", "room_id": req.room_id}

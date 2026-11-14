@@ -1060,5 +1060,46 @@ def get_weakest_concepts(user_id: str, limit: int = 3) -> list:
             rows = cur.fetchall()
     return [dict(r) for r in rows]
 
+def get_room_notes_by_chat(conversation_id: int) -> str:
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            # Join conversations to rooms to get the notes for this specific chat
+            cur.execute("""
+                SELECT r.notes 
+                FROM rooms r 
+                JOIN conversations c ON c.room_id = r.id 
+                WHERE c.id = %s
+            """, (conversation_id,))
+            row = cur.fetchone()
+            
+            if row and row["notes"]:
+                context = "\n\n--- ROOM CONTEXT ---\n"
+                for n in row["notes"]:
+                    context += f"[{n['title']}]: {n['content']}\n"
+                return context
+    return ""
+def check_daily_quota(user_id: str, provider: str, is_pro: bool) -> tuple[bool, int, int]:
+    """Returns (allowed, used_today, limit). limit=0 means 'not available on this tier'."""
+    with db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*) AS count
+                FROM usage_events
+                WHERE user_id = %s AND provider = %s
+                AND created_at >= CURRENT_DATE
+            """, (user_id, provider))
+            count = cur.fetchone()["count"]
+
+    limits = {
+        "free": {"deepseek": 20},
+        "pro":  {"deepseek": 100_000, "openai": 100, "gemini": 100},
+    }
+    tier = "pro" if is_pro else "free"
+    limit = limits[tier].get(provider)
+
+    if limit is None:
+        return (False, count, 0)   # model not available on this tier
+    return (count < limit, count, limit)
+
 # ─── INIT ───
 init_db()
