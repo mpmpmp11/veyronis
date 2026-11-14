@@ -1,0 +1,260 @@
+/* ═══════════════════════════════════════════════════════
+   COMPOSER — clean rewrite
+   Replaces: .input-shell, .input-glass, .input-composer,
+             .composer-btn (×11), .composer-input-wrap,
+             #msg-input (×9), .attach-pop, .attach-item,
+             .input-disclaimer, .mic-waves, .wave
+   ═══════════════════════════════════════════════════════ */
+
+.composer {
+  position: relative;
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) var(--space-6);
+}
+
+.composer__inner {
+  position: relative;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  transition: border-color 0.15s ease;
+}
+
+.composer__inner:focus-within {
+  border-color: var(--border-strong);
+}
+
+.composer__row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+/* ─── TEXTAREA ─── */
+.composer__field {
+  flex: 1;
+  min-width: 0;
+}
+
+.composer__field textarea,
+#msg-input {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  max-height: 200px;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--text);
+  overflow-y: auto;
+}
+
+.composer__field textarea::placeholder,
+#msg-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* ─── BUTTONS ─── */
+.composer__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.composer__btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.composer__btn:active {
+  transform: scale(0.96);
+}
+
+.composer__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.composer__btn svg {
+  pointer-events: none;
+}
+
+/* Mic — listening state */
+.composer__btn--mic.is-listening {
+  background: var(--danger);
+  color: var(--accent-text);
+}
+
+/* Send — primary */
+.composer__btn--send {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.composer__btn--send:hover {
+  background: var(--accent);
+  opacity: 0.9;
+  color: var(--accent-text);
+}
+
+.composer__btn--send:disabled {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+/* ─── MIC WAVES ─── */
+.composer__waves {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.composer__btn--mic.is-listening .composer__waves {
+  display: flex;
+}
+
+.composer__wave {
+  width: 2px;
+  height: 8px;
+  background: currentColor;
+  border-radius: var(--radius-full);
+  animation: composer-wave 0.9s ease-in-out infinite;
+}
+
+.composer__wave:nth-child(2) { animation-delay: 0.15s; }
+.composer__wave:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes composer-wave {
+  0%, 100% { height: 8px; }
+  50%      { height: 18px; }
+}
+
+/* ─── ATTACH POPUP ─── */
+.composer__popup {
+  position: absolute;
+  left: var(--space-3);
+  bottom: calc(100% + var(--space-2));
+  display: none;
+  flex-direction: column;
+  min-width: 160px;
+  padding: var(--space-1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 20;
+}
+
+.composer__popup.show {
+  display: flex;
+}
+
+.composer__popup-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.composer__popup-item:hover {
+  background: var(--bg-hover);
+}
+
+.composer__popup-item svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+/* ─── HINT LINE ─── */
+.composer__hint {
+  margin-top: var(--space-2);
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* ─── MOBILE ─── */
+@media (max-width: 640px) {
+  .composer {
+    padding: var(--space-2) var(--space-2) var(--space-4);
+  }
+  .composer__row {
+    padding: var(--space-2);
+    gap: var(--space-1);
+  }
+  .composer__btn {
+    width: 32px;
+    height: 32px;
+  }
+  .composer__field textarea,
+  #msg-input {
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+}
+/* ─── Layout pinning: composer at bottom, chat fills the rest ───
+   Temporary !important — needed to override existing style.css rules
+   until style.css is cleaned. Remove when we clean the layout rules. */
+#main {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100vh !important;
+  height: 100dvh !important;   /* modern mobile-safe unit */
+  overflow: hidden !important;
+}
+
+#main > #chat-scroll {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow-y: auto !important;
+}
+
+#main > .composer {
+  flex: 0 0 auto !important;
+}
+/* ─── NUCLEAR FIX: pin composer to viewport bottom ───
+   Bypasses #main layout entirely. Will be replaced when
+   style.css layout rules are cleaned in a later session. */
+.composer {
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  max-width: 820px !important;
+  margin: 0 auto !important;
+  z-index: 50 !important;
+  background: var(--bg) !important;
+  padding-bottom: max(16px, env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Chat content must not hide behind the fixed composer */
+#chat-scroll {
+  padding-bottom: 140px !important;
+}
