@@ -2677,7 +2677,7 @@ function pickModel(event, id, label) {
 // ─── ATTACH / UPLOAD ───
 function toggleAttach() {
     const pop = document.getElementById('attach-pop');
-    const btn = document.querySelector('.attach-btn');
+    const btn = document.querySelector('.attach-btn, .composer__btn--attach');
     if (pop) {
         pop.classList.toggle('open');
         if (btn) btn.classList.toggle('active', pop.classList.contains('open'));
@@ -2746,8 +2746,8 @@ function showImagePreview(filename, dataUrl) {
     preview.id = 'img-preview';
     preview.innerHTML = `<img src="${dataUrl}" alt="preview"><span>${escapeHtml(filename)}</span><button class="remove-img" onclick="removeImagePreview()">×</button>`;
         const container = document.getElementById('input-pill')
-                   || document.getElementById('input-glass')
-                   || document.querySelector('.input-shell');
+                  || document.getElementById('input-glass')
+                  || document.querySelector('.input-shell, #composer');
     if (container) container.insertBefore(preview, container.firstChild);
 }
 function removeImagePreview() {
@@ -2920,8 +2920,7 @@ function initVoice() {
             btn.classList.add('listening');
             // Replace mic SVG with Stop Square SVG
             btn.innerHTML = `
-                <span class="mic-waves" id="mic-waves">
-                    <span class="wave"></span><span class="wave"></span><span class="wave"></span>
+                <span class="mic-waves composer__waves" id="mic-waves"
                 </span>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="z-index:2; position:relative;">
                     <rect x="6" y="6" width="12" height="12" rx="2" ry="2"/>
@@ -3341,7 +3340,7 @@ function initSwipeSidebar() {
 }
 function initKeyboardHandler() {
     const input = document.getElementById('msg-input');
-    const inputShell = document.querySelector('.input-shell');
+    const inputShell = document.querySelector('.input-shell, #composer');
     const chatScroll = document.getElementById('chat-scroll');
     if (!input || !inputShell) return;
     if ('visualViewport' in window) {

@@ -1,19 +1,32 @@
 /* ═══════════════════════════════════════════════════════
-   COMPOSER — clean rewrite
-   Replaces: .input-shell, .input-glass, .input-composer,
-             .composer-btn (×11), .composer-input-wrap,
-             #msg-input (×9), .attach-pop, .attach-item,
-             .input-disclaimer, .mic-waves, .wave
+   COMPOSER — 3-state input bar
+   ───────────────────────────────────────────────────────
+   State 1: default
+   State 2: drag-drop
+   State 3: recording
    ═══════════════════════════════════════════════════════ */
 
 .composer {
-  position: relative;
-  width: 100%;
+  position: fixed !important;
+  left: 0;
+  right: 0;
+  bottom: 0;
   max-width: 820px;
   margin: 0 auto;
-  padding: var(--space-4) var(--space-4) var(--space-6);
+  padding: var(--space-4) var(--space-4) max(16px, env(safe-area-inset-bottom, 0px));
+  background: var(--bg);
+  z-index: 50;
 }
 
+#chat-scroll { padding-bottom: 180px !important; }
+
+/* ─── STATE SWITCHING ─── */
+.composer__view { display: none; }
+.composer[data-state="default"]   .composer__view--default   { display: block; }
+.composer[data-state="drop"]      .composer__view--drop      { display: block; }
+.composer[data-state="recording"] .composer__view--recording { display: block; }
+
+/* ═══ STATE 1: DEFAULT ═══ */
 .composer__inner {
   position: relative;
   background: var(--bg-elevated);
@@ -21,178 +34,156 @@
   border-radius: var(--radius-xl);
   transition: border-color 0.15s ease;
 }
+.composer__inner:focus-within { border-color: var(--border-strong); }
 
-.composer__inner:focus-within {
-  border-color: var(--border-strong);
+.composer__chips { display: none; }
+.composer__chips:not(:empty) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) 0;
 }
 
 .composer__row {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-end; /* This pins buttons to the bottom line */
   gap: var(--space-2);
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
 }
 
-/* ─── TEXTAREA ─── */
-.composer__field {
-  flex: 1;
-  min-width: 0;
-}
+.composer__field { flex: 1; min-width: 0; }
 
 .composer__field textarea,
 #msg-input {
   display: block;
   width: 100%;
-  min-height: 40px;
-  max-height: 200px;
-  padding: var(--space-2) var(--space-3);
+  height: 36px; /* matches button height */
+  max-height: 140px;
+  padding: 8px 4px; /* adjust to center text vertically */
   background: transparent;
   border: none;
   outline: none;
   resize: none;
   font-family: var(--font-sans);
   font-size: var(--text-base);
-  line-height: 1.5;
+  line-height: 1.4;
   color: var(--text);
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .composer__field textarea::placeholder,
-#msg-input::placeholder {
-  color: var(--text-muted);
-}
+#msg-input::placeholder { color: var(--text-muted); }
 
-/* ─── BUTTONS ─── */
+/* Buttons */
 .composer__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   background: transparent;
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-full);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
+.composer__btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
+.composer__btn:active:not(:disabled) { transform: scale(0.94); }
+.composer__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.composer__btn svg { pointer-events: none; }
 
-.composer__btn:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-.composer__btn:active {
-  transform: scale(0.96);
-}
-
-.composer__btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.composer__btn svg {
-  pointer-events: none;
-}
-
-/* Mic — listening state */
-.composer__btn--mic.is-listening {
-  background: var(--danger);
-  color: var(--accent-text);
-}
-
-/* Send — primary */
 .composer__btn--send {
   background: var(--accent);
   color: var(--accent-text);
+  width: 36px;
+  height: 36px;
+flex-shrink: 0;
 }
+.composer__btn--send:hover:not(:disabled) { opacity: 0.9; background: var(--accent); color: var(--accent-text); }
+.composer__btn--send.is-stop { background: var(--danger); color: #fff; }
+.composer__btn--send.is-call { background: var(--accent); color: var(--accent-text); }
 
-.composer__btn--send:hover {
-  background: var(--accent);
-  opacity: 0.9;
-  color: var(--accent-text);
-}
-
-.composer__btn--send:disabled {
-  background: var(--bg-hover);
-  color: var(--text-muted);
-}
-
-/* ─── MIC WAVES ─── */
-.composer__waves {
-  position: absolute;
-  inset: 0;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  pointer-events: none;
-}
-
-.composer__btn--mic.is-listening .composer__waves {
+/* Tool pills */
+.composer__tools {
   display: flex;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-3);
+  flex-wrap: wrap;
 }
-
-.composer__wave {
-  width: 2px;
-  height: 8px;
-  background: currentColor;
+.composer__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
   border-radius: var(--radius-full);
-  animation: composer-wave 0.9s ease-in-out infinite;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.composer__pill:hover:not(:disabled) { background: var(--bg-elevated); color: var(--text); }
+.composer__pill:disabled { opacity: 0.55; cursor: not-allowed; }
+.composer__pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
 }
 
-.composer__wave:nth-child(2) { animation-delay: 0.15s; }
-.composer__wave:nth-child(3) { animation-delay: 0.3s; }
 
-@keyframes composer-wave {
-  0%, 100% { height: 8px; }
-  50%      { height: 18px; }
-}
-
-/* ─── ATTACH POPUP ─── */
+/* Popup — horizontal pill row */
 .composer__popup {
   position: absolute;
-  left: var(--space-3);
+  left: 0;
   bottom: calc(100% + var(--space-2));
   display: none;
-  flex-direction: column;
-  min-width: 160px;
+  flex-direction: row;
+  gap: var(--space-1);
   padding: var(--space-1);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-full);
   box-shadow: var(--shadow-lg);
   z-index: 20;
+  white-space: nowrap;
 }
+.composer__popup.show,
+.composer__popup.open { display: flex; }
 
-.composer__popup.show {
-  display: flex;
-}
-
-.composer__popup-item {
-  display: flex;
+.composer__popup-pill {
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
+  height: 40px;
+  padding: 0 var(--space-4);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-full);
   color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.1s ease;
+  transition: background 0.15s ease;
+}
+.composer__popup-pill:hover { background: var(--bg-hover); }
+.composer__popup-pill svg { flex-shrink: 0; }
+.composer__popup-pill span { padding-top: 1px; }
+
+@media (max-width: 640px) {
+  .composer__popup-pill { height: 44px; padding: 0 var(--space-3); font-size: 13px; }
 }
 
-.composer__popup-item:hover {
-  background: var(--bg-hover);
-}
-
-.composer__popup-item svg {
-  flex-shrink: 0;
-  color: var(--text-secondary);
-}
-
-/* ─── HINT LINE ─── */
+/* Hint */
 .composer__hint {
   margin-top: var(--space-2);
   text-align: center;
@@ -200,61 +191,156 @@
   color: var(--text-muted);
 }
 
-/* ─── MOBILE ─── */
+/* ═══ STATE 2: DRAG-DROP ═══ */
+.composer__dropzone {
+  padding: var(--space-6) var(--space-4);
+  background: #1A1E26;
+  border: 1.5px dashed #4A5568;
+  border-radius: var(--radius-xl);
+  text-align: center;
+  animation: composer-drop-in 0.18s ease;
+}
+.composer__drop-title {
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--text);
+}
+.composer__drop-sub {
+  margin-top: 4px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.composer__drop-icons {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+.composer__drop-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: #262B36;
+  border: none;
+  border-radius: 50%;
+  color: #D1D5DB;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.composer__drop-icon:hover:not(:disabled) { background: #313846; transform: scale(1.05); }
+.composer__drop-icon:disabled { opacity: 0.35; cursor: not-allowed; }
+
+@keyframes composer-drop-in {
+  from { opacity: 0; transform: scale(0.98); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ═══ STATE 3: RECORDING ═══ */
+.composer__rec-wrap {
+  padding: var(--space-2) 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+.composer__rec-hint {
+  padding-top: var(--space-2);
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+.composer__rec-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+.composer__rec-cancel {
+  padding: var(--space-2) var(--space-4);
+  background: var(--bg-hover);
+  border: none;
+  border-radius: var(--radius-full);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.composer__rec-cancel:hover { background: var(--border-strong); }
+
+.composer__rec-center {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  justify-content: center;
+}
+.composer__rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: composer-rec-pulse 1.4s ease-in-out infinite;
+}
+.composer__rec-dot.is-paused { animation: none; opacity: 0.4; }
+.composer__rec-timer {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.composer__rec-actions { display: flex; gap: var(--space-2); }
+.composer__rec-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--bg-hover);
+  border: none;
+  border-radius: 50%;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.composer__rec-btn:hover { background: var(--border-strong); }
+.composer__rec-btn--confirm {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.composer__rec-btn--confirm:hover { opacity: 0.9; background: var(--accent); }
+
+@keyframes composer-rec-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* ═══ MOBILE ═══ */
 @media (max-width: 640px) {
-  .composer {
-    padding: var(--space-2) var(--space-2) var(--space-4);
-  }
-  .composer__row {
-    padding: var(--space-2);
-    gap: var(--space-1);
-  }
-  .composer__btn {
-    width: 32px;
-    height: 32px;
-  }
+  .composer { padding: var(--space-2) var(--space-2) max(8px, env(safe-area-inset-bottom, 0px)); }
+  .composer__row { padding: var(--space-2); gap: var(--space-1); }
+  .composer__tools { padding: 0 var(--space-2) var(--space-2); }
   .composer__field textarea,
-  #msg-input {
-    font-size: 16px; /* prevents iOS zoom on focus */
-  }
+  #msg-input { font-size: 16px; }
+  #chat-scroll { padding-bottom: 200px !important; }
 }
-/* ─── Layout pinning: composer at bottom, chat fills the rest ───
-   Temporary !important — needed to override existing style.css rules
-   until style.css is cleaned. Remove when we clean the layout rules. */
-#main {
-  display: flex !important;
-  flex-direction: column !important;
-  height: 100vh !important;
-  height: 100dvh !important;   /* modern mobile-safe unit */
-  overflow: hidden !important;
-}
-
-#main > #chat-scroll {
-  flex: 1 1 0 !important;
-  min-height: 0 !important;
-  height: auto !important;
-  overflow-y: auto !important;
-}
-
-#main > .composer {
-  flex: 0 0 auto !important;
-}
-/* ─── NUCLEAR FIX: pin composer to viewport bottom ───
-   Bypasses #main layout entirely. Will be replaced when
-   style.css layout rules are cleaned in a later session. */
+/* Keep composer height consistent across states — prevents top edge from jumping */
 .composer {
-  position: fixed !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  max-width: 820px !important;
-  margin: 0 auto !important;
-  z-index: 50 !important;
-  background: var(--bg) !important;
-  padding-bottom: max(16px, env(safe-area-inset-bottom, 0px)) !important;
+  min-height: 155px;
 }
 
-/* Chat content must not hide behind the fixed composer */
-#chat-scroll {
-  padding-bottom: 140px !important;
+.composer[data-state="recording"] {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .composer { min-height: 125px; }
 }

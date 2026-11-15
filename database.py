@@ -302,6 +302,29 @@ def init_db():
                 )
             """)
             
+
+            # Message Feedback table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS message_feedback (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    message_id BIGINT NOT NULL,
+                    is_helpful BOOLEAN NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(user_id, message_id)
+                )
+            """)
+
+            # General Feedback table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS general_feedback (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
             # Rooms (Classrooms) Tables
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS rooms (

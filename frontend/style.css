@@ -10611,3 +10611,9 @@ html, body {
     margin-top: auto !important;
 }
 }
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* Ensures equal space between all buttons */
+  margin-top: 8px;
+}
